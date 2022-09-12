@@ -7,15 +7,15 @@ import ttyio5 as ttyio
 import bbsengine5 as bbsengine
 
 def init(args=None):
-  ttyio.setvariable("menuoption", "{white}{bggray}")
-  ttyio.setvariable("menudesc", "{/all}")
-  ttyio.setvariable("menuvalue", "{/bgcolor}{green}")
-  ttyio.setvariable("promptcolor", "{/bgcolor}{lightgray}")
-  ttyio.setvariable("inputcolor", "{/bgcolor}{green}")
+#  ttyio.setvariable("menuoption", "{white}{bggray}")
+#  ttyio.setvariable("menudesc", "{/bgcolor}{white}")
+#  ttyio.setvariable("menuvalue", "{/bgcolor}{green}")
+#  ttyio.setvariable("promptcolor", "{/bgcolor}{lightgray}")
+#  ttyio.setvariable("inputcolor", "{/bgcolor}{green}")
   return
 
 def buildargs(args=None):
-    parser = argparse.ArgumentParser("empyre")
+    parser = argparse.ArgumentParser("postoffice")
     parser.add_argument("--verbose", action="store_true", dest="verbose")
     parser.add_argument("--debug", action="store_true", dest="debug")
 
@@ -37,8 +37,14 @@ def setarea(args, left, dirty=False):
     return rightbuf
   bbsengine.setarea(left, right)
 
+def getmessageflags(args, imap, msgid):
+        res = imap.fetch(msgid, '(FLAGS)')
+        flags = res.replace("\\\\", "")
+        flags = flags.split(" ")
+        return flags
+
 # @since 20220628
-def getencryptedpassword(args, plaintextpassword):
+def getencryptedpassword(args, plaintextpassword:str) -> str:
   sql = "select crypt(%s, gen_salt('md5'))" # previously 'bf' which does not work with dovecot
   dat = (plaintextpassword,)
   dbh = bbsengine.databaseconnect(args)
@@ -48,7 +54,7 @@ def getencryptedpassword(args, plaintextpassword):
   return res["crypt"]
 
 # @since 20220628 copied from bbsengine5
-def setmailboxpassword(args, memberid, plaintextpassword, address):
+def setmailboxpassword(args, memberid:int, plaintextpassword:str, address:str) -> bool:
   dbh = bbsengine.databaseconnect(args)
   cur = dbh.cursor()
   encryptedpassword = getencryptedpassword(args, plaintextpassword)
@@ -180,12 +186,12 @@ def main(args, **kwargs):
       bbsengine.title("postoffice")
       ttyio.echo("database: %s host: %s:%s" % (args.databasename, args.databasehost, args.databaseport), level="debug")
       setarea(args, "post office main menu")
-      ttyio.echo("{var:menuoption}[A]{var:menudesc}dd address")
-      ttyio.echo("{f6}{var:menuoption}[Q]{var:menudesc}uit{f6}")
+      ttyio.echo("{var:optioncolor}[A]{var:labelcolor}dd address")
+      ttyio.echo("{f6}{var:optioncolor}[Q]{var:labelcolor}uit{f6}")
       ch = ttyio.inputchar("{var:promptcolor}postoffice [AQ]: {var:inputcolor}", "AQ", "")
       if ch == "A":
         ttyio.echo("A - add address")
-        t = ttyio.inputchar("{var:promptcolor}Type {var:menuoption}[V]{var:menudesc}irtual or {var:menuoption}[M]{var:menudesc}ailbox: {var:inputcolor}", "VM", "")
+        t = ttyio.inputchar("{var:promptcolor}Type {var:optioncolor}[V]{var:labelcolor}irtual or {var:optioncolor}[M]{var:labelcolor}ailbox: {var:inputcolor}", "VM", "")
         if t == "M":
           ttyio.echo("Mailbox")
           addmailbox(args)
@@ -215,4 +221,4 @@ if __name__ == "__main__":
     except EOFError:
         ttyio.echo("{/all}{bold}EOF{/bold}")
     finally:
-        ttyio.echo("{decsc}{curpos:%d,0}{el}{decrc}{reset}{/all}" % (ttyio.getterminalheight()))
+        ttyio.echo("{decsc}{curpos:%d,0}{eraseline}{decrc}{reset}{/all}" % (ttyio.getterminalheight()))
