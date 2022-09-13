@@ -1,3 +1,0 @@
-#!/usr/bin/sh
-
-python3 -W all -m postoffice "$@"
