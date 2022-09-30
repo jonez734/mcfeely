@@ -1,1 +1,1 @@
-create or replace schema postoffice;
+create schema if not exists postoffice;
