@@ -21,7 +21,7 @@ def main(args, **kwargs):
       ttyio.echo("{var:optioncolor}[V]{var:labelcolor}irtual")
       ttyio.echo("{var:optioncolor}[M]{var:labelcolor}ailbox")
       ttyio.echo("{f6}{var:optioncolor}[Q]{var:labelcolor}uit{f6}")
-      ch = ttyio.inputchar("{var:promptcolor}postoffice [VMQ]: {var:inputcolor}", "VMQ", "")
+      ch = ttyio.inputchar("{var:promptcolor}postoffice {var:optioncolor}[VMQ]{var:promptcolor}: {var:inputcolor}", "VMQ", "")
       if ch == "V":
         ttyio.echo("Virtual")
         lib.runsubmodule(args, "virtual")
