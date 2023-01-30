@@ -2,12 +2,25 @@ import ttyio5 as ttyio
 import time
 import email
 import imaplib
+import re
+
+def getmessageflags(args, imap, msgid):
+    res, data = imap.fetch(msgid, '(FLAGS.PEEK)')
+#    ttyio.echo("data=%r type=%r" % (data, type(data)), level="debug")
+    for d in data:
+        flags = str(d)
+#        ttyio.echo("flags=%r" % (flags), level="debug")
+        match = re.search(r"b'\d{,3} \(FLAGS \((\\\\)?(.*)\)\)'", flags)
+        flags = match.group(2)
+        flags = flags.split(" ")
+#        ttyio.echo("flags=%r type=%r" % (flags, type(flags)), level="debug")
+    return flags
 
 def main(args=None):
     start = time.time()
     host = "merlin.zoidtechnologies.com"
     login = "jam@%s" % (host)
-    password = "123456"
+    password = "12345"
 
     ttyio.echo("welcome to the postoffice!")
     try:
@@ -24,7 +37,7 @@ def main(args=None):
     print("TLS started")
     #print("Total Time Taken  : {:,.2f} Seconds".format(time.time() - start))
 
-    print("Logging into mailbox...")
+    print("Logging in...")
     try:
         resp_code, response = imap.login(login, password)
     except Exception as e:
@@ -35,23 +48,37 @@ def main(args=None):
         print("unable to login")
         return
 
-    print("response=%r" % (response))
-    print("Response Code : {}".format(resp_code))
-    print("Response      : {}\n".format(response[0].decode()))
+#    print("response=%r" % (response))
+#    print("Response Code : {}".format(resp_code))
+#    print("Response      : {}\n".format(response[0].decode()))
 
-    print(imap.namespace())
+#    print(imap.namespace())
 
     imap.select()
     typ, data = imap.search(None, 'ALL')
     for num in data[0].split():
-        typ, data = imap.fetch(num, '(RFC822)')
-        ttyio.echo("data=%r" % (data[0][1]), level="debug")
+        res, data = imap.fetch(num, "(BODY.PEEK[HEADER])", criteria=imaplib.AND(seen=False), mark_seen=False, bulk=True)
+#        ttyio.echo("res=%r" % (res), level="debug")
+        if res != "OK":
+            ttyio.echo("error fetching message", level="error")
+            continue
+#        typ, data = imap.fetch(num, '(RFC822)')
+#        ttyio.echo("data=%r" % (data[0][1]), level="debug")
+#        print("message=%r" % (message))
+#        print("get_unixfrom=%r" % (message.get_unixfrom()))
+#        print("Date=%r" % (message["date"]))
+        flags = getmessageflags(None, imap, num)
+        if "$label1" not in flags:
+#            ttyio.echo("skipped")
+            continue
         message = email.message_from_bytes(data[0][1])
-        print("message=%r" % (message))
-        print("get_unixfrom=%r" % (message.get_unixfrom()))
         print("Subject=%r" % (message["subject"]))
-        print("Date=%r" % (message["date"]))
-        break
+        ttyio.echo("flags=%r" % (flags), level="debug")
+        if "Seen" in flags:
+            print("seen already")
+        if "NonJunk" in flags:
+            print("not junk")
+#        break
     #    print('Message %s\n%s\n' % (num, data[0][1]))
 
     imap.close()
