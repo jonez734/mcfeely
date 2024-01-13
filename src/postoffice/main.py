@@ -4,12 +4,12 @@ import bbsengine5 as bbsengine
 from . import lib
 
 def init(args, **kw):
-  return
+  return True
 
 def access(args, op, **kw):
   return True
 
-def main(args, **kwargs):
+def main(args, **kw):
     if args is not None and "debug" in args and args.debug is True:
         ttyio.echo("postoffice.main.100: args=%r" % (args))
 
