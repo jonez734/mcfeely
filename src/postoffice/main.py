@@ -1,5 +1,6 @@
-import ttyio5 as ttyio
-import bbsengine5 as bbsengine
+from bbsengine6 import io, util
+#import ttyio5 as ttyio
+#import bbsengine5 as bbsengine
 
 from . import lib
 
@@ -9,25 +10,30 @@ def init(args, **kw):
 def access(args, op, **kw):
   return True
 
+def buildargs(args=None, **kw):
+  return None
+
 def main(args, **kw):
     if args is not None and "debug" in args and args.debug is True:
-        ttyio.echo("postoffice.main.100: args=%r" % (args))
+        io.echo("postoffice.main.100: args=%r" % (args))
 
     loop = True
     while loop:
-      bbsengine.title("postoffice")
-      ttyio.echo("database: %s host: %s:%s" % (args.databasename, args.databasehost, args.databaseport), level="debug")
-      lib.setarea(args, "post office main menu")
-      ttyio.echo("{var:optioncolor}[V]{var:labelcolor}irtual")
-      ttyio.echo("{var:optioncolor}[M]{var:labelcolor}ailbox")
-      ttyio.echo("{f6}{var:optioncolor}[Q]{var:labelcolor}uit{f6}")
-      ch = ttyio.inputchar("{var:promptcolor}postoffice {var:optioncolor}[VMQ]{var:promptcolor}: {var:inputcolor}", "VMQ", "")
+      util.heading("postoffice")
+      io.terminal.title("terminal title")
+      io.echo(f"{{var:labelcolor}}database:{{var:valuecolor}}{args.databasename} {{var:labelcolor}}host:{{var:valuecolor}} {args.databasehost}:{args.databaseport}")
+      lib.setarea(args, "zoid postoffice main menu")
+      io.echo("{var:optioncolor}[V]{var:labelcolor} Virtual")
+      io.echo("{var:optioncolor}[M]{var:labelcolor} Mailbox")
+      io.echo("{f6}{var:optioncolor}[Q]{var:labelcolor} Quit{f6}")
+      ch = io.inputchar("{var:promptcolor}postoffice {var:optioncolor}[VMQ]{var:promptcolor}: {var:inputcolor}", "VMQX", "")
       if ch == "V":
-        ttyio.echo("Virtual")
-        lib.runsubmodule(args, "virtual")
+        io.echo("Virtual")
+        lib.runmodule(args, "virtual")
       elif ch == "M":
-        ttyio.echo("Mailboxes")
-        lib.runsubmodule(args, "mailbox")
-      elif ch == "Q":
+        io.echo("Mailboxes")
+        lib.runmodule(args, "mailbox")
+      elif ch == "Q" or ch == "X":
+        io.echo("Quit")
         loop = False
         break

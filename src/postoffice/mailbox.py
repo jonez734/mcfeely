@@ -1,3 +1,9 @@
+import copy
+
+from bbsengine6 import io, database, member, util, screen
+
+from . import lib
+    
 def _validatemailbox(mailbox):
   errors = []
   if "password" in mailbox and mailbox["password"] is None:
@@ -10,7 +16,7 @@ def _validatemailbox(mailbox):
     errors.append("memberid must not be None")
   return errors
 
-def _editmailbox(mailbox, mode="NEEDINFO"):
+def _editmailbox(args, mailbox, mode="NEEDINFO"):
   _mailbox = copy.deepcopy(mailbox)
   done = False
   while not done:
@@ -18,45 +24,49 @@ def _editmailbox(mailbox, mode="NEEDINFO"):
       dirty = True
     else:
       dirty = False
-    setarea(args, "postoffice %s mailbox" % (mode), dirty=dirty)
+    lib.setarea(args, "postoffice %s mailbox" % (mode), dirty=dirty)
     address = _mailbox["address"] if "address" in _mailbox else None
-    ttyio.echo("{var:menuoption}[A]{var:menudesc}ddress: {var:menuvalue}%s" % (address))
-    ttyio.echo("{var:menuoption}[E]{var:menudesc}nabled: {var:menuvalue}", end="")#%s" % (enabled))
+    io.echo("{var:optioncolor}[A]{var:labelcolor}ddress: {var:valuecolor}%s" % (address))
+    io.echo("{var:optioncolor}[E]{var:labelcolor}nabled: {var:valuecolor}", end="")#%s" % (enabled))
     enabled = _mailbox["enabled"] if "enabled" in _mailbox else True
     if enabled == True:
-      ttyio.echo("True", end="")
+      io.echo("True", end="")
     else:
-      ttyio.echo("False", end="")
+      io.echo("False", end="")
     if enabled != mailbox["enabled"]:
-      ttyio.echo(" {var:menudesc}(was: {var:menuvalue}%s{var:menudesc})" % (mailbox["enabled"]))
+      io.echo(" {var:labelcolor}(was: {var:valuecolor}%s{var:labelcolor})" % (mailbox["enabled"]))
     else:
-      ttyio.echo()
+      io.echo()
 
-    maillocation = _mailbox["maillocation"] if "maillocation" in _mailbox else None
-    ttyio.echo("{var:menuoption}[M]{var:menudesc}ail location: {var:menuvalue}%s" % (maillocation), end="")
+    maillocation = _mailbox["maillocation"] if "maillocation" in _mailbox else "maildir:~/Maildir"
+    io.echo("{var:optioncolor}[M]{var:labelcolor}ail location: {var:valuecolor}%s" % (maillocation), end="")
     if maillocation != mailbox["maillocation"]:
-      ttyio.echo(" {var:menudesc}(was: {var:menuvalue}%s{var:menudesc})" % (mailbox["maillocation"]))
+      io.echo(" {var:labelcolor}(was: {var:valuecolor}%s{var:labelcolor})" % (mailbox["maillocation"]))
     else:
-      ttyio.echo()
+      io.echo()
 
     memberid = _mailbox["memberid"]
-    ttyio.echo("{var:menudesc}member{var:menuoption}[I]{var:menudesc}d: {var:menuvalue}%s" % (memberid), end="")
+    io.echo("{var:labelcolor}member{var:optioncolor}[I]{var:labelcolor}d: {var:valuecolor}%s" % (memberid), end="")
     if memberid != mailbox["memberid"]:
-      ttyio.echo(" {var:menudesc}(was: {var:menuvalue}%s{var:menudesc})" % (mailbox["memberid"]))
+      io.echo(" {var:labelcolor}(was: {var:valuecolor}%s{var:labelcolor})" % (mailbox["memberid"]))
     else:
-      ttyio.echo()
+      io.echo()
 
-    ttyio.echo("{var:menuoption}[P]{var:menudesc}assword")
+    io.echo("{var:optioncolor}[P]{var:labelcolor}assword", end="")
+    if _mailbox["password"] != mailbox["password"]:
+      io.echo(" (changed)")
+    else:
+      io.echo()
 
-    ttyio.echo("{var:menuoption}[Q]{var:menudesc}uit{f6}")
-    ch = ttyio.inputchar("{var:promptcolor}%s mailbox [AEIMPQ]: {var:inputcolor}" % (mode), "AEIMPQ", "")
+    io.echo("{var:optioncolor}[Q]{var:labelcolor}uit{f6}")
+    ch = io.inputchar("{var:promptcolor}%s mailbox {var:optioncolor}[AEIMPQ]{var:promptcolor}: {var:inputcolor}" % (mode), "AEIMPQ", "")
     if ch == "Q":
-      ttyio.echo("Q")
+      io.echo("Q")
       errors = _validatemailbox(_mailbox)
       if len(errors) > 0:
         for e in errors:
-          ttyio.echo(e, level="error")
-        if ttyio.inputboolean("go back and fix it? [Yn]: ", "Y") is False:
+          io.echo(e, level="error")
+        if io.inputboolean("go back and fix it? [Yn]: ", "Y") is False:
           done = True
           break
         else:
@@ -66,49 +76,74 @@ def _editmailbox(mailbox, mode="NEEDINFO"):
         done = True
         continue
     elif ch == "A":
-      ttyio.echo("A")
-      _mailbox["address"] = ttyio.inputstring("{var:promptcolor}address: {var:inputcolor}", _mailbox["address"])
+      io.echo("A")
+      _mailbox["address"] = io.inputstring("{var:promptcolor}address: {var:inputcolor}", _mailbox["address"])
     elif ch == "E":
-      ttyio.echo("E - Enabled")
+      io.echo("E - Enabled")
       _mailbox["enabled"] = 1 - _mailbox["enabled"]
     elif ch == "M":
-      ttyio.echo("M - mail location")
-      _mailbox["maillocation"] = ttyio.inputstring("{var:promptcolor}mail location: {var:inputcolor}", _mailbox["maillocation"])
+      io.echo("M - mail location")
+      _mailbox["maillocation"] = io.inputstring("{var:promptcolor}mail location: {var:inputcolor}", _mailbox["maillocation"])
     elif ch == "I":
-      ttyio.echo("I - memberId")
-      _mailbox["memberid"] = ttyio.inputinteger("{var:promptcolor}memberid: {var:inputcolor}", _mailbox["memberid"])
+      io.echo("I - memberId")
+      _mailbox["memberid"] = io.inputinteger("{var:promptcolor}memberid: {var:inputcolor}", _mailbox["memberid"])
     elif ch == "P":
-      ttyio.echo("P - password")
-      _mailbox["password"] = ttyio.inputstring("{var:promptcolor}mailbox password: {var:inputcolor}")
+      io.echo("P - password")
+      passwd = util.inputpassword("{var:promptcolor}mailbox password: {var:inputcolor}")
+      repeatpasswd = util.inputpassword("{promptcolor}repeat password: {var:inputcolor}")
+      if passwd == repeatpasswd:
+        _mailbox["password"] = passwd
+      else:
+        io.echo("passwords do not match", level="error")
+      
   return _mailbox
 
-def addmailbox(args):
+def summary(args):
+  sql = "select * from postoffice.mailbox"
+  dat = ()
+  dbh = database.connect(args)
+  cur = dbh.cursor()
+  cur.execute(sql, dat)
+  if cur.rowcount == 0:
+    io.echo("no mailboxes")
+    return
+  for rec in database.resultiter(cur):
+    io.echo("Address: %r" % (rec["address"]), end="")
+    enabled = rec["address"]
+    if enabled is False:
+      io.echo(" (disabled)")
+    else:
+      io.echo()
+
+def add(args):
   mailbox = {}
   mailbox["address"] = None
-  mailbox["maillocation"] = None
+  mailbox["maillocation"] = "maildir:~/Maildir"
   mailbox["enabled"] = True
-  mailbox["memberid"] = bbsengine.getcurrentmemberid(args)
+  mailbox["memberid"] = member.getcurrentid(args)
   mailbox["password"] = None
 
-  _mailbox = _editmailbox(mailbox, "add")
+  _mailbox = _editmailbox(args, mailbox, "add")
   if mailbox != _mailbox:
-    ch = ttyio.inputboolean("{var:promptcolor}add mailbox? [yN]: {var:inputcolor}", "N")
+    ch = io.inputboolean("{var:promptcolor}add mailbox? {var:optioncolor}[yN]{var:promptcolor}: {var:inputcolor}", "N")
     if ch is True:
       memberid = _mailbox["memberid"]
       del _mailbox["memberid"]
 
       plaintextpassword = _mailbox["password"]
       del _mailbox["password"]
-      dbh = bbsengine.databaseconnect(args)
-      address = bbsengine.insert(dbh, "postoffice.mailbox", _mailbox, primarykey="address", mogrify=True)
-      encryptedpassword = getencryptedpassword(args, plaintextpassword)
+      dbh = database.connect(args)
+      address = database.insert(args, "postoffice.mailbox", _mailbox, primarykey="address", mogrify=True)
+      encryptedpassword = util.getencryptedpassword(args, plaintextpassword)
+
       _map = {}
       _map["address"] = address
       _map["memberid"] = memberid
       _map["password"] = encryptedpassword
-      bbsengine.insert(dbh, "postoffice.map_mailbox_memberid", _map, primarykey="address", mogrify=True)
+      _map["kind"] = "inbound outbound"
+      database.insert(args, "postoffice.mailbox_password", _map, primarykey="address", mogrify=True)
       dbh.commit()
-      ttyio.echo("added.")
+      io.echo("added.")
 
 def init(args, **kw):
   return True
@@ -116,5 +151,31 @@ def init(args, **kw):
 def access(args, op, **kw):
   return True
 
+def buildargs(args=None, **kw):
+  return None
+
 def main(args, **kw):
+  loop = True
+  while loop:
+    screen.title("mailboxes")
+    lib.setarea(args, "mailboxes")
+    io.echo("{optioncolor}[S]{labelcolor} Summary")
+    io.echo("{optioncolor}[E]{labelcolor} Edit")
+    io.echo("{optioncolor}[A]{labelcolor} Add")
+    io.echo("{f6}{optioncolor}[Q]{labelcolor} Quit{f6}")
+    
+    ch = io.inputchar("{var:promptcolor}mailbox {var:optioncolor}[SEAQ]{var:promptcolor}: {var:inputcolor}", "SEAQX", "Q")
+    if ch == "S":
+      io.echo("summary")
+      summary(args)
+    elif ch == "E":
+      io.echo("edit")
+      edit(args)
+    elif ch == "A":
+      io.echo("add")
+      add(args)
+    elif ch == "Q" or ch == "X":
+      io.echo("quit")
+      loop = False
+
   return True
