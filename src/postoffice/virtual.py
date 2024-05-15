@@ -1,5 +1,4 @@
-import ttyio5 as ttyio
-import bbsengine5 as bbsengine
+from bbsengine6 import io, database, member
 
 from . import lib
 
@@ -9,37 +8,68 @@ def init(args, **kw):
 def access(args, op, **kw):
   return True
 
+def buildargs(args=None, **kw):
+  return lib.buildargs(args)
+
+class completeVirtualPattern(object):
+    def __init__(self, args, **kw):
+      self.args = args
+
+    def complete(self:object, text:str, state:int):
+      if self.args.debug is True:
+        io.echo("completeVirtualPattern.140: complete called", level="debug")
+
+      vocab = []
+      sql = "select pattern from postoffice.virtual"
+      dat = ()
+        
+      dbh = database.connect(self.args)
+
+      cur = dbh.cursor()
+      if self.args.debug is True:
+        io.echo(f"completeVirtualPattern.120: {cur.mogrify(sql, dat)=}")
+      cur.execute(sql, dat)
+
+      for rec in database.resultiter(cur):
+        vocab.append(rec["pattern"])
+
+      results = [x for x in vocab if x.startswith(text)] + [None]
+      return results[state]
+
+def inputvirtualpattern(args, prompt, oldvalue=None, **kw):
+  return io.inputstring(prompt, oldvalue, completer=completeVirtualPattern(args), completerdelims="\n, ")
+  
 def summary(args):
   sql = "select * from postoffice.virtual"
   dat = ()
-  dbh = bbsengine.databaseconnect(args)
+  dbh = database.connect(args)
   cur = dbh.cursor()
   cur.execute(sql, dat)
   if cur.rowcount == 0:
-    ttyio.echo("no virtual mailboxes")
+    io.echo("no virtual mailboxes")
     return
 
-  for rec in bbsengine.resultiter(cur):
-    ttyio.echo("%s -> %s" % (rec["pattern"], rec["result"]), end="")
+  for rec in database.resultiter(cur):
+    io.echo(f"{{var:valuecolor}}{rec['pattern']}{{var:labelcolor}} -> {{var:valuecolor}}{rec['result']}", end="")
     if rec["enabled"] is False:
-      ttyio.echo("(disabled)")
+      io.echo("(disabled)")
     else:
-      ttyio.echo()
+      io.echo()
 
 def edit(args, mogrify=True):
-  pattern = ttyio.inputstring("{var:promptcolor}pattern: {var:inputcolor}", noneok=True)
+  pattern = inputvirtualpattern(args, "{var:promptcolor}virtual pattern: {var:inputcolor}", noneok=True)
   if pattern is None:
-    ttyio.echo("aborted")
+    io.echo("aborted")
     return
 
   sql = "select * from postoffice.virtual where pattern=%s"
   dat = (pattern,)
   
-  dbh = bbsengine.databaseconnect(args)
+  dbh = database.connect(args)
   cur = dbh.cursor()
   cur.execute(sql, dat)
   if cur.rowcount == 0:
-    ttyio.echo("pattern %r not found." % (pattern), level="error")
+    io.echo(f"pattern {pattern} not found.", level="error")
     return
   res = cur.fetchone()
 
@@ -48,84 +78,83 @@ def edit(args, mogrify=True):
 #    ttyio.echo("aborted")
 #    return
 
-  result = ttyio.inputstring("result: ", res["result"])
+  result = io.inputstring("result: ", res["result"])
 
   enabled = res["enabled"]
   if enabled is True:
-    enabled = ttyio.inputboolean("{var:promptcolor}enabled? {var:optioncolor}[Yn]{var:promptcolor}: {var:inputcolor}", "Y")
+    enabled = io.inputboolean("{var:promptcolor}enabled? {var:optioncolor}[Yn]{var:promptcolor}: {var:inputcolor}", "Y")
   else:
-    enabled = ttyio.inputboolean("{var:promptcolor}enabled? {var:optioncolor}[yN]{var:promptcolor}: {var:inputcolor}", "N")
+    enabled = io.inputboolean("{var:promptcolor}enabled? {var:optioncolor}[yN]{var:promptcolor}: {var:inputcolor}", "N")
   
   virtual = {}
   virtual["dateupdated"] = "now()"
-  virtual["updatedbyid"] = bbsengine.getcurrentmemberid(args)
+  virtual["updatedbyid"] = member.getcurrentid(args)
   virtual["pattern"] = pattern
   virtual["result"] = result
   virtual["enabled"] = enabled
   
-  ttyio.echo("postoffice.virtual.edit.100: virtual=%r" % (virtual), level="debug")
-  if ttyio.inputboolean("update? [yN]: ", "N") is False:
-    ttyio.echo("aborted")
+  io.echo(f"postoffice.virtual.edit.100: {virtual=}", level="debug")
+  if io.inputboolean("{promptcolor}update? {optioncolor}[yN]{promptcolor}: {inputcolor}", "N") is False:
+    io.echo("aborted")
     return
 
-  bbsengine.update(dbh, "postoffice.virtual", pattern, virtual, primarykey="pattern")
-  dbh.commit()
-  ttyio.echo("virtual mailbox updated")
+  database.update(args, "postoffice.virtual", pattern, virtual, primarykey="pattern")
+  database.commit(args)
+  io.echo("virtual mailbox updated")
   return
   
-
 def add(args):
-  pattern = ttyio.inputstring("{var:promptcolor}pattern: {var:inputcolor}", noneok=True)
+  pattern = io.inputstring("{var:promptcolor}pattern: {var:inputcolor}", noneok=True)
   if pattern is None:
-    ttyio.echo("aborted")
+    io.echo("aborted")
     return
 
-  result =  ttyio.inputstring("{var:promptcolor}result: {var:inputcolor}", noneok=True)
+  result =  io.inputstring("{var:promptcolor}result: {var:inputcolor}", noneok=True)
   if result is None:
-    ttyio.echo("aborted")
+    io.echo("aborted")
     return
   
-  enabled = ttyio.inputboolean("{var:promptcolor}enabled? {var:optioncolor}[Yn]{var:promptcolor}: {var:inputcolor}", "Y")
+  enabled = io.inputboolean("{var:promptcolor}enabled? {var:optioncolor}[Yn]{var:promptcolor}: {var:inputcolor}", "Y")
   
-  if ttyio.inputboolean("add? [yN]: ", "N") is False:
-    ttyio.echo("aborted")
+  if io.inputboolean("{promptcolor}add? {optioncolor}[yN]{promptcolor}: {inputcolor}", "N") is False:
+    io.echo("aborted")
     return
 
   virtual = {}
   virtual["datecreated"] = "now()"
-  virtual["createdbyid"] = bbsengine.getcurrentmemberid(args)
+  virtual["createdbymoniker"] = member.getcurrentmoniker(args)
   virtual["pattern"] = pattern
   virtual["result"] = result
   virtual["enabled"] = enabled
   
-  dbh = bbsengine.databaseconnect(args)
-  id = bbsengine.insert(dbh, "postoffice.virtual", virtual, primarykey="pattern")
-  dbh.commit()
-  ttyio.echo("id=%r" % (id), level="debug")
-  ttyio.echo("virtual address added", level="ok")
+  dbh = database.connect(args)
+  id = database.insert(args, "postoffice.virtual", virtual, primarykey="pattern")
+  database.commit(args)
+  io.echo(f"{id=}", level="debug")
+  io.echo("virtual address added", level="ok")
   return
   
 def main(args, **kw):
   loop = True
   while loop:
-    bbsengine.title("virtual mailboxes")
+    io.terminal.title("virtual mailboxes")
     lib.setarea(args, "virtual mailboxes")
     
-    ttyio.echo("[A]dd")
-    ttyio.echo("[S]ummary")
-    ttyio.echo("[E]dit")
-    ttyio.echo("{f6}[Q]uit{f6}")
-    ch = ttyio.inputchar("{var:promptcolor}virtual: {var:inputcolor}", "ASEQ", "Q")
+    io.echo("{var:optioncolor}[A]{var:labelcolor} Add")
+    io.echo("{var:optioncolor}[S]{var:labelcolor} Summary")
+    io.echo("{var:optioncolor}[E]{var:labelcolor} Edit")
+    io.echo("{f6}{var:optioncolor}[Q]{var:labelcolor} Quit{f6}")
+    ch = io.inputchar("{var:promptcolor}virtual: {var:inputcolor}", "ASEQX", "Q")
     if ch == "A":
-      ttyio.echo("add")
+      io.echo("add")
       add(args)
     elif ch == "S":
-      ttyio.echo("summary")
+      io.echo("summary")
       summary(args)
     elif ch == "E":
-      ttyio.echo("edit")
+      io.echo("edit")
       edit(args)
-    elif ch == "Q":
-      ttyio.echo("quit")
+    elif ch == "Q" or ch == "X":
+      io.echo("quit")
       loop = False
   
