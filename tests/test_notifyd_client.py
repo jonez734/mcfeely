@@ -401,7 +401,6 @@ class TestFireEvent(unittest.TestCase):
                 event_data,
                 actor_moniker="alice",
                 conn=conn,
-                close_conn=False
             )
             
             self.assertTrue(result)

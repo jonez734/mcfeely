@@ -25,7 +25,7 @@ def buildargs(args, **kwargs):
 def main(args, **kwargs) -> bool:
     """Initialize postoffice schema and tables on startup."""
 
-    def _work(conn):
+    def _work(conn, pool=None):
         io.echo("running postoffice startup...")
 
         # --- schema ---
@@ -142,7 +142,7 @@ def main(args, **kwargs) -> bool:
             end="",
         )
         try:
-            imap_monitor.initialize_monitor(args, poll_interval_seconds=30)
+            imap_monitor.initialize_monitor(args, poll_interval_seconds=30, pool=pool)
             imap_monitor.start_monitor()
             io.echo("  ok  ", level="ok")
         except Exception as e:
@@ -158,5 +158,6 @@ def main(args, **kwargs) -> bool:
             io.echo("postoffice.startup.100: no pool", level="error")
             return False
         with database.connect(args, pool=pool) as conn:
-            return _work(conn)
-    return _work(conn)
+            return _work(conn, pool=pool)
+    pool = kwargs.get("pool", None)
+    return _work(conn, pool=pool)

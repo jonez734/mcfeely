@@ -76,16 +76,40 @@ def verify_claim_flag(flag: str, moniker: str, secret: Optional[str] = None) -> 
 # --- Event Configuration ---
 
 
-def is_event_enabled(args, mailbox_name: str, event_type: str, conn=None) -> bool:
+def is_event_enabled(
+    args, mailbox_name: str, event_type: str, conn=None, pool=None
+) -> bool:
     """
     Check if event is enabled for mailbox via postoffice.notification_config.
     Defaults to True if no config exists (no config = all events enabled).
+
+    Args:
+        args: bbsengine6 args object
+        mailbox_name: Mailbox name
+        event_type: Event type
+        conn: Database connection (optional, will use pool if not provided)
+        pool: Connection pool (optional)
     """
-    if conn is None:
+    if conn is None and pool is None:
+        return True
+
+    # Use provided connection or create one from pool
+    use_conn = conn
+    should_close = False
+
+    if use_conn is None and pool is not None:
+        try:
+            use_conn = database.connect(args, pool=pool)
+            should_close = True
+        except Exception as e:
+            io.echo(f"notifyd_client.is_event_enabled: connection error: {e}", level="error")
+            return True
+
+    if use_conn is None:
         return True
 
     try:
-        with database.cursor(conn) as cur:
+        with database.cursor(use_conn) as cur:
             cur.execute(
                 """
                 SELECT enable_new_message_events, enable_claimed_events,
@@ -114,6 +138,12 @@ def is_event_enabled(args, mailbox_name: str, event_type: str, conn=None) -> boo
     except Exception as e:
         io.echo(f"notifyd_client.is_event_enabled: {e}", level="error")
         return True
+    finally:
+        if should_close and use_conn:
+            try:
+                use_conn.close()
+            except Exception:
+                pass
 
 
 # --- Event Routing ---
@@ -125,6 +155,7 @@ def get_routing_rules(
     event_type: str,
     actor_moniker: Optional[str] = None,
     conn=None,
+    pool=None,
 ) -> List[Dict[str, Any]]:
     """
     Get matching routing rules for an event using SQL LIKE pattern matching.
@@ -141,11 +172,26 @@ def get_routing_rules(
     - urgency: ROUTINE, IMPORTANT, URGENT, CRITICAL
     - delivery_method: 'engine' (engine.__notify) or future: 'email', 'chat'
     """
-    if conn is None:
+    if conn is None and pool is None:
+        return []
+
+    # Use provided connection or create one from pool
+    use_conn = conn
+    should_close = False
+
+    if use_conn is None and pool is not None:
+        try:
+            use_conn = database.connect(args, pool=pool)
+            should_close = True
+        except Exception as e:
+            io.echo(f"notifyd_client.get_routing_rules: connection error: {e}", level="error")
+            return []
+
+    if use_conn is None:
         return []
 
     try:
-        with database.cursor(conn) as cur:
+        with database.cursor(use_conn) as cur:
             cur.execute(
                 """
                 SELECT recipient_moniker, notification_type, urgency, delivery_method
@@ -172,6 +218,12 @@ def get_routing_rules(
     except Exception as e:
         io.echo(f"notifyd_client.get_routing_rules: {e}", level="error")
         return []
+    finally:
+        if should_close and use_conn:
+            try:
+                use_conn.close()
+            except Exception:
+                pass
 
 
 # --- Message Rendering ---
@@ -213,7 +265,7 @@ def fire_event(
     event_data: Dict[str, Any],
     actor_moniker: Optional[str] = None,
     conn=None,
-    close_conn=False,
+    pool=None,
 ) -> bool:
     """
     Fire an event and route to recipients via engine.__notify.
@@ -224,25 +276,30 @@ def fire_event(
         event_type: Event type (message-new, message-claimed, etc.)
         event_data: Event payload (dict, will be JSON-serialized)
         actor_moniker: User who triggered event (optional)
-        conn: Database connection (optional, will create if not provided)
-        close_conn: Close connection after use (if we created it)
+        conn: Database connection (optional, will use pool if not provided)
+        pool: Connection pool (optional)
 
     Returns: True on success, False on error
     """
-    should_close = close_conn
+    # Use provided connection or create one from pool
+    use_conn = conn
+    should_close = False
 
-    # Create connection if not provided
-    if conn is None:
+    if use_conn is None and pool is not None:
         try:
-            conn = database.connect(args, dbname=args.databasename)
+            use_conn = database.connect(args, pool=pool)
             should_close = True
         except Exception as e:
-            io.echo(f"notifyd_client.fire_event.120: {e}", level="error")
+            io.echo(f"notifyd_client.fire_event: {e}", level="error")
             return False
+
+    if use_conn is None and conn is None:
+        io.echo("notifyd_client.fire_event: no connection or pool provided", level="error")
+        return False
 
     try:
         # Check if event is enabled for this mailbox
-        if not is_event_enabled(args, mailbox_name, event_type, conn=conn):
+        if not is_event_enabled(args, mailbox_name, event_type, conn=use_conn):
             if getattr(args, "debug", False):
                 io.echo(
                     f"notifyd_client.fire_event: event disabled: {mailbox_name} / {event_type}",
@@ -252,7 +309,7 @@ def fire_event(
 
         # Get routing rules
         rules = get_routing_rules(
-            args, mailbox_name, event_type, actor_moniker, conn=conn
+            args, mailbox_name, event_type, actor_moniker, conn=use_conn
         )
 
         if not rules:
@@ -271,7 +328,7 @@ def fire_event(
         for rule in rules:
             try:
                 # Insert into engine.__notify
-                with database.cursor(conn) as cur:
+                with database.cursor(use_conn) as cur:
                     cur.execute(
                         """
                         INSERT INTO engine.__notify 
@@ -303,12 +360,12 @@ def fire_event(
                 )
                 failcount += 1
 
-        conn.commit()
+        use_conn.commit()
         return failcount == 0
 
     finally:
-        if should_close and conn:
+        if should_close and use_conn:
             try:
-                conn.close()
+                use_conn.close()
             except Exception:
                 pass

@@ -175,11 +175,13 @@ class TestMonitorPollInterval(unittest.TestCase):
     def test_get_poll_interval_from_config(self):
         """Retrieve poll interval from database config."""
         args = Mock(debug=False, databasename="test_db")
-        monitor = imap_monitor.IMAPMonitor(args, poll_interval_seconds=30)
+        pool = Mock()  # Mock pool
+        monitor = imap_monitor.IMAPMonitor(args, poll_interval_seconds=30, pool=pool)
         
-        with patch('postoffice.imap_monitor.database') as mock_db:
-            mock_conn = Mock()
-            mock_db.connect.return_value = mock_conn
+        with patch("postoffice.imap_monitor.database") as mock_db:
+            mock_conn = MagicMock()
+            mock_db.connect.return_value.__enter__.return_value = mock_conn
+            mock_db.connect.return_value.__exit__.return_value = None
             
             mock_cursor = MagicMock()
             mock_cursor.fetchone.return_value = (60,)  # 60 seconds
@@ -194,20 +196,12 @@ class TestMonitorPollInterval(unittest.TestCase):
     def test_get_poll_interval_default(self):
         """Return default interval if no config found."""
         args = Mock(debug=False, databasename="test_db")
-        monitor = imap_monitor.IMAPMonitor(args, poll_interval_seconds=30)
+        # No pool provided, should return default
+        monitor = imap_monitor.IMAPMonitor(args, poll_interval_seconds=30, pool=None)
         
-        with patch('postoffice.imap_monitor.database') as mock_db:
-            mock_conn = Mock()
-            mock_db.connect.return_value = mock_conn
-            
-            mock_cursor = MagicMock()
-            mock_cursor.fetchone.return_value = None  # No config
-            mock_cursor.__enter__.return_value = mock_cursor
-            mock_db.cursor.return_value = mock_cursor
-            
-            interval = monitor._get_poll_interval("shared/unknown")
-            
-            self.assertEqual(interval, 30)  # Default
+        interval = monitor._get_poll_interval("shared/unknown")
+        
+        self.assertEqual(interval, 30)  # Default
 
 
 if __name__ == "__main__":
