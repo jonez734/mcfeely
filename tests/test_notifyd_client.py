@@ -309,6 +309,55 @@ class TestGetRoutingRules(unittest.TestCase):
             
             self.assertEqual(result[0]["notification_type"], "mcfeely-message-claimed")
 
+    def test_get_routing_rules_pattern_actor_moniker_exact(self):
+        """Match rule with exact actor_moniker."""
+        args = Mock(debug=False)
+        conn = Mock()
+        
+        rule_row = ("recipient1", "mcfeely-message-claimed", "IMPORTANT", "engine")
+        
+        with patch('postoffice.notifyd_client.database') as mock_db:
+            cursor = MagicMock()
+            cursor.fetchall.return_value = [rule_row]
+            cursor.__enter__.return_value = cursor
+            mock_db.cursor.return_value = cursor
+            
+            result = notifyd_client.get_routing_rules(
+                args,
+                "shared/support@machine1.example.com",
+                "message-claimed",
+                actor_moniker="alice",
+                conn=conn
+            )
+            
+            # Verify that the query was executed with LIKE pattern
+            call_args = cursor.execute.call_args
+            self.assertIn("LIKE actor_moniker", call_args[0][0])
+
+    def test_get_routing_rules_pattern_actor_moniker_null_matches_any(self):
+        """NULL actor_moniker in rule matches any actual actor."""
+        args = Mock(debug=False)
+        conn = Mock()
+        
+        rule_row = ("admin", "mcfeely-message-claimed", "ROUTINE", "engine")
+        
+        with patch('postoffice.notifyd_client.database') as mock_db:
+            cursor = MagicMock()
+            cursor.fetchall.return_value = [rule_row]
+            cursor.__enter__.return_value = cursor
+            mock_db.cursor.return_value = cursor
+            
+            result = notifyd_client.get_routing_rules(
+                args,
+                "shared/support@machine1.example.com",
+                "message-claimed",
+                actor_moniker="alice",
+                conn=conn
+            )
+            
+            self.assertEqual(len(result), 1)
+            self.assertEqual(result[0]["recipient_moniker"], "admin")
+
 
 class TestFireEvent(unittest.TestCase):
     """Test event firing to engine.__notify."""
