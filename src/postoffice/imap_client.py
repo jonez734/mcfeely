@@ -17,9 +17,7 @@ def claim_message(
     message_id: str = None,
     message_from: str = None,
     message_subject: str = None,
-    imap_conn=None,
-    db_conn=None,
-    pool=None,
+    **kwargs,
 ) -> bool:
     """
     Claim a message in a shared mailbox.
@@ -34,12 +32,12 @@ def claim_message(
         message_id: RFC 822 Message-ID (optional, for event data)
         message_from: Message From header (optional, for event data)
         message_subject: Message Subject header (optional, for event data)
-        imap_conn: IMAP connection (optional, will create if needed)
-        db_conn: Database connection (optional, for event firing)
-        pool: Connection pool (optional, for event firing)
+        **kwargs: Optional - imap_conn (IMAP connection), conn (DB connection), pool (connection pool)
 
     Returns: True on success, False on error
     """
+    imap_conn = kwargs.get("imap_conn")
+    db_conn = kwargs.get("conn")
     try:
         # Format the claim flag with obfuscation
         secret = notifyd_client.get_obfuscate_secret(args)
@@ -85,7 +83,7 @@ def claim_message(
             event_data,
             actor_moniker=actor_moniker,
             conn=db_conn,
-            pool=pool,
+            pool=kwargs.get("pool"),
         )
 
     except Exception as e:
@@ -98,9 +96,7 @@ def unclaim_message(
     mailbox_name: str,
     message_uid: int,
     actor_moniker: str,
-    imap_conn=None,
-    db_conn=None,
-    pool=None,
+    **kwargs,
 ) -> bool:
     """
     Unclaim a message in a shared mailbox (remove claim flag).
@@ -112,12 +108,12 @@ def unclaim_message(
         mailbox_name: Mailbox name
         message_uid: IMAP UID of message
         actor_moniker: Moniker of user unclaiming message
-        imap_conn: IMAP connection (optional)
-        db_conn: Database connection (optional)
-        pool: Connection pool (optional)
+        **kwargs: Optional - imap_conn (IMAP connection), conn (DB connection), pool (connection pool)
 
     Returns: True on success, False on error
     """
+    imap_conn = kwargs.get("imap_conn")
+    db_conn = kwargs.get("conn")
     try:
         # Format the claim flag with obfuscation
         secret = notifyd_client.get_obfuscate_secret(args)
@@ -156,7 +152,7 @@ def unclaim_message(
             event_data,
             actor_moniker=actor_moniker,
             conn=db_conn,
-            pool=pool,
+            pool=kwargs.get("pool"),
         )
 
     except Exception as e:
@@ -171,8 +167,7 @@ def fire_new_message_event(
     message_id: str,
     message_from: str,
     message_subject: str,
-    db_conn=None,
-    pool=None,
+    **kwargs,
 ) -> bool:
     """
     Fire notification for newly arrived message.
@@ -184,8 +179,7 @@ def fire_new_message_event(
         message_id: RFC 822 Message-ID
         message_from: From header
         message_subject: Subject header
-        db_conn: Database connection (optional)
-        pool: Connection pool (optional)
+        **kwargs: Optional - conn (DB connection), pool (connection pool)
 
     Returns: True on success, False on error
     """
@@ -205,8 +199,8 @@ def fire_new_message_event(
             "message-new",
             event_data,
             actor_moniker=None,
-            conn=db_conn,
-            pool=pool,
+            conn=kwargs.get("conn"),
+            pool=kwargs.get("pool"),
         )
 
     except Exception as e:
@@ -221,8 +215,7 @@ def fire_flag_changed_event(
     flag_name: str,
     added: bool,
     actor_moniker: Optional[str] = None,
-    db_conn=None,
-    pool=None,
+    **kwargs,
 ) -> bool:
     """
     Fire notification for flag change on message.
@@ -234,8 +227,7 @@ def fire_flag_changed_event(
         flag_name: Flag name (e.g., '\\Seen')
         added: True if flag was added, False if removed
         actor_moniker: User who triggered flag change (optional)
-        db_conn: Database connection (optional)
-        pool: Connection pool (optional)
+        **kwargs: Optional - conn (DB connection), pool (connection pool)
 
     Returns: True on success, False on error
     """
@@ -254,8 +246,8 @@ def fire_flag_changed_event(
             "message-flagged",
             event_data,
             actor_moniker=actor_moniker,
-            conn=db_conn,
-            pool=pool,
+            conn=kwargs.get("conn"),
+            pool=kwargs.get("pool"),
         )
 
     except Exception as e:
@@ -263,9 +255,7 @@ def fire_flag_changed_event(
         return False
 
 
-def fire_message_deleted_event(
-    args, mailbox_name: str, message_uid: int, db_conn=None, pool=None
-) -> bool:
+def fire_message_deleted_event(args, mailbox_name: str, message_uid: int, **kwargs) -> bool:
     """
     Fire notification for message deletion/expunge.
 
@@ -273,8 +263,7 @@ def fire_message_deleted_event(
         args: bbsengine6 args object
         mailbox_name: Mailbox name
         message_uid: IMAP UID
-        db_conn: Database connection (optional)
-        pool: Connection pool (optional)
+        **kwargs: Optional - conn (DB connection), pool (connection pool)
 
     Returns: True on success, False on error
     """
@@ -291,8 +280,8 @@ def fire_message_deleted_event(
             "message-deleted",
             event_data,
             actor_moniker=None,
-            conn=db_conn,
-            pool=pool,
+            conn=kwargs.get("conn"),
+            pool=kwargs.get("pool"),
         )
 
     except Exception as e:

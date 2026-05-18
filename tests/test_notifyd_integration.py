@@ -144,18 +144,15 @@ class TestClaimMessageIntegration(unittest.TestCase):
 
     def test_claim_message_payload_structure(self):
         """Test that claim_message creates proper event payload."""
-        # This tests the function signature and payload building
-        # without requiring actual IMAP/DB connections
-        
-        # Verify function exists and has correct signature
         import inspect
         sig = inspect.signature(imap_client.claim_message)
         params = list(sig.parameters.keys())
         
+        # Functions now use **kwargs pattern
         expected = [
             'args', 'mailbox_name', 'message_uid', 'actor_moniker',
             'message_id', 'message_from', 'message_subject',
-            'imap_conn', 'db_conn'
+            'kwargs'
         ]
         
         for param in expected:
@@ -167,7 +164,20 @@ class TestClaimMessageIntegration(unittest.TestCase):
         sig = inspect.signature(imap_client.unclaim_message)
         params = list(sig.parameters.keys())
         
-        expected = ['args', 'mailbox_name', 'message_uid', 'actor_moniker', 'imap_conn', 'db_conn']
+        # Functions now use **kwargs pattern
+        expected = ['args', 'mailbox_name', 'message_uid', 'actor_moniker', 'kwargs']
+        
+        for param in expected:
+            self.assertIn(param, params, f"Missing parameter: {param}")
+
+    def test_unclaim_message_payload_structure(self):
+        """Test that unclaim_message creates proper event payload."""
+        import inspect
+        sig = inspect.signature(imap_client.unclaim_message)
+        params = list(sig.parameters.keys())
+        
+        # Functions now use **kwargs pattern
+        expected = ['args', 'mailbox_name', 'message_uid', 'actor_moniker', 'kwargs']
         
         for param in expected:
             self.assertIn(param, params, f"Missing parameter: {param}")
