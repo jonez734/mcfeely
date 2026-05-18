@@ -52,15 +52,17 @@ class IMAPMonitor:
     - Graceful error handling (continue on connection errors)
     """
 
-    def __init__(self, args, poll_interval_seconds: int = 30):
+    def __init__(self, args, poll_interval_seconds: int = 30, pool=None):
         """
         Initialize monitor.
 
         Args:
             args: bbsengine6 args object
             poll_interval_seconds: Default polling interval (can be overridden per mailbox)
+            pool: Connection pool (optional)
         """
         self.args = args
+        self.pool = pool
         self.default_poll_interval = poll_interval_seconds
         self.mailbox_states: Dict[str, MailboxState] = {}
         self.running = False
@@ -275,13 +277,12 @@ class IMAPMonitor:
         """Handle message deletion."""
         try:
             # Fire message-deleted event
-            db_conn = database.connect(self.args, dbname=self.args.databasename)
-            try:
-                imap_client.fire_message_deleted_event(
-                    self.args, mailbox_name, uid, db_conn=db_conn
-                )
-            finally:
-                db_conn.close()
+            imap_client.fire_message_deleted_event(
+                self.args,
+                mailbox_name,
+                uid,
+                pool=self.pool,
+            )
 
             # Remove from state
             with self.lock:
@@ -300,9 +301,11 @@ class IMAPMonitor:
 
     def _get_poll_interval(self, mailbox_name: str) -> int:
         """Get poll interval for mailbox from config."""
+        if self.pool is None:
+            return self.default_poll_interval
+
         try:
-            conn = database.connect(self.args, dbname=self.args.databasename)
-            try:
+            with database.connect(self.args, pool=self.pool) as conn:
                 with database.cursor(conn) as cur:
                     cur.execute(
                         """
@@ -315,8 +318,6 @@ class IMAPMonitor:
                     row = cur.fetchone()
                     if row and row[0]:
                         return row[0]
-            finally:
-                conn.close()
         except Exception as e:
             io.echo(f"imap_monitor._get_poll_interval: {e}", level="error")
 
@@ -327,10 +328,18 @@ class IMAPMonitor:
 _monitor: Optional[IMAPMonitor] = None
 
 
-def initialize_monitor(args, poll_interval_seconds: int = 30) -> IMAPMonitor:
-    """Initialize global IMAP monitor."""
+def initialize_monitor(
+    args, poll_interval_seconds: int = 30, pool=None
+) -> IMAPMonitor:
+    """Initialize global IMAP monitor.
+
+    Args:
+        args: bbsengine6 args object
+        poll_interval_seconds: Default polling interval
+        pool: Connection pool (optional)
+    """
     global _monitor
-    _monitor = IMAPMonitor(args, poll_interval_seconds)
+    _monitor = IMAPMonitor(args, poll_interval_seconds, pool=pool)
     return _monitor
 
 

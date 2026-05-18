@@ -19,6 +19,7 @@ def claim_message(
     message_subject: str = None,
     imap_conn=None,
     db_conn=None,
+    pool=None,
 ) -> bool:
     """
     Claim a message in a shared mailbox.
@@ -35,6 +36,7 @@ def claim_message(
         message_subject: Message Subject header (optional, for event data)
         imap_conn: IMAP connection (optional, will create if needed)
         db_conn: Database connection (optional, for event firing)
+        pool: Connection pool (optional, for event firing)
 
     Returns: True on success, False on error
     """
@@ -83,7 +85,7 @@ def claim_message(
             event_data,
             actor_moniker=actor_moniker,
             conn=db_conn,
-            close_conn=False,
+            pool=pool,
         )
 
     except Exception as e:
@@ -98,6 +100,7 @@ def unclaim_message(
     actor_moniker: str,
     imap_conn=None,
     db_conn=None,
+    pool=None,
 ) -> bool:
     """
     Unclaim a message in a shared mailbox (remove claim flag).
@@ -111,6 +114,7 @@ def unclaim_message(
         actor_moniker: Moniker of user unclaiming message
         imap_conn: IMAP connection (optional)
         db_conn: Database connection (optional)
+        pool: Connection pool (optional)
 
     Returns: True on success, False on error
     """
@@ -152,7 +156,7 @@ def unclaim_message(
             event_data,
             actor_moniker=actor_moniker,
             conn=db_conn,
-            close_conn=False,
+            pool=pool,
         )
 
     except Exception as e:
@@ -168,6 +172,7 @@ def fire_new_message_event(
     message_from: str,
     message_subject: str,
     db_conn=None,
+    pool=None,
 ) -> bool:
     """
     Fire notification for newly arrived message.
@@ -180,6 +185,7 @@ def fire_new_message_event(
         message_from: From header
         message_subject: Subject header
         db_conn: Database connection (optional)
+        pool: Connection pool (optional)
 
     Returns: True on success, False on error
     """
@@ -200,7 +206,7 @@ def fire_new_message_event(
             event_data,
             actor_moniker=None,
             conn=db_conn,
-            close_conn=False,
+            pool=pool,
         )
 
     except Exception as e:
@@ -216,6 +222,7 @@ def fire_flag_changed_event(
     added: bool,
     actor_moniker: Optional[str] = None,
     db_conn=None,
+    pool=None,
 ) -> bool:
     """
     Fire notification for flag change on message.
@@ -228,6 +235,7 @@ def fire_flag_changed_event(
         added: True if flag was added, False if removed
         actor_moniker: User who triggered flag change (optional)
         db_conn: Database connection (optional)
+        pool: Connection pool (optional)
 
     Returns: True on success, False on error
     """
@@ -247,7 +255,7 @@ def fire_flag_changed_event(
             event_data,
             actor_moniker=actor_moniker,
             conn=db_conn,
-            close_conn=False,
+            pool=pool,
         )
 
     except Exception as e:
@@ -256,7 +264,7 @@ def fire_flag_changed_event(
 
 
 def fire_message_deleted_event(
-    args, mailbox_name: str, message_uid: int, db_conn=None
+    args, mailbox_name: str, message_uid: int, db_conn=None, pool=None
 ) -> bool:
     """
     Fire notification for message deletion/expunge.
@@ -266,6 +274,7 @@ def fire_message_deleted_event(
         mailbox_name: Mailbox name
         message_uid: IMAP UID
         db_conn: Database connection (optional)
+        pool: Connection pool (optional)
 
     Returns: True on success, False on error
     """
@@ -283,7 +292,7 @@ def fire_message_deleted_event(
             event_data,
             actor_moniker=None,
             conn=db_conn,
-            close_conn=False,
+            pool=pool,
         )
 
     except Exception as e:
