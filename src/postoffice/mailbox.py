@@ -2,7 +2,7 @@ import copy
 
 from bbsengine6 import io, database, member, util, screen
 
-from . import lib
+from . import lib, notifyd_client
     
 def _validatemailbox(mailbox):
   errors = []
@@ -144,6 +144,25 @@ def add(args):
       database.insert(args, "postoffice.mailbox_password", _map, primarykey="address", mogrify=True)
       dbh.commit()
       io.echo("added.")
+      
+      # Fire mailbox-created event
+      moniker = member.getcurrentmoniker(args)
+      event_data = {
+          "event_type": "mailbox-created",
+          "address": address,
+          "enabled": _mailbox["enabled"],
+          "maillocation": _mailbox["maillocation"],
+          "actor_moniker": moniker,
+      }
+      notifyd_client.fire_event(
+          args,
+          f"postoffice/mailbox/{address}",
+          "mailbox-created",
+          event_data,
+          actor_moniker=moniker,
+          conn=dbh,
+          close_conn=False
+      )
 
 def init(args, **kw):
   return True

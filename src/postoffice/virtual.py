@@ -1,6 +1,6 @@
 from bbsengine6 import io, database, member
 
-from . import lib
+from . import lib, notifyd_client
 
 def init(args, **kw):
   return True
