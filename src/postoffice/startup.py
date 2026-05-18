@@ -1,7 +1,10 @@
 # startup.py
 # Initializes the postoffice schema, tables, privileges, and configuration.
+# Also initializes and starts the IMAP monitoring thread for event detection.
 
 from bbsengine6 import database, io
+
+from . import imap_monitor
 
 
 def init(args, **kwargs) -> bool:
@@ -129,6 +132,20 @@ def main(args, **kwargs) -> bool:
         io.echo("  ok  ", level="ok")
 
         conn.commit()
+        
+        # --- initialize IMAP monitor ---
+        io.echo(
+            f"{{var:labelcolor}}imap_monitor{{var:labelcolor}}: ",
+            end="",
+        )
+        try:
+            monitor = imap_monitor.initialize_monitor(args, poll_interval_seconds=30)
+            imap_monitor.start_monitor()
+            io.echo("  ok  ", level="ok")
+        except Exception as e:
+            io.echo(f"fail ({e})", level="error")
+            io.echo("imap_monitor setup failed, continuing anyway", level="warn")
+        
         return True
 
     conn = kwargs.get("conn", None)
