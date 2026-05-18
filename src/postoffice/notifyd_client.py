@@ -14,6 +14,7 @@ from bbsengine6 import database, io
 
 # --- Configuration ---
 
+
 def get_obfuscate_secret(args) -> Optional[str]:
     """
     Get obfuscation secret from environment or args.
@@ -32,28 +33,25 @@ def get_obfuscate_secret(args) -> Optional[str]:
 
 # --- Cyrus Flag Operations ---
 
+
 def obfuscate_moniker(moniker: str, secret: Optional[str] = None) -> str:
     """
     Generate obfuscated flag suffix from moniker.
     Uses HMAC-SHA256(moniker, secret), truncated to 8 hex chars.
-    
+
     Returns: 8-character hex string (or plain moniker if no secret)
     """
     if not secret:
         return moniker
-    
-    h = hmac.new(
-        secret.encode("utf-8"),
-        moniker.encode("utf-8"),
-        hashlib.sha256
-    )
+
+    h = hmac.new(secret.encode("utf-8"), moniker.encode("utf-8"), hashlib.sha256)
     return h.hexdigest()[:8]
 
 
 def format_claim_flag(moniker: str, secret: Optional[str] = None) -> str:
     """
     Convert moniker to Cyrus custom claim flag name.
-    
+
     Examples:
         Plain: alice → ClaimedByAlice
         Obfuscated: alice → ClaimedBy_a3f9k2m1
@@ -77,19 +75,15 @@ def verify_claim_flag(flag: str, moniker: str, secret: Optional[str] = None) -> 
 
 # --- Event Configuration ---
 
-def is_event_enabled(
-    args,
-    mailbox_name: str,
-    event_type: str,
-    conn=None
-) -> bool:
+
+def is_event_enabled(args, mailbox_name: str, event_type: str, conn=None) -> bool:
     """
     Check if event is enabled for mailbox via postoffice.notification_config.
     Defaults to True if no config exists (no config = all events enabled).
     """
     if conn is None:
         return True
-    
+
     try:
         with database.cursor(conn) as cur:
             cur.execute(
@@ -99,14 +93,14 @@ def is_event_enabled(
                 FROM postoffice.notification_config
                 WHERE mailbox_name = %s
                 """,
-                [mailbox_name]
+                [mailbox_name],
             )
             row = cur.fetchone()
             if not row:
                 return True  # Default to enabled
-            
+
             enable_new, enable_claimed, enable_flagged, enable_deleted = row
-            
+
             if event_type == "message-new":
                 return enable_new
             elif event_type in ("message-claimed", "message-unclaimed"):
@@ -124,22 +118,23 @@ def is_event_enabled(
 
 # --- Event Routing ---
 
+
 def get_routing_rules(
     args,
     mailbox_name: str,
     event_type: str,
     actor_moniker: Optional[str] = None,
-    conn=None
+    conn=None,
 ) -> List[Dict[str, Any]]:
     """
     Get matching routing rules for an event using SQL LIKE pattern matching.
-    
+
     Matches actual mailbox name against patterns in database using SQL LIKE.
     For actor_moniker, supports:
     - Exact match (e.g., 'alice')
     - Pattern match (e.g., 'alice%' matches 'alice', 'alice_bot', etc.)
     - NULL for any actor
-    
+
     Returns list of dicts with:
     - recipient_moniker: who gets notified
     - notification_type: template type for engine.__notify
@@ -148,7 +143,7 @@ def get_routing_rules(
     """
     if conn is None:
         return []
-    
+
     try:
         with database.cursor(conn) as cur:
             cur.execute(
@@ -161,7 +156,7 @@ def get_routing_rules(
                   AND enabled = TRUE
                 ORDER BY id ASC
                 """,
-                [mailbox_name, event_type, actor_moniker]
+                [mailbox_name, event_type, actor_moniker],
             )
             rows = cur.fetchall()
             rules = []
@@ -170,7 +165,7 @@ def get_routing_rules(
                     "recipient_moniker": row[0],
                     "notification_type": row[1] or f"mcfeely-{event_type}",
                     "urgency": row[2] or "ROUTINE",
-                    "delivery_method": row[3] or "engine"
+                    "delivery_method": row[3] or "engine",
                 }
                 rules.append(rule)
             return rules
@@ -181,10 +176,9 @@ def get_routing_rules(
 
 # --- Message Rendering ---
 
+
 def render_event_message(
-    event_type: str,
-    actor_moniker: Optional[str],
-    event_data: Dict[str, Any]
+    event_type: str, actor_moniker: Optional[str], event_data: Dict[str, Any]
 ) -> str:
     """Render human-readable message for event."""
     if event_type == "message-claimed":
@@ -211,6 +205,7 @@ def render_event_message(
 
 # --- Event Firing ---
 
+
 def fire_event(
     args,
     mailbox_name: str,
@@ -218,11 +213,11 @@ def fire_event(
     event_data: Dict[str, Any],
     actor_moniker: Optional[str] = None,
     conn=None,
-    close_conn=False
+    close_conn=False,
 ) -> bool:
     """
     Fire an event and route to recipients via engine.__notify.
-    
+
     Args:
         args: bbsengine6 args object
         mailbox_name: Mailbox name (e.g., 'shared/support@machine1.example.com')
@@ -231,11 +226,11 @@ def fire_event(
         actor_moniker: User who triggered event (optional)
         conn: Database connection (optional, will create if not provided)
         close_conn: Close connection after use (if we created it)
-    
+
     Returns: True on success, False on error
     """
     should_close = close_conn
-    
+
     # Create connection if not provided
     if conn is None:
         try:
@@ -244,39 +239,35 @@ def fire_event(
         except Exception as e:
             io.echo(f"notifyd_client.fire_event.120: {e}", level="error")
             return False
-    
+
     try:
         # Check if event is enabled for this mailbox
         if not is_event_enabled(args, mailbox_name, event_type, conn=conn):
             if getattr(args, "debug", False):
                 io.echo(
                     f"notifyd_client.fire_event: event disabled: {mailbox_name} / {event_type}",
-                    level="debug"
+                    level="debug",
                 )
             return True  # Not an error, just disabled
-        
+
         # Get routing rules
         rules = get_routing_rules(
-            args,
-            mailbox_name,
-            event_type,
-            actor_moniker,
-            conn=conn
+            args, mailbox_name, event_type, actor_moniker, conn=conn
         )
-        
+
         if not rules:
             if getattr(args, "debug", False):
                 io.echo(
                     f"notifyd_client.fire_event: no routing rules: {mailbox_name} / {event_type}",
-                    level="debug"
+                    level="debug",
                 )
             return True  # No routes = success (nothing to deliver)
-        
+
         # Fire event for each recipient
         event_data_json = json.dumps(event_data)
         rendered_message = render_event_message(event_type, actor_moniker, event_data)
         failcount = 0
-        
+
         for rule in rules:
             try:
                 # Insert into engine.__notify
@@ -295,26 +286,26 @@ def fire_event(
                             rendered_message,
                             event_data_json,
                             rule["urgency"],
-                            True
-                        ]
+                            True,
+                        ],
                     )
-                
+
                 if getattr(args, "debug", False):
                     io.echo(
                         f"notifyd_client: fired {event_type} to {rule['recipient_moniker']}",
-                        level="debug"
+                        level="debug",
                     )
-            
+
             except Exception as e:
                 io.echo(
                     f"notifyd_client.fire_event.200: failed to fire event: {e}",
-                    level="error"
+                    level="error",
                 )
                 failcount += 1
-        
+
         conn.commit()
         return failcount == 0
-    
+
     finally:
         if should_close and conn:
             try:

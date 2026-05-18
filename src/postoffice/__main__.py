@@ -5,8 +5,10 @@ from bbsengine6 import io, screen
 
 from . import lib
 
+
 def init(args=None) -> bool:
     return True
+
 
 if __name__ == "__main__":
     locale.setlocale(locale.LC_ALL, "")
@@ -26,4 +28,7 @@ if __name__ == "__main__":
     except EOFError:
         io.echo("{/all}{bold}EOF{/bold}")
     finally:
-        io.echo("{decsc}{curpos:%d,0}{eraseline}{decrc}{reset}{/all}" % (io.getterminalheight()))
+        io.echo(
+            "{decsc}{curpos:%d,0}{eraseline}{decrc}{reset}{/all}"
+            % (io.getterminalheight())
+        )

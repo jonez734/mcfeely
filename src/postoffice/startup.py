@@ -29,7 +29,10 @@ def main(args, **kwargs) -> bool:
         io.echo("running postoffice startup...")
 
         # --- schema ---
-        io.echo(f"{{var:labelcolor}}schema {{var:valuecolor}}postoffice{{var:labelcolor}}: ", end="")
+        io.echo(
+            f"{{var:labelcolor}}schema {{var:valuecolor}}postoffice{{var:labelcolor}}: ",
+            end="",
+        )
         if not database.schemaexists(args, "postoffice", conn=conn):
             io.echo("create ", end="")
             if not database.createschema(args, "postoffice", conn=conn):
@@ -132,20 +135,20 @@ def main(args, **kwargs) -> bool:
         io.echo("  ok  ", level="ok")
 
         conn.commit()
-        
+
         # --- initialize IMAP monitor ---
         io.echo(
-            f"{{var:labelcolor}}imap_monitor{{var:labelcolor}}: ",
+            "{var:labelcolor}imap_monitor{var:labelcolor}: ",
             end="",
         )
         try:
-            monitor = imap_monitor.initialize_monitor(args, poll_interval_seconds=30)
+            imap_monitor.initialize_monitor(args, poll_interval_seconds=30)
             imap_monitor.start_monitor()
             io.echo("  ok  ", level="ok")
         except Exception as e:
             io.echo(f"fail ({e})", level="error")
             io.echo("imap_monitor setup failed, continuing anyway", level="warn")
-        
+
         return True
 
     conn = kwargs.get("conn", None)
