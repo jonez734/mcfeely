@@ -134,6 +134,12 @@ def get_routing_rules(
     """
     Get matching routing rules for an event using SQL LIKE pattern matching.
     
+    Matches actual mailbox name against patterns in database using SQL LIKE.
+    For actor_moniker, supports:
+    - Exact match (e.g., 'alice')
+    - Pattern match (e.g., 'alice%' matches 'alice', 'alice_bot', etc.)
+    - NULL for any actor
+    
     Returns list of dicts with:
     - recipient_moniker: who gets notified
     - notification_type: template type for engine.__notify
@@ -151,7 +157,7 @@ def get_routing_rules(
                 FROM postoffice.notification_routing
                 WHERE %s LIKE mailbox_name
                   AND (event_type = %s OR event_type = '*')
-                  AND (actor_moniker = %s OR actor_moniker IS NULL)
+                  AND (%s LIKE actor_moniker OR actor_moniker IS NULL)
                   AND enabled = TRUE
                 ORDER BY id ASC
                 """,
