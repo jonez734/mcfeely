@@ -1,8 +1,9 @@
 # Mistermcfeely NotifyD Sync Specification
 
 **Date:** May 18, 2026  
-**Status:** Core Implementation Complete (Phases 0-4)  
-**Architecture:** Integrated with bbsengine6 engine.__notify
+**Status:** All Phases Complete (0-9) + CONN_POOL_PATTERN Refactoring  
+**Architecture:** Integrated with bbsengine6 engine.__notify  
+**Connection Pattern:** REQUIRED - Uses bbsengine6 **kwargs pattern (see CONN_POOL_PATTERN.md)
 
 ---
 
@@ -20,7 +21,7 @@ Sync mistermcfeely (basic IMAP client for shared Cyrus mailboxes) with bbsengine
 
 ## Implementation Status
 
-### ✅ COMPLETED (Phases 0-4)
+### ✅ COMPLETED (Phases 0-9 + Final Refactoring)
 
 **Phase 0: Code Cleanup**
 - ✅ Created `startup.py` with schema initialization (notification_routing, notification_config)
@@ -43,13 +44,39 @@ Sync mistermcfeely (basic IMAP client for shared Cyrus mailboxes) with bbsengine
 - ✅ mailbox.py fires mailbox-created events
 - ✅ virtual.py fires virtual-created events
 
-### 🔮 PLANNED (Phases 5-9)
+**Phase 5: Pattern-Based Routing Enhancement**
+- ✅ Fixed SQL LIKE pattern matching
+- ✅ Enhanced actor_moniker filtering with SQL LIKE patterns
+- ✅ Flexible wildcard support (NULL matches any, patterns match roles)
 
-**Phase 5:** Pattern-based routing refinement  
-**Phase 6:** IMAP monitoring (embedded polling)  
-**Phase 7:** Comprehensive tests  
-**Phase 8:** Documentation  
-**Phase 9:** Cleanup & polish  
+**Phase 6: IMAP Monitoring with Embedded Polling**
+- ✅ Created imap_monitor.py (352 lines)
+- ✅ MessageState and MailboxState dataclasses
+- ✅ Thread-safe daemon polling thread
+- ✅ Configurable per-mailbox poll intervals
+
+**Phase 7: Comprehensive Tests**
+- ✅ 64 total tests (all passing)
+- ✅ 30 unit tests (notifyd_client)
+- ✅ 14 unit tests (imap_monitor)
+- ✅ 18 integration tests
+- ✅ 2 pattern-based routing tests
+
+**Phase 8: Documentation**
+- ✅ Updated README.md with comprehensive documentation
+- ✅ Detailed NOTIFYD_SYNC_SPEC.md (240+ lines)
+- ✅ Created CONN_POOL_PATTERN.md (REQUIRED pattern docs)
+
+**Phase 9: Code Cleanup & Polish**
+- ✅ Applied ruff formatting to all modules
+- ✅ Removed unused imports and variables
+- ✅ Code follows bbsengine6 style guidelines
+
+**Final: CONN_POOL_PATTERN Refactoring**
+- ✅ All database functions use **kwargs pattern
+- ✅ Follows bbsengine6 conventions exactly
+- ✅ Marked as REQUIRED in documentation
+- ✅ All 64 tests passing  
 
 ---
 
@@ -316,26 +343,46 @@ CREATE VIEW postoffice.notification_history AS
 
 ### notifyd_client.py
 
-**Core functions for event firing and routing:**
+**Core functions for event firing and routing (using **kwargs pattern):**
+
+All functions follow the REQUIRED **kwargs pattern for connection management (see CONN_POOL_PATTERN.md):
 
 - `get_obfuscate_secret(args)` - Get shared secret for flag obfuscation
 - `obfuscate_moniker(moniker, secret)` - Generate 8-char HMAC hash
 - `format_claim_flag(moniker, secret)` - Create Cyrus flag name
 - `verify_claim_flag(flag, moniker, secret)` - Verify flag matches moniker
-- `is_event_enabled(args, mailbox_name, event_type, conn)` - Check if event enabled
-- `get_routing_rules(args, mailbox_name, event_type, actor_moniker, conn)` - Query routing rules
+- `is_event_enabled(args, mailbox_name, event_type, **kwargs)` - Check if event enabled (kwargs: conn, pool)
+- `get_routing_rules(args, mailbox_name, event_type, actor_moniker, **kwargs)` - Query routing rules (kwargs: conn, pool)
 - `render_event_message(event_type, actor_moniker, event_data)` - Human-readable messages
-- `fire_event(args, mailbox_name, event_type, event_data, actor_moniker, conn, close_conn)` - Fire events
+- `fire_event(args, mailbox_name, event_type, event_data, actor_moniker, **kwargs)` - Fire events (kwargs: conn, pool)
 
 ### imap_client.py
 
-**Message-level operations:**
+**Message-level operations (using **kwargs pattern):**
 
-- `claim_message(args, mailbox_name, message_uid, actor_moniker, ...)` - Claim message + fire event
-- `unclaim_message(args, mailbox_name, message_uid, actor_moniker, ...)` - Unclaim message + fire event
-- `fire_new_message_event(args, mailbox_name, message_uid, ...)` - Fire message-new event
-- `fire_flag_changed_event(args, mailbox_name, message_uid, flag_name, added, ...)` - Fire message-flagged event
-- `fire_message_deleted_event(args, mailbox_name, message_uid, ...)` - Fire message-deleted event
+All functions follow the REQUIRED **kwargs pattern for connection management:
+
+- `claim_message(args, mailbox_name, message_uid, actor_moniker, ..., **kwargs)` - Claim message + fire event (kwargs: imap_conn, conn, pool)
+- `unclaim_message(args, mailbox_name, message_uid, actor_moniker, **kwargs)` - Unclaim message + fire event (kwargs: imap_conn, conn, pool)
+- `fire_new_message_event(args, mailbox_name, message_uid, ..., **kwargs)` - Fire message-new event (kwargs: conn, pool)
+- `fire_flag_changed_event(args, mailbox_name, message_uid, flag_name, added, ..., **kwargs)` - Fire message-flagged event (kwargs: conn, pool)
+- `fire_message_deleted_event(args, mailbox_name, message_uid, **kwargs)` - Fire message-deleted event (kwargs: conn, pool)
+
+### imap_monitor.py
+
+**IMAP monitoring with embedded polling thread:**
+
+- `MessageState(uid, flags, message_id, from_addr, subject)` - Message state dataclass
+- `MailboxState(mailbox_name, messages, uidvalidity, last_poll_time)` - Mailbox state dataclass
+- `IMAPMonitor(args, poll_interval_seconds, pool)` - Monitor class with daemon thread
+  - `start()` - Start background polling thread
+  - `stop(timeout_seconds)` - Stop polling gracefully
+  - `add_mailbox(mailbox_name)` - Register mailbox for monitoring
+  - `remove_mailbox(mailbox_name)` - Unregister mailbox
+- `initialize_monitor(args, poll_interval_seconds, pool)` - Global monitor initialization
+- `get_monitor()` - Get global monitor instance
+- `start_monitor()` - Start global monitor thread
+- `stop_monitor(timeout_seconds)` - Stop global monitor thread
 
 ---
 

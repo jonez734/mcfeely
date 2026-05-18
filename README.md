@@ -4,6 +4,8 @@
 
 A basic IMAP client for shared Cyrus mailboxes, integrated with bbsengine6's notifyd event system. Enables real-time notifications when messages are claimed/unclaimed in shared mailboxes.
 
+**⚠️ IMPORTANT:** All database functions in this project use the bbsengine6 **kwargs pattern for connection management. See [CONN_POOL_PATTERN.md](./CONN_POOL_PATTERN.md) for details.
+
 ## Overview
 
 **Purpose:** Sync mistermcfeely with bbsengine6's core notification system to enable event-driven workflows for shared mailbox operations (support queues, team inboxes, etc.).
@@ -134,12 +136,28 @@ All events stored in `engine.__notify.data` as JSON.
 
 ## Usage
 
+**Important:** All functions use the bbsengine6 **kwargs pattern. Pass `conn` or `pool` via kwargs.
+
 ### Claiming a Message
 
 ```python
 from postoffice import imap_client
+from bbsengine6 import database
 
-# Claim message (sets flag + fires event)
+# Claim message with connection pool
+with database.connect(args, pool=pool) as conn:
+    success = imap_client.claim_message(
+        args,
+        mailbox_name="shared/support@example.com",
+        message_uid=423,
+        actor_moniker="alice",
+        message_id="<abc@example.com>",
+        message_from="user@example.com",
+        message_subject="Help needed",
+        pool=pool  # Pass pool via kwargs
+    )
+
+# Or with explicit connection
 success = imap_client.claim_message(
     args,
     mailbox_name="shared/support@example.com",
@@ -147,7 +165,8 @@ success = imap_client.claim_message(
     actor_moniker="alice",
     message_id="<abc@example.com>",
     message_from="user@example.com",
-    message_subject="Help needed"
+    message_subject="Help needed",
+    conn=conn  # Pass conn via kwargs
 )
 ```
 
@@ -159,21 +178,23 @@ success = imap_client.unclaim_message(
     args,
     mailbox_name="shared/support@example.com",
     message_uid=423,
-    actor_moniker="alice"
+    actor_moniker="alice",
+    pool=pool  # Pass pool via kwargs
 )
 ```
 
 ### Manual Event Firing
 
 ```python
-# Fire custom event
+# Fire custom event with pool
 success = imap_client.fire_new_message_event(
     args,
     mailbox_name="shared/support@example.com",
     message_uid=423,
     message_id="<abc@example.com>",
     message_from="user@example.com",
-    message_subject="Help needed"
+    message_subject="Help needed",
+    pool=pool  # Pass pool via kwargs
 )
 ```
 
@@ -237,20 +258,29 @@ For comprehensive documentation including SQL schema, implementation notes, and 
 
 ## Implementation Status
 
-### ✅ Completed (Phases 0-6)
+### ✅ Completed (Phases 0-9 + Final Refactoring)
 
-- Phase 0: Code cleanup and schema initialization
-- Phase 2: Event integration layer with flag obfuscation
-- Phase 3: IMAP client operations (claim/unclaim)
-- Phase 4: Event firing integration
-- Phase 5: Enhanced pattern-based routing with actor_moniker wildcards
-- Phase 6: IMAP monitoring with embedded polling thread
+**All Core Functionality:**
+- Phase 0: Code cleanup and schema initialization ✅
+- Phase 2: Event integration layer with flag obfuscation ✅
+- Phase 3: IMAP client operations (claim/unclaim) ✅
+- Phase 4: Event firing integration ✅
+- Phase 5: Enhanced pattern-based routing with actor_moniker wildcards ✅
+- Phase 6: IMAP monitoring with embedded polling thread ✅
+- Phase 7: Comprehensive testing (64 tests, all passing) ✅
+- Phase 8: Complete documentation ✅
+- Phase 9: Code cleanup and polish ✅
 
-### 🔮 Future (Phases 7-9)
+**Final Refactoring:**
+- CONN_POOL_PATTERN refactoring: All database functions use **kwargs pattern ✅
+- Marked as REQUIRED in documentation ✅
+- bbsengine6 compliance verified ✅
 
-- Phase 7: IDLE-based monitoring (optional optimization)
-- Phase 8: README documentation (in progress)
-- Phase 9: Final cleanup and polish
+### 🔮 Future Enhancements (Optional)
+
+- IDLE-based monitoring (optimization over polling)
+- Full integration testing with real Cyrus server
+- Production metrics and observability
 
 ## References
 
