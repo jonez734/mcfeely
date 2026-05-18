@@ -76,9 +76,7 @@ def verify_claim_flag(flag: str, moniker: str, secret: Optional[str] = None) -> 
 # --- Event Configuration ---
 
 
-def is_event_enabled(
-    args, mailbox_name: str, event_type: str, conn=None, pool=None
-) -> bool:
+def is_event_enabled(args, mailbox_name: str, event_type: str, **kwargs) -> bool:
     """
     Check if event is enabled for mailbox via postoffice.notification_config.
     Defaults to True if no config exists (no config = all events enabled).
@@ -87,9 +85,11 @@ def is_event_enabled(
         args: bbsengine6 args object
         mailbox_name: Mailbox name
         event_type: Event type
-        conn: Database connection (optional, will use pool if not provided)
-        pool: Connection pool (optional)
+        **kwargs: Optional - conn (database connection), pool (connection pool)
     """
+    conn = kwargs.get("conn")
+    pool = kwargs.get("pool")
+
     if conn is None and pool is None:
         return True
 
@@ -154,8 +154,7 @@ def get_routing_rules(
     mailbox_name: str,
     event_type: str,
     actor_moniker: Optional[str] = None,
-    conn=None,
-    pool=None,
+    **kwargs,
 ) -> List[Dict[str, Any]]:
     """
     Get matching routing rules for an event using SQL LIKE pattern matching.
@@ -166,12 +165,22 @@ def get_routing_rules(
     - Pattern match (e.g., 'alice%' matches 'alice', 'alice_bot', etc.)
     - NULL for any actor
 
+    Args:
+        args: bbsengine6 args object
+        mailbox_name: Mailbox name
+        event_type: Event type
+        actor_moniker: Optional actor to match against rules
+        **kwargs: Optional - conn (database connection), pool (connection pool)
+
     Returns list of dicts with:
     - recipient_moniker: who gets notified
     - notification_type: template type for engine.__notify
     - urgency: ROUTINE, IMPORTANT, URGENT, CRITICAL
     - delivery_method: 'engine' (engine.__notify) or future: 'email', 'chat'
     """
+    conn = kwargs.get("conn")
+    pool = kwargs.get("pool")
+
     if conn is None and pool is None:
         return []
 
@@ -264,8 +273,7 @@ def fire_event(
     event_type: str,
     event_data: Dict[str, Any],
     actor_moniker: Optional[str] = None,
-    conn=None,
-    pool=None,
+    **kwargs,
 ) -> bool:
     """
     Fire an event and route to recipients via engine.__notify.
@@ -276,11 +284,13 @@ def fire_event(
         event_type: Event type (message-new, message-claimed, etc.)
         event_data: Event payload (dict, will be JSON-serialized)
         actor_moniker: User who triggered event (optional)
-        conn: Database connection (optional, will use pool if not provided)
-        pool: Connection pool (optional)
+        **kwargs: Optional - conn (database connection), pool (connection pool)
 
     Returns: True on success, False on error
     """
+    conn = kwargs.get("conn")
+    pool = kwargs.get("pool")
+
     # Use provided connection or create one from pool
     use_conn = conn
     should_close = False
