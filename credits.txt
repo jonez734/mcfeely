@@ -1,0 +1,3 @@
+- "mister mcfeely" was the name of the post carrier in the show "mister rogers' neighborhood"
+- this module allows the sysop to maintain email addresses and imap inboxes for zoidtechnologies.com addresses.
+

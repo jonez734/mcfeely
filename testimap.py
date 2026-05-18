@@ -1,8 +1,10 @@
 import ttyio5 as ttyio
+import bbsengine5 as bbsengine
+
+import re
 import time
 import email
 import imaplib
-import re
 
 def getmessageflags(args, imap, msgid):
     res, data = imap.fetch(msgid, '(FLAGS.PEEK)')
@@ -16,13 +18,21 @@ def getmessageflags(args, imap, msgid):
 #        ttyio.echo("flags=%r type=%r" % (flags, type(flags)), level="debug")
     return flags
 
+def init(args=None, **kw):
+    return True
+
+def access(args, op, **kw):
+    return True
+
 def main(args=None):
+
+    bbsengine.title("post office")
+
     start = time.time()
     host = "merlin.zoidtechnologies.com"
-    login = "jam@%s" % (host)
-    password = "12345"
+    login = f"jam@{host}"
+    password = bbsengine.inputpassword("imap password: ")
 
-    ttyio.echo("welcome to the postoffice!")
     try:
         imap = imaplib.IMAP4(host, port=143) # port=imaplib.IMAP4_SSL_PORT)
     except Exception as e:
@@ -55,15 +65,15 @@ def main(args=None):
 #    print(imap.namespace())
 
     imap.select()
-    typ, data = imap.search(None, 'ALL')
+    typ, data = imap.search(None, 'UNSEEN')
     for num in data[0].split():
-        res, data = imap.fetch(num, "(BODY.PEEK[HEADER])", criteria=imaplib.AND(seen=False), mark_seen=False, bulk=True)
+#        res, data = imap.fetch(num, "(BODY.PEEK[HEADER])", criteria=imap.AND(seen=False), mark_seen=False, bulk=True)
 #        ttyio.echo("res=%r" % (res), level="debug")
-        if res != "OK":
-            ttyio.echo("error fetching message", level="error")
-            continue
-#        typ, data = imap.fetch(num, '(RFC822)')
-#        ttyio.echo("data=%r" % (data[0][1]), level="debug")
+#        if res != "OK":
+#            ttyio.echo("error fetching message", level="error")
+#            continue
+        typ, data = imap.fetch(num, '(RFC822)', mark_seen=False, bulk=True)
+        ttyio.echo("data=%r" % (data[0][1]), level="debug")
 #        print("message=%r" % (message))
 #        print("get_unixfrom=%r" % (message.get_unixfrom()))
 #        print("Date=%r" % (message["date"]))
