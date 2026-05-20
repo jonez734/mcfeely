@@ -30,7 +30,7 @@ def main(args, **kwargs) -> bool:
 
         # --- schema ---
         io.echo(
-            f"{{var:labelcolor}}schema {{var:valuecolor}}postoffice{{var:labelcolor}}: ",
+            "{var:labelcolor}schema {var:valuecolor}postoffice{var:labelcolor}: ",
             end="",
         )
         if not database.schemaexists(args, "postoffice", conn=conn):
@@ -74,7 +74,7 @@ def main(args, **kwargs) -> bool:
 
         # --- notification history view ---
         io.echo(
-            f"{{var:labelcolor}}view {{var:valuecolor}}postoffice.notification_history{{var:labelcolor}}: ",
+            "{var:labelcolor}view {var:valuecolor}postoffice.notification_history{var:labelcolor}: ",
             end="",
         )
         try:
@@ -111,7 +111,7 @@ def main(args, **kwargs) -> bool:
 
         # --- schema privileges ---
         io.echo(
-            f"{{var:labelcolor}}schema {{var:valuecolor}}postoffice {{var:labelcolor}}privs: ",
+            "{var:labelcolor}schema {var:valuecolor}postoffice {var:labelcolor}privs: ",
             end="",
         )
         for role in ("web", "term", "sysop"):

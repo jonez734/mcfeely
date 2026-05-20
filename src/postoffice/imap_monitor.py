@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 
 from bbsengine6 import database, io
 
+from . import imap_lib
 from . import imap_client
 
 
@@ -183,10 +184,16 @@ class IMAPMonitor:
             state.last_poll_time = time.time()
 
     def _connect_imap(self) -> Optional[imaplib.IMAP4_SSL]:
-        """Connect to IMAP server (stub - would use bbsengine6 IMAP config)."""
-        # TODO: Implement IMAP connection using bbsengine6 Cyrus configuration
-        # For now, return None (graceful degradation)
-        return None
+        """
+        Connect to Cyrus IMAP server using postoffice database credentials.
+
+        Uses imap_lib to connect and returns connected IMAP4_SSL object.
+        Gracefully returns None if connection fails (daemon continues polling).
+
+        Returns:
+            Connected imaplib.IMAP4_SSL object, or None on error
+        """
+        return imap_lib.connect_cyrus(self.args, readonly=True, timeout=10)
 
     def _check_mailbox(self, imap_conn: imaplib.IMAP4_SSL, mailbox_name: str) -> None:
         """Check mailbox for new messages, flag changes, deletions."""
@@ -235,18 +242,48 @@ class IMAPMonitor:
     def _handle_new_message(
         self, imap_conn: imaplib.IMAP4_SSL, mailbox_name: str, uid: int
     ) -> None:
-        """Handle newly detected message."""
+        """
+        Handle newly detected message.
+
+        1. Fetch message headers (Message-ID, From, Subject, Date)
+        2. Store message state in mailbox_states
+        3. Fire message-new event via imap_client.fire_new_message_event()
+        """
         try:
-            # Fetch message headers
-            status, msg_parts = imap_conn.uid(
-                "FETCH", str(uid), "(RFC822.HEADER FLAGS)"
-            )
-            if status != "OK":
+            # Fetch message headers and flags
+            headers = imap_lib.get_message_headers(imap_conn, uid)
+            flags = imap_lib.get_message_flags(imap_conn, uid)
+
+            if not headers:
+                if getattr(self.args, "debug", False):
+                    io.echo(
+                        f"imap_monitor._handle_new_message: Failed to fetch headers for {mailbox_name} #{uid}",
+                        level="debug",
+                    )
                 return
 
-            # TODO: Parse headers and extract message-id, from, subject
-            # TODO: Store message state
-            # TODO: Fire message-new event
+            # Store message state
+            with self.lock:
+                state = self.mailbox_states[mailbox_name]
+                message_state = MessageState(
+                    uid=uid,
+                    flags=flags,
+                    message_id=headers.get("message_id"),
+                    from_addr=headers.get("from_addr"),
+                    subject=headers.get("subject"),
+                )
+                state.messages[uid] = message_state
+
+            # Fire notification event
+            imap_client.fire_new_message_event(
+                self.args,
+                mailbox_name,
+                uid,
+                headers.get("message_id", ""),
+                headers.get("from_addr", ""),
+                headers.get("subject", ""),
+                pool=self.pool,
+            )
 
             if getattr(self.args, "debug", False):
                 io.echo(
@@ -260,15 +297,63 @@ class IMAPMonitor:
     def _handle_flag_changes(
         self, imap_conn: imaplib.IMAP4_SSL, mailbox_name: str, uid: int
     ) -> None:
-        """Detect and handle flag changes on existing message."""
+        """
+        Detect and handle flag changes on existing message.
+
+        1. Fetch current flags from IMAP
+        2. Compare with stored flags
+        3. Fire message-flagged events for added/removed flags
+        4. Update stored state
+        """
         try:
             # Fetch current flags
-            status, flags_response = imap_conn.uid("FETCH", str(uid), "FLAGS")
-            if status != "OK":
-                return
+            current_flags = imap_lib.get_message_flags(imap_conn, uid)
 
-            # TODO: Parse flags, compare with stored state
-            # TODO: Fire message-flagged events for each change
+            with self.lock:
+                state = self.mailbox_states[mailbox_name]
+                if uid not in state.messages:
+                    return
+
+                stored_flags = state.messages[uid].flags
+
+            # Detect flag changes
+            added_flags, removed_flags = imap_lib.detect_flag_changes(
+                current_flags, stored_flags
+            )
+
+            # Fire events for each flag change
+            for flag in added_flags:
+                imap_client.fire_flag_changed_event(
+                    self.args,
+                    mailbox_name,
+                    uid,
+                    flag,
+                    added=True,
+                    pool=self.pool,
+                )
+
+            for flag in removed_flags:
+                imap_client.fire_flag_changed_event(
+                    self.args,
+                    mailbox_name,
+                    uid,
+                    flag,
+                    added=False,
+                    pool=self.pool,
+                )
+
+            # Update stored flags
+            if added_flags or removed_flags:
+                with self.lock:
+                    state = self.mailbox_states[mailbox_name]
+                    if uid in state.messages:
+                        state.messages[uid].flags = current_flags
+
+                if getattr(self.args, "debug", False):
+                    io.echo(
+                        f"imap_monitor: Flag changes in {mailbox_name} #{uid}: +{added_flags} -{removed_flags}",
+                        level="debug",
+                    )
 
         except Exception as e:
             io.echo(f"imap_monitor._handle_flag_changes: {e}", level="error")
@@ -328,9 +413,7 @@ class IMAPMonitor:
 _monitor: Optional[IMAPMonitor] = None
 
 
-def initialize_monitor(
-    args, poll_interval_seconds: int = 30, pool=None
-) -> IMAPMonitor:
+def initialize_monitor(args, poll_interval_seconds: int = 30, pool=None) -> IMAPMonitor:
     """Initialize global IMAP monitor.
 
     Args:

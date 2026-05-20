@@ -255,7 +255,9 @@ def fire_flag_changed_event(
         return False
 
 
-def fire_message_deleted_event(args, mailbox_name: str, message_uid: int, **kwargs) -> bool:
+def fire_message_deleted_event(
+    args, mailbox_name: str, message_uid: int, **kwargs
+) -> bool:
     """
     Fire notification for message deletion/expunge.
 

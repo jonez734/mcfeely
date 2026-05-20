@@ -11,6 +11,8 @@ from typing import Optional, List, Dict, Any
 
 from bbsengine6 import database, io
 
+from . import lib
+
 
 # --- Configuration ---
 
@@ -87,23 +89,7 @@ def is_event_enabled(args, mailbox_name: str, event_type: str, **kwargs) -> bool
         event_type: Event type
         **kwargs: Optional - conn (database connection), pool (connection pool)
     """
-    conn = kwargs.get("conn")
-    pool = kwargs.get("pool")
-
-    if conn is None and pool is None:
-        return True
-
-    # Use provided connection or create one from pool
-    use_conn = conn
-    should_close = False
-
-    if use_conn is None and pool is not None:
-        try:
-            use_conn = database.connect(args, pool=pool)
-            should_close = True
-        except Exception as e:
-            io.echo(f"notifyd_client.is_event_enabled: connection error: {e}", level="error")
-            return True
+    use_conn, should_close = lib.get_db_connection(args, **kwargs)
 
     if use_conn is None:
         return True
@@ -178,23 +164,7 @@ def get_routing_rules(
     - urgency: ROUTINE, IMPORTANT, URGENT, CRITICAL
     - delivery_method: 'engine' (engine.__notify) or future: 'email', 'chat'
     """
-    conn = kwargs.get("conn")
-    pool = kwargs.get("pool")
-
-    if conn is None and pool is None:
-        return []
-
-    # Use provided connection or create one from pool
-    use_conn = conn
-    should_close = False
-
-    if use_conn is None and pool is not None:
-        try:
-            use_conn = database.connect(args, pool=pool)
-            should_close = True
-        except Exception as e:
-            io.echo(f"notifyd_client.get_routing_rules: connection error: {e}", level="error")
-            return []
+    use_conn, should_close = lib.get_db_connection(args, **kwargs)
 
     if use_conn is None:
         return []
@@ -236,6 +206,50 @@ def get_routing_rules(
 
 
 # --- Message Rendering ---
+
+# --- Event Message Templates ---
+
+EVENT_MESSAGE_TEMPLATES = {
+    "message-new": "New message from {from}: {subject}",
+    "message-claimed": "{actor_moniker} claimed message #{message_uid}",
+    "message-unclaimed": "{actor_moniker} unclaimed message #{message_uid}",
+    "message-flagged": "{actor_moniker} {action} flag {flag_name}",
+    "message-deleted": "Message #{message_uid} deleted",
+}
+
+
+def render_event_message(
+    event_type: str, actor_moniker: Optional[str], event_data: Dict[str, Any]
+) -> str:
+    """
+    Render human-readable message for event using template format strings.
+
+    Args:
+        event_type: Event type (e.g., 'message-claimed')
+        actor_moniker: User who triggered event (optional)
+        event_data: Event payload dictionary
+
+    Returns:
+        Rendered message string
+    """
+    # Add actor_moniker to event_data for template formatting
+    format_data = dict(event_data)
+    if actor_moniker:
+        format_data["actor_moniker"] = actor_moniker
+
+    # For message-flagged, compute action field
+    if event_type == "message-flagged" and "action" not in format_data:
+        added = format_data.get("added", True)
+        format_data["action"] = "set" if added else "cleared"
+
+    # Get template or fall back to generic message
+    template = EVENT_MESSAGE_TEMPLATES.get(event_type, f"Event: {event_type}")
+
+    try:
+        return template.format(**format_data)
+    except KeyError:
+        # If template formatting fails due to missing keys, return generic message
+        return f"Event: {event_type}"
 
 
 def render_event_message(
@@ -288,23 +302,12 @@ def fire_event(
 
     Returns: True on success, False on error
     """
-    conn = kwargs.get("conn")
-    pool = kwargs.get("pool")
+    use_conn, should_close = lib.get_db_connection(args, **kwargs)
 
-    # Use provided connection or create one from pool
-    use_conn = conn
-    should_close = False
-
-    if use_conn is None and pool is not None:
-        try:
-            use_conn = database.connect(args, pool=pool)
-            should_close = True
-        except Exception as e:
-            io.echo(f"notifyd_client.fire_event: {e}", level="error")
-            return False
-
-    if use_conn is None and conn is None:
-        io.echo("notifyd_client.fire_event: no connection or pool provided", level="error")
+    if use_conn is None:
+        io.echo(
+            "notifyd_client.fire_event: no connection or pool provided", level="error"
+        )
         return False
 
     try:
