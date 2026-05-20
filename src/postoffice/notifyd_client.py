@@ -13,6 +13,12 @@ from bbsengine6 import database, io
 
 from . import lib
 
+# Optional: bbsengine6 notify integration (for hybrid transport)
+try:
+    from bbsengine6 import notify as _notify_module
+except ImportError:
+    _notify_module = None
+
 
 # --- Configuration ---
 
@@ -242,40 +248,79 @@ def render_event_message(
         added = format_data.get("added", True)
         format_data["action"] = "set" if added else "cleared"
 
+    # Provide defaults for optional fields
+    if "subject" not in format_data:
+        format_data["subject"] = "(no subject)"
+    if "from" not in format_data:
+        format_data["from"] = "unknown"
+    if "flag_name" not in format_data:
+        format_data["flag_name"] = "?"
+
     # Get template or fall back to generic message
     template = EVENT_MESSAGE_TEMPLATES.get(event_type, f"Event: {event_type}")
 
     try:
         return template.format(**format_data)
-    except KeyError:
+    except KeyError as e:
         # If template formatting fails due to missing keys, return generic message
         return f"Event: {event_type}"
 
 
-def render_event_message(
-    event_type: str, actor_moniker: Optional[str], event_data: Dict[str, Any]
-) -> str:
-    """Render human-readable message for event."""
-    if event_type == "message-claimed":
-        uid = event_data.get("message_uid", "?")
-        return f"{actor_moniker} claimed message #{uid}"
-    elif event_type == "message-unclaimed":
-        uid = event_data.get("message_uid", "?")
-        return f"{actor_moniker} unclaimed message #{uid}"
-    elif event_type == "message-new":
-        from_addr = event_data.get("from", "unknown")
-        subject = event_data.get("subject", "(no subject)")
-        return f"New message from {from_addr}: {subject}"
-    elif event_type == "message-flagged":
-        flag = event_data.get("flag_name", "?")
-        added = event_data.get("added", True)
-        action = "set" if added else "cleared"
-        return f"{actor_moniker} {action} flag {flag}"
-    elif event_type == "message-deleted":
-        uid = event_data.get("message_uid", "?")
-        return f"Message #{uid} deleted"
-    else:
-        return f"Event: {event_type}"
+def _fire_event_fallback(
+    args,
+    mailbox_name: str,
+    event_type: str,
+    event_data: Dict[str, Any],
+    actor_moniker: Optional[str],
+    use_conn: Any,
+    rendered_message: str,
+    rules: List[Dict[str, Any]],
+) -> bool:
+    """
+    Fallback event firing if bbsengine6.notify is not available.
+
+    Direct database insert to engine.__notify (legacy behavior).
+    Used only if notify module is not available.
+    """
+    event_data_json = json.dumps(event_data)
+    failcount = 0
+
+    for rule in rules:
+        try:
+            # Direct insert (legacy behavior)
+            with database.cursor(use_conn) as cur:
+                cur.execute(
+                    """
+                    INSERT INTO engine.__notify 
+                    (notification_type, sender_moniker, template, rendered_message, 
+                     data, urgency, should_persist)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    [
+                        rule["notification_type"],
+                        actor_moniker,
+                        rule["notification_type"],
+                        rendered_message,
+                        event_data_json,
+                        rule["urgency"],
+                        True,
+                    ],
+                )
+
+            if getattr(args, "debug", False):
+                io.echo(
+                    f"notifyd_client: fired {event_type} to {rule['recipient_moniker']} (fallback)",
+                    level="debug",
+                )
+
+        except Exception as e:
+            io.echo(
+                f"notifyd_client._fire_event_fallback: {e}",
+                level="error",
+            )
+            failcount += 1
+
+    return failcount == 0
 
 
 # --- Event Firing ---
@@ -333,32 +378,46 @@ def fire_event(
                 )
             return True  # No routes = success (nothing to deliver)
 
-        # Fire event for each recipient
-        event_data_json = json.dumps(event_data)
+        # Render message for notifications
         rendered_message = render_event_message(event_type, actor_moniker, event_data)
+
+        # Fire event for each recipient via bbsengine6.notify.send()
+        notify = _notify_module
+        if notify is None:
+            # Fallback: direct database insert if notify not available
+            io.echo(
+                "notifyd_client.fire_event: bbsengine6.notify not available, "
+                "falling back to direct database insert",
+                level="warn",
+            )
+            return _fire_event_fallback(
+                args,
+                mailbox_name,
+                event_type,
+                event_data,
+                actor_moniker,
+                use_conn,
+                rendered_message,
+                rules,
+            )
+
         failcount = 0
 
         for rule in rules:
             try:
-                # Insert into engine.__notify
-                with database.cursor(use_conn) as cur:
-                    cur.execute(
-                        """
-                        INSERT INTO engine.__notify 
-                        (notification_type, sender_moniker, template, rendered_message, 
-                         data, urgency, should_persist)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        """,
-                        [
-                            rule["notification_type"],
-                            actor_moniker,
-                            rule["notification_type"],
-                            rendered_message,
-                            event_data_json,
-                            rule["urgency"],
-                            True,
-                        ],
-                    )
+                # Use bbsengine6.notify as transport layer
+                # This provides rate limiting, recipient expansion, and standardized handling
+                notify.send(
+                    notification_type=rule["notification_type"],
+                    recipients=[rule["recipient_moniker"]],
+                    template=rule["notification_type"],
+                    template_vars={},  # We render message inline, template vars not used
+                    sender_moniker=actor_moniker,
+                    data=event_data,
+                    urgency=rule["urgency"],
+                    should_persist=True,
+                    conn=use_conn,
+                )
 
                 if getattr(args, "debug", False):
                     io.echo(

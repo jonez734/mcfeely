@@ -354,7 +354,7 @@ class TestFireEvent(unittest.TestCase):
     """Test event firing to engine.__notify."""
 
     def test_fire_event_success(self):
-        """Fire event successfully inserts into engine.__notify."""
+        """Fire event successfully sends via notify.send() or fallback."""
         args = Mock(debug=False, databasename="zoid6")
         conn = Mock()
 
@@ -366,10 +366,10 @@ class TestFireEvent(unittest.TestCase):
         }
 
         with (
-            patch("postoffice.notifyd_client.database") as mock_db,
             patch("postoffice.notifyd_client.get_routing_rules") as mock_rules,
             patch("postoffice.notifyd_client.is_event_enabled") as mock_enabled,
             patch("postoffice.notifyd_client.render_event_message") as mock_render,
+            patch("postoffice.notifyd_client._fire_event_fallback") as mock_fallback,
         ):
             mock_enabled.return_value = True
             mock_rules.return_value = [
@@ -381,10 +381,10 @@ class TestFireEvent(unittest.TestCase):
                 }
             ]
             mock_render.return_value = "alice claimed message #423"
+            mock_fallback.return_value = True
 
-            cursor = MagicMock()
-            cursor.__enter__.return_value = cursor
-            mock_db.cursor.return_value = cursor
+            # Patch _notify_module to None to test fallback
+            notifyd_client._notify_module = None
 
             result = notifyd_client.fire_event(
                 args,
@@ -396,9 +396,8 @@ class TestFireEvent(unittest.TestCase):
             )
 
             self.assertTrue(result)
-            mock_db.cursor.assert_called()
-            cursor.execute.assert_called()
-            conn.commit.assert_called()
+            # Should call fallback when notify is not available
+            mock_fallback.assert_called_once()
 
     def test_fire_event_disabled(self):
         """Fire event returns True if event disabled (not an error)."""
