@@ -3,13 +3,12 @@
 # Tests flag obfuscation, event configuration, routing, and event message rendering
 
 import unittest
-import json
 from unittest.mock import Mock, patch, MagicMock
 import sys
 import os
 
 # Add src to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from postoffice import notifyd_client
 
@@ -26,7 +25,7 @@ class TestFlagObfuscation(unittest.TestCase):
         """Moniker with secret returns 8-char hex string."""
         result = notifyd_client.obfuscate_moniker("alice", secret="mysecret")
         self.assertEqual(len(result), 8)
-        self.assertTrue(all(c in '0123456789abcdef' for c in result))
+        self.assertTrue(all(c in "0123456789abcdef" for c in result))
 
     def test_obfuscate_moniker_consistency(self):
         """Same moniker + secret always produces same hash."""
@@ -56,25 +55,19 @@ class TestFlagObfuscation(unittest.TestCase):
     def test_verify_claim_flag_plain(self):
         """Verify plain text flag matches."""
         flag = notifyd_client.format_claim_flag("alice", secret=None)
-        self.assertTrue(
-            notifyd_client.verify_claim_flag(flag, "alice", secret=None)
-        )
+        self.assertTrue(notifyd_client.verify_claim_flag(flag, "alice", secret=None))
 
     def test_verify_claim_flag_obfuscated(self):
         """Verify obfuscated flag matches."""
         secret = "test_secret"
         flag = notifyd_client.format_claim_flag("alice", secret=secret)
-        self.assertTrue(
-            notifyd_client.verify_claim_flag(flag, "alice", secret=secret)
-        )
+        self.assertTrue(notifyd_client.verify_claim_flag(flag, "alice", secret=secret))
 
     def test_verify_claim_flag_wrong_moniker(self):
         """Verify fails with wrong moniker."""
         secret = "test_secret"
         flag = notifyd_client.format_claim_flag("alice", secret=secret)
-        self.assertFalse(
-            notifyd_client.verify_claim_flag(flag, "bob", secret=secret)
-        )
+        self.assertFalse(notifyd_client.verify_claim_flag(flag, "bob", secret=secret))
 
     def test_verify_claim_flag_wrong_secret(self):
         """Verify fails with wrong secret."""
@@ -141,9 +134,7 @@ class TestRenderEventMessage(unittest.TestCase):
             "from": "user@example.com",
             "subject": "Help needed",
         }
-        result = notifyd_client.render_event_message(
-            "message-new", None, event_data
-        )
+        result = notifyd_client.render_event_message("message-new", None, event_data)
         self.assertIn("user@example.com", result)
         self.assertIn("Help needed", result)
 
@@ -175,9 +166,7 @@ class TestRenderEventMessage(unittest.TestCase):
 
     def test_render_message_unknown_type(self):
         """Render generic message for unknown event type."""
-        result = notifyd_client.render_event_message(
-            "unknown-event", None, {}
-        )
+        result = notifyd_client.render_event_message("unknown-event", None, {})
         self.assertIn("unknown-event", result)
 
 
@@ -188,13 +177,13 @@ class TestIsEventEnabled(unittest.TestCase):
         """Default to enabled if no config exists."""
         args = Mock(debug=False)
         conn = Mock()
-        
-        with patch('postoffice.notifyd_client.database') as mock_db:
+
+        with patch("postoffice.notifyd_client.database") as mock_db:
             cursor = MagicMock()
             cursor.fetchone.return_value = None
             cursor.__enter__.return_value = cursor
             mock_db.cursor.return_value = cursor
-            
+
             result = notifyd_client.is_event_enabled(
                 args, "shared/support", "message-new", conn=conn
             )
@@ -204,16 +193,16 @@ class TestIsEventEnabled(unittest.TestCase):
         """Check if specific event type is enabled."""
         args = Mock(debug=False)
         conn = Mock()
-        
+
         # Config: enable_new_message_events=True
         config_row = (True, False, False, False)
-        
-        with patch('postoffice.notifyd_client.database') as mock_db:
+
+        with patch("postoffice.notifyd_client.database") as mock_db:
             cursor = MagicMock()
             cursor.fetchone.return_value = config_row
             cursor.__enter__.return_value = cursor
             mock_db.cursor.return_value = cursor
-            
+
             result = notifyd_client.is_event_enabled(
                 args, "shared/support", "message-new", conn=conn
             )
@@ -223,16 +212,16 @@ class TestIsEventEnabled(unittest.TestCase):
         """Check if specific event type is disabled."""
         args = Mock(debug=False)
         conn = Mock()
-        
+
         # Config: enable_new_message_events=False
         config_row = (False, False, False, False)
-        
-        with patch('postoffice.notifyd_client.database') as mock_db:
+
+        with patch("postoffice.notifyd_client.database") as mock_db:
             cursor = MagicMock()
             cursor.fetchone.return_value = config_row
             cursor.__enter__.return_value = cursor
             mock_db.cursor.return_value = cursor
-            
+
             result = notifyd_client.is_event_enabled(
                 args, "shared/support", "message-new", conn=conn
             )
@@ -246,23 +235,23 @@ class TestGetRoutingRules(unittest.TestCase):
         """Query exact mailbox name match."""
         args = Mock(debug=False)
         conn = Mock()
-        
+
         rule_row = ("recipient1", "mcfeely-message-claimed", "IMPORTANT", "engine")
-        
-        with patch('postoffice.notifyd_client.database') as mock_db:
+
+        with patch("postoffice.notifyd_client.database") as mock_db:
             cursor = MagicMock()
             cursor.fetchall.return_value = [rule_row]
             cursor.__enter__.return_value = cursor
             mock_db.cursor.return_value = cursor
-            
+
             result = notifyd_client.get_routing_rules(
                 args,
                 "shared/support@machine1.example.com",
                 "message-claimed",
                 actor_moniker="alice",
-                conn=conn
+                conn=conn,
             )
-            
+
             self.assertEqual(len(result), 1)
             self.assertEqual(result[0]["recipient_moniker"], "recipient1")
             self.assertEqual(result[0]["urgency"], "IMPORTANT")
@@ -271,65 +260,67 @@ class TestGetRoutingRules(unittest.TestCase):
         """Return empty list if no rules match."""
         args = Mock(debug=False)
         conn = Mock()
-        
-        with patch('postoffice.notifyd_client.database') as mock_db:
+
+        with patch("postoffice.notifyd_client.database") as mock_db:
             cursor = MagicMock()
             cursor.fetchall.return_value = []
             cursor.__enter__.return_value = cursor
             mock_db.cursor.return_value = cursor
-            
+
             result = notifyd_client.get_routing_rules(
                 args,
                 "shared/support@machine1.example.com",
                 "message-claimed",
-                conn=conn
+                conn=conn,
             )
-            
+
             self.assertEqual(len(result), 0)
 
     def test_get_routing_rules_auto_notification_type(self):
         """Auto-generate notification_type if None in DB."""
         args = Mock(debug=False)
         conn = Mock()
-        
-        rule_row = ("recipient1", None, "ROUTINE", "engine")  # notification_type is None
-        
-        with patch('postoffice.notifyd_client.database') as mock_db:
+
+        rule_row = (
+            "recipient1",
+            None,
+            "ROUTINE",
+            "engine",
+        )  # notification_type is None
+
+        with patch("postoffice.notifyd_client.database") as mock_db:
             cursor = MagicMock()
             cursor.fetchall.return_value = [rule_row]
             cursor.__enter__.return_value = cursor
             mock_db.cursor.return_value = cursor
-            
+
             result = notifyd_client.get_routing_rules(
-                args,
-                "shared/support",
-                "message-claimed",
-                conn=conn
+                args, "shared/support", "message-claimed", conn=conn
             )
-            
+
             self.assertEqual(result[0]["notification_type"], "mcfeely-message-claimed")
 
     def test_get_routing_rules_pattern_actor_moniker_exact(self):
         """Match rule with exact actor_moniker."""
         args = Mock(debug=False)
         conn = Mock()
-        
+
         rule_row = ("recipient1", "mcfeely-message-claimed", "IMPORTANT", "engine")
-        
-        with patch('postoffice.notifyd_client.database') as mock_db:
+
+        with patch("postoffice.notifyd_client.database") as mock_db:
             cursor = MagicMock()
             cursor.fetchall.return_value = [rule_row]
             cursor.__enter__.return_value = cursor
             mock_db.cursor.return_value = cursor
-            
+
             result = notifyd_client.get_routing_rules(
                 args,
                 "shared/support@machine1.example.com",
                 "message-claimed",
                 actor_moniker="alice",
-                conn=conn
+                conn=conn,
             )
-            
+
             # Verify that the query was executed with LIKE pattern
             call_args = cursor.execute.call_args
             self.assertIn("LIKE actor_moniker", call_args[0][0])
@@ -338,23 +329,23 @@ class TestGetRoutingRules(unittest.TestCase):
         """NULL actor_moniker in rule matches any actual actor."""
         args = Mock(debug=False)
         conn = Mock()
-        
+
         rule_row = ("admin", "mcfeely-message-claimed", "ROUTINE", "engine")
-        
-        with patch('postoffice.notifyd_client.database') as mock_db:
+
+        with patch("postoffice.notifyd_client.database") as mock_db:
             cursor = MagicMock()
             cursor.fetchall.return_value = [rule_row]
             cursor.__enter__.return_value = cursor
             mock_db.cursor.return_value = cursor
-            
+
             result = notifyd_client.get_routing_rules(
                 args,
                 "shared/support@machine1.example.com",
                 "message-claimed",
                 actor_moniker="alice",
-                conn=conn
+                conn=conn,
             )
-            
+
             self.assertEqual(len(result), 1)
             self.assertEqual(result[0]["recipient_moniker"], "admin")
 
@@ -366,34 +357,35 @@ class TestFireEvent(unittest.TestCase):
         """Fire event successfully inserts into engine.__notify."""
         args = Mock(debug=False, databasename="zoid6")
         conn = Mock()
-        
+
         event_data = {
             "event_type": "message-claimed",
             "mailbox_name": "shared/support",
             "message_uid": 423,
             "actor_moniker": "alice",
         }
-        
-        with patch('postoffice.notifyd_client.database') as mock_db, \
-             patch('postoffice.notifyd_client.get_routing_rules') as mock_rules, \
-             patch('postoffice.notifyd_client.is_event_enabled') as mock_enabled, \
-             patch('postoffice.notifyd_client.render_event_message') as mock_render:
-            
+
+        with (
+            patch("postoffice.notifyd_client.database") as mock_db,
+            patch("postoffice.notifyd_client.get_routing_rules") as mock_rules,
+            patch("postoffice.notifyd_client.is_event_enabled") as mock_enabled,
+            patch("postoffice.notifyd_client.render_event_message") as mock_render,
+        ):
             mock_enabled.return_value = True
             mock_rules.return_value = [
                 {
                     "recipient_moniker": "bob",
                     "notification_type": "mcfeely-message-claimed",
                     "urgency": "IMPORTANT",
-                    "delivery_method": "engine"
+                    "delivery_method": "engine",
                 }
             ]
             mock_render.return_value = "alice claimed message #423"
-            
+
             cursor = MagicMock()
             cursor.__enter__.return_value = cursor
             mock_db.cursor.return_value = cursor
-            
+
             result = notifyd_client.fire_event(
                 args,
                 "shared/support",
@@ -402,7 +394,7 @@ class TestFireEvent(unittest.TestCase):
                 actor_moniker="alice",
                 conn=conn,
             )
-            
+
             self.assertTrue(result)
             mock_db.cursor.assert_called()
             cursor.execute.assert_called()
@@ -412,42 +404,43 @@ class TestFireEvent(unittest.TestCase):
         """Fire event returns True if event disabled (not an error)."""
         args = Mock(debug=False)
         conn = Mock()
-        
-        with patch('postoffice.notifyd_client.is_event_enabled') as mock_enabled:
+
+        with patch("postoffice.notifyd_client.is_event_enabled") as mock_enabled:
             mock_enabled.return_value = False
-            
+
             result = notifyd_client.fire_event(
                 args,
                 "shared/support",
                 "message-new",
                 {"event_type": "message-new"},
-                conn=conn
+                conn=conn,
             )
-            
+
             self.assertTrue(result)
 
     def test_fire_event_no_routes(self):
         """Fire event returns True if no routing rules (nothing to deliver)."""
         args = Mock(debug=False)
         conn = Mock()
-        
-        with patch('postoffice.notifyd_client.is_event_enabled') as mock_enabled, \
-             patch('postoffice.notifyd_client.get_routing_rules') as mock_rules:
-            
+
+        with (
+            patch("postoffice.notifyd_client.is_event_enabled") as mock_enabled,
+            patch("postoffice.notifyd_client.get_routing_rules") as mock_rules,
+        ):
             mock_enabled.return_value = True
             mock_rules.return_value = []
-            
+
             result = notifyd_client.fire_event(
                 args,
                 "shared/support",
                 "message-claimed",
                 {"event_type": "message-claimed", "message_uid": 423},
                 actor_moniker="alice",
-                conn=conn
+                conn=conn,
             )
-            
+
             self.assertTrue(result)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
