@@ -136,6 +136,29 @@ def main(args, **kwargs) -> bool:
 
         conn.commit()
 
+        # --- register notification types ---
+        io.echo(
+            "{var:labelcolor}notify types{var:labelcolor}: ",
+            end="",
+        )
+        try:
+            with database.cursor(conn) as cur:
+                cur.execute("""
+                    INSERT INTO engine.__notify_type 
+                    (type_name, default_urgency, max_per_user_per_hour, persist_by_default)
+                    VALUES
+                        ('mcfeely-message-new', 'ROUTINE', 10, true),
+                        ('mcfeely-message-claimed', 'IMPORTANT', 5, true),
+                        ('mcfeely-message-unclaimed', 'ROUTINE', 5, true),
+                        ('mcfeely-message-flagged', 'ROUTINE', 10, true),
+                        ('mcfeely-message-deleted', 'ROUTINE', 10, true)
+                    ON CONFLICT (type_name) DO NOTHING
+                """)
+            io.echo("  ok  ", level="ok")
+        except Exception as e:
+            io.echo(f"fail ({e})", level="error")
+            io.echo("notification type setup failed, continuing anyway", level="warn")
+
         # --- initialize IMAP monitor ---
         io.echo(
             "{var:labelcolor}imap_monitor{var:labelcolor}: ",
