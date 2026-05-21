@@ -365,3 +365,126 @@ If you have existing plaintext passwords in `mailbox_password`:
 
 When renaming becomes necessary, the password management system implementation will remain unchanged—only the project directory and package names will need to be updated.
 
+
+---
+
+## Pluggable Architecture (Strategy Pattern)
+
+The password system is designed to be easily extensible. You can swap cipher and storage implementations without modifying application code.
+
+### Cipher Strategies
+
+**Interface**: `postoffice.password.PasswordCipher`
+
+Implementations:
+- **AES256GCMCipher** (default) - AES-256-GCM, cross-language compatible
+- **PlaintextCipher** - Testing/migration only (no encryption)
+- Future: ChaCha20Cipher, RSACipher, HSM-backed, etc.
+
+### Storage Strategies
+
+**Interface**: `postoffice.password.PasswordStorage`
+
+Implementations:
+- **PostgreSQLStorage** (default) - PostgreSQL backend
+- Future: FileSystemStorage, MongoDBStorage, VaultStorage, LDAPStorage, etc.
+
+### Using the Pluggable System
+
+```python
+from postoffice.password.config import get_password_manager
+from postoffice.password.ciphers.aes256gcm import AES256GCMCipher
+from postoffice.password.storages.postgresql import PostgreSQLStorage
+from postoffice.password.manager import PasswordManager
+
+# Use factory with environment variables
+pm = get_password_manager(args=args)
+
+# Or create directly with custom implementations
+cipher = AES256GCMCipher(key_b64)
+storage = PostgreSQLStorage(args)
+pm = PasswordManager(cipher, storage)
+
+# Use unified interface
+pm.set_personal_password("jam", "inbound", "password123", "sysop")
+password = pm.get_personal_password("jam", "inbound")
+```
+
+### Configuration via Environment Variables
+
+```bash
+# Specify cipher implementation
+export PASSWORD_CIPHER=aes256gcm  # or plaintext
+
+# Specify storage implementation
+export PASSWORD_STORAGE=postgresql  # or future: mongodb, vault, etc.
+
+# AES-256-GCM key
+export POSTOFFICE_PASSWORD_KEY=$(openssl rand -base64 32)
+```
+
+### Creating Custom Implementations
+
+To implement a custom cipher:
+
+```python
+from postoffice.password.cipher import PasswordCipher
+
+class MyCustomCipher(PasswordCipher):
+    def encrypt(self, plaintext: str) -> str:
+        # Your encryption logic
+        return encrypted_string
+    
+    def decrypt(self, ciphertext: str) -> str:
+        # Your decryption logic
+        return plaintext
+```
+
+To implement custom storage:
+
+```python
+from postoffice.password.storage import PasswordStorage
+
+class MyCustomStorage(PasswordStorage):
+    def get_personal_password(self, member_moniker, password_type):
+        # Your retrieval logic
+        return encrypted_password
+    
+    # ... implement other abstract methods
+```
+
+Then register in `password/config.py` factory.
+
+---
+
+## AES-256-GCM Algorithm Details
+
+**Cipher**: AES (Advanced Encryption Standard)
+**Mode**: GCM (Galois/Counter Mode)
+**Key Size**: 256 bits (32 bytes)
+**Nonce Size**: 96 bits (12 bytes) - random, unique per encryption
+**Authentication Tag**: 128 bits (16 bytes) - prevents tampering
+**Standard**: NIST SP 800-38D
+
+### Format
+
+```
+Encrypted password = Base64(nonce[12] + ciphertext + auth_tag[16])
+```
+
+### Cross-Language Support
+
+The AES-256-GCM format is compatible with:
+
+| Language | Library/Function |
+|----------|-----------------|
+| Python | `cryptography.hazmat.primitives.ciphers.aead.AESGCM` |
+| JavaScript/Node | `crypto.createCipheriv('aes-256-gcm')` or `crypto.subtle.encrypt()` |
+| Rust | `aes-gcm` crate from RustCrypto |
+| Perl | `Crypt::AESGCM` |
+| C | OpenSSL `EVP_aes_256_gcm()` or libsodium `crypto_aead_aes256gcm_*` |
+| PHP | `openssl_encrypt('aes-256-gcm')` (PHP 7.1+) or `sodium_crypto_aead_aes256gcm_*` (PHP 7.2+) |
+| Cyrus IMAP | System crypto libraries (OpenSSL, libsodium) |
+
+The plaintext format (nonce + ciphertext + tag stored as base64) is standard and interoperable across all these languages.
+

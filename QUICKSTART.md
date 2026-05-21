@@ -267,3 +267,35 @@ For issues or questions:
 
 The password management implementation is unaffected by any future rename—it's self-contained and portable.
 
+
+## Pluggable Cipher & Storage
+
+Easy to swap implementations:
+
+```python
+from postoffice.password.config import get_password_manager
+from postoffice.password.ciphers.plaintext import PlaintextCipher
+from postoffice.password.storages.postgresql import PostgreSQLStorage
+from postoffice.password.manager import PasswordManager
+
+# Use factory (default: AES-256-GCM + PostgreSQL)
+pm = get_password_manager(args=args)
+
+# Or specify alternatives via environment variables
+export PASSWORD_CIPHER=plaintext    # Testing only!
+export PASSWORD_STORAGE=postgresql
+
+# Or create directly with custom implementations
+cipher = PlaintextCipher()  # For testing
+storage = PostgreSQLStorage(args)
+pm = PasswordManager(cipher, storage)
+```
+
+Supported ciphers:
+- `aes256gcm` - AES-256-GCM (default, cross-language compatible)
+- `plaintext` - No encryption (testing/migration only)
+
+Supported storage:
+- `postgresql` - PostgreSQL backend (default)
+
+Future: Add ChaCha20 cipher, MongoDB/Vault storage, etc.
