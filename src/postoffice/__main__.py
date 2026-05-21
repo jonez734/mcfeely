@@ -471,13 +471,45 @@ def handle_install_postoffice(args: argparse.Namespace) -> int:
                 capture_output=True,
                 text=True,
                 timeout=10,
+                stdin=subprocess.DEVNULL,
             )
 
             if result.returncode != 0:
-                echo(f"  ✗ Failed to create directory: {result.stderr}", level="error")
+                if (
+                    "sudo" in result.stderr.lower()
+                    or "password" in result.stderr.lower()
+                ):
+                    echo(
+                        "  ✗ Sudo password required. Please run with sudo or configure passwordless sudo.",
+                        level="error",
+                    )
+                    echo("", level="error")
+                    echo(
+                        "To configure passwordless sudo for this command, add the following to /etc/sudoers:",
+                        level="info",
+                    )
+                    echo(
+                        "  %sudoers ALL=(ALL) NOPASSWD: /bin/mkdir, /bin/chmod, /bin/cp",
+                        level="info",
+                    )
+                else:
+                    echo(
+                        f"  ✗ Failed to create directory: {result.stderr}",
+                        level="error",
+                    )
                 return 1
 
             echo(f"  ✓ Created {install_dir}", level="debug")
+        except subprocess.TimeoutExpired:
+            echo(
+                "  ✗ Command timed out. This may indicate sudo is waiting for a password.",
+                level="error",
+            )
+            echo(
+                "  Please run with passwordless sudo or use 'sudo python -m postoffice install-postoffice'",
+                level="error",
+            )
+            return 1
         except Exception as e:
             echo(f"  ✗ Error creating directory: {e}", level="error")
             return 1
@@ -490,6 +522,7 @@ def handle_install_postoffice(args: argparse.Namespace) -> int:
                 capture_output=True,
                 text=True,
                 timeout=10,
+                stdin=subprocess.DEVNULL,
             )
 
             if result.returncode != 0:
@@ -523,6 +556,7 @@ def handle_install_postoffice(args: argparse.Namespace) -> int:
                     capture_output=True,
                     text=True,
                     timeout=10,
+                    stdin=subprocess.DEVNULL,
                 )
 
                 if result.returncode != 0:
@@ -552,6 +586,7 @@ def handle_install_postoffice(args: argparse.Namespace) -> int:
                 capture_output=True,
                 text=True,
                 timeout=10,
+                stdin=subprocess.DEVNULL,
             )
 
             if result.returncode != 0:
@@ -575,6 +610,7 @@ def handle_install_postoffice(args: argparse.Namespace) -> int:
                 capture_output=True,
                 text=True,
                 timeout=30,
+                stdin=subprocess.DEVNULL,
             )
 
             if result.returncode != 0:
