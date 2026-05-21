@@ -5,10 +5,16 @@
 
 import sys
 import argparse
+import configparser
+from pathlib import Path
 from typing import Any
 
 from bbsengine6.io import echo
+from bbsengine6.io.inputchoice import inputchoice
 from . import startup
+from .imap_checker import IMAPChecker
+from .tui.message_interface import MessageInterface
+from .tui.cyrus_admin import CyrusAdmin
 
 
 # ============================================================================
@@ -72,6 +78,10 @@ def help_postoffice(args: Any) -> str:
 postoffice - mistermcfeely password management system
 
 Commands:
+  menu                           Interactive menu (default)
+  tui                            Message interface
+  accounts                       Account management (admin only)
+  imap-check                     Check IMAP server connectivity
   startup-check                  Check encryption key setup
   startup-generate               Generate new encryption key
   startup-install                Install key to /etc/postoffice/
@@ -82,10 +92,12 @@ Options:
   --help                         Show this help
 
 Examples:
+  python -m postoffice                          (runs menu)
+  python -m postoffice imap-check
+  python -m postoffice imap-check --verbose
+  python -m postoffice tui
+  python -m postoffice accounts
   python -m postoffice startup-check --verbose
-  python -m postoffice startup-generate
-  python -m postoffice startup-install
-  python -m postoffice startup-init
 """
 
 
@@ -105,6 +117,76 @@ def version_postoffice(args: Any) -> str:
 # ============================================================================
 # Command Handlers
 # ============================================================================
+
+
+def _load_imap_config() -> tuple:
+    """
+    Load IMAP configuration from config files.
+
+    Priority:
+    1. /etc/postoffice/imapd.conf (system-wide config)
+    2. ~/.postoffice (user development config)
+
+    Returns:
+        Tuple of (host, port) with defaults if config not found
+    """
+    imap_host = "localhost"
+    imap_port = 993
+
+    # Try system-wide config first (production)
+    system_config_path = Path("/etc/postoffice/imapd.conf")
+    if system_config_path.exists():
+        try:
+            config = configparser.ConfigParser()
+            config.read(system_config_path)
+            if config.has_section("imap"):
+                imap_host = config.get("imap", "host", fallback="localhost")
+                imap_port = config.getint("imap", "port", fallback=993)
+            return imap_host, imap_port
+        except Exception as e:
+            echo(f"Warning: Could not read system config file: {e}", level="error")
+
+    # Fall back to user config for development
+    user_config_path = Path.home() / ".postoffice"
+    if user_config_path.exists():
+        try:
+            config = configparser.ConfigParser()
+            config.read(user_config_path)
+            if config.has_section("imap"):
+                imap_host = config.get("imap", "host", fallback="localhost")
+                imap_port = config.getint("imap", "port", fallback=993)
+        except Exception as e:
+            echo(f"Warning: Could not read user config file: {e}", level="error")
+
+    return imap_host, imap_port
+
+
+def handle_imap_check(args: argparse.Namespace) -> int:
+    """Handle imap-check command to verify IMAP server connectivity."""
+    # Load config
+    imap_host, imap_port = _load_imap_config()
+
+    # Allow command-line overrides
+    if hasattr(args, "imaphost") and args.imaphost:
+        imap_host = args.imaphost
+    if hasattr(args, "imapport") and args.imapport:
+        imap_port = args.imapport
+
+    echo(f"Checking IMAP server at {imap_host}:{imap_port}...", level="info")
+    echo("")
+
+    # Create checker and run all checks
+    try:
+        checker = IMAPChecker(imap_host, imap_port, timeout=5, verbose=args.verbose)
+        all_pass, results = checker.check_all()
+        checker.print_results(all_pass, results)
+        return 0 if all_pass else 1
+    except ValueError as e:
+        echo(f"Invalid IMAP configuration: {e}", level="error")
+        return 1
+    except Exception as e:
+        echo(f"Error checking IMAP connectivity: {e}", level="error")
+        return 1
 
 
 def handle_startup_check(args: argparse.Namespace) -> int:
@@ -214,6 +296,128 @@ def handle_startup_init(args: argparse.Namespace) -> int:
         return 1
 
 
+def handle_menu(args: argparse.Namespace) -> int:
+    """Handle main menu - let user choose what to do."""
+    # Check if encryption key is available
+    key = startup.get_encryption_key()
+    if key is None:
+        echo("Error: Encryption key not available", level="error")
+        echo(
+            "Please run 'python -m postoffice startup-check' to diagnose", level="error"
+        )
+        return 1
+
+    is_sysop = getattr(args, "issuperuser", False)
+
+    while True:
+        echo("")
+        echo("=== postoffice ===", level="info")
+        echo("")
+
+        if is_sysop:
+            choice = inputchoice(
+                "Choose action: ",
+                "tmaqx",
+                default="m",
+                help="(t)ui messages, (m)anage accounts, (a)dmin menu, (q)uit, e(x)it",
+            )
+        else:
+            choice = inputchoice(
+                "Choose action: ",
+                "tmqx",
+                default="m",
+                help="(t)ui messages, (m)anage accounts, (q)uit, e(x)it",
+            )
+
+        if choice in ("Q", "X"):
+            echo("Goodbye!")
+            return 0
+        elif choice == "T":
+            try:
+                tui = MessageInterface(args)
+                result = tui.run()
+                if result != 0:
+                    return result
+            except KeyboardInterrupt:
+                echo("", level="info")
+                echo("Interrupted by user", level="info")
+            except Exception as e:
+                echo(f"Error running message interface: {e}", level="error")
+        elif choice == "M":
+            if is_sysop:
+                try:
+                    admin = CyrusAdmin(args)
+                    result = admin.run()
+                    if result != 0:
+                        return result
+                except KeyboardInterrupt:
+                    echo("", level="info")
+                    echo("Interrupted by user", level="info")
+                except Exception as e:
+                    echo(f"Error running account management: {e}", level="error")
+            else:
+                echo(
+                    "Error: Only administrators can access account management",
+                    level="error",
+                )
+        elif choice == "A" and is_sysop:
+            echo("Admin features not yet implemented", level="error")
+
+
+def handle_tui(args: argparse.Namespace) -> int:
+    """Handle TUI command for interactive message interface."""
+    # Check if encryption key is available
+    key = startup.get_encryption_key()
+    if key is None:
+        echo("Error: Encryption key not available", level="error")
+        echo(
+            "Please run 'python -m postoffice startup-check' to diagnose", level="error"
+        )
+        return 1
+
+    # Run message interface TUI
+    try:
+        tui = MessageInterface(args)
+        return tui.run()
+    except KeyboardInterrupt:
+        echo("", level="info")
+        echo("Interrupted by user", level="info")
+        return 0
+    except Exception as e:
+        echo(f"Error running TUI: {e}", level="error")
+        return 1
+
+
+def handle_accounts(args: argparse.Namespace) -> int:
+    """Handle accounts command for account management."""
+    # Check if encryption key is available
+    key = startup.get_encryption_key()
+    if key is None:
+        echo("Error: Encryption key not available", level="error")
+        echo(
+            "Please run 'python -m postoffice startup-check' to diagnose", level="error"
+        )
+        return 1
+
+    # Check if user is sysop
+    is_sysop = getattr(args, "issuperuser", False)
+    if not is_sysop:
+        echo("Error: Only administrators can access account management", level="error")
+        return 1
+
+    # Run account management TUI
+    try:
+        admin = CyrusAdmin(args)
+        return admin.run()
+    except KeyboardInterrupt:
+        echo("", level="info")
+        echo("Interrupted by user", level="info")
+        return 0
+    except Exception as e:
+        echo(f"Error running account management: {e}", level="error")
+        return 1
+
+
 # ============================================================================
 # Main Entry Point
 # ============================================================================
@@ -227,29 +431,38 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Commands:
-  startup-check                     Check encryption key setup
-  startup-generate                  Generate new encryption key
-  startup-install                   Install key to /etc/postoffice/
-  startup-init                      Initialize password system
+  menu                               Interactive menu (default)
+  tui                                Message interface
+  accounts                           Account management (admin only)
+  imap-check                         Check IMAP server connectivity
+  startup-check                      Check encryption key setup
+  startup-generate                   Generate new encryption key
+  startup-install                    Install key to /etc/postoffice/
+  startup-init                       Initialize password system
 
 Options:
-  --verbose, -v                     Show verbose output
-  --help, -h                        Show this help
-  --version                         Show version
+  --verbose, -v                      Show verbose output
+  --help, -h                         Show this help
+  --version                          Show version
+  --imaphost HOST                    IMAP host (for imap-check)
+  --imapport PORT                    IMAP port (for imap-check)
 
 Examples:
+  python -m postoffice                          (runs menu)
+  python -m postoffice imap-check
+  python -m postoffice imap-check -v
+  python -m postoffice imap-check --imaphost mail.example.com
+  python -m postoffice tui
+  python -m postoffice accounts
   python -m postoffice startup-check --verbose
-  python -m postoffice startup-generate
-  python -m postoffice startup-install
-  python -m postoffice startup-init -v
 """,
     )
 
     parser.add_argument(
         "command",
         nargs="?",
-        default="startup-check",
-        help="Command to run (default: startup-check)",
+        default="menu",
+        help="Command to run (default: menu)",
     )
     parser.add_argument(
         "--verbose",
@@ -262,6 +475,16 @@ Examples:
         action="store_true",
         help="Show version",
     )
+    parser.add_argument(
+        "--imaphost",
+        type=str,
+        help="IMAP host override (for imap-check)",
+    )
+    parser.add_argument(
+        "--imapport",
+        type=int,
+        help="IMAP port override (for imap-check)",
+    )
 
     args = parser.parse_args()
 
@@ -272,6 +495,10 @@ Examples:
 
     # Route commands
     command_map = {
+        "menu": handle_menu,
+        "tui": handle_tui,
+        "accounts": handle_accounts,
+        "imap-check": handle_imap_check,
         "startup-check": handle_startup_check,
         "startup-generate": handle_startup_generate,
         "startup-install": handle_startup_install,
