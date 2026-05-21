@@ -11,6 +11,7 @@ from typing import Any
 
 from bbsengine6.io import echo
 from bbsengine6.io.inputchoice import inputchoice
+from bbsengine6.io import inputstring
 from . import startup
 from .imap_checker import IMAPChecker
 from .tui.message_interface import MessageInterface
@@ -423,6 +424,224 @@ def handle_accounts(args: argparse.Namespace) -> int:
 # ============================================================================
 
 
+def handle_install_postoffice(args: argparse.Namespace) -> int:
+    """
+    Install postoffice configuration files to /etc/postoffice/.
+
+    Prompts for installation directory, creates it, copies config files,
+    sets proper permissions, and installs encryption key.
+
+    Returns:
+        0 on success, 1 on failure
+    """
+    try:
+        echo("")
+        echo("╔════════════════════════════════════════════════════════════════╗")
+        echo("║         postoffice Configuration Installation                  ║")
+        echo("╚════════════════════════════════════════════════════════════════╝")
+        echo("")
+
+        # Prompt for installation directory
+        echo("Enter the directory where config files should be installed:")
+        echo("(default: /etc/postoffice)", level="debug")
+        install_dir = inputstring(
+            prompt="Config directory: ", default="/etc/postoffice"
+        )
+
+        if not install_dir:
+            install_dir = "/etc/postoffice"
+
+        # Normalize path
+        install_dir = install_dir.strip()
+        if not install_dir.startswith("/"):
+            echo(
+                f"Error: Installation directory must be absolute (got: {install_dir})",
+                level="error",
+            )
+            return 1
+
+        echo(f"Installing to: {install_dir}", level="debug")
+        echo("")
+
+        # Step 1: Create directory
+        echo("Step 1/5: Creating directory structure...")
+        try:
+            import subprocess
+
+            result = subprocess.run(
+                ["sudo", "mkdir", "-p", install_dir],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            if result.returncode != 0:
+                echo(f"  ✗ Failed to create directory: {result.stderr}", level="error")
+                return 1
+
+            echo(f"  ✓ Created {install_dir}", level="debug")
+        except Exception as e:
+            echo(f"  ✗ Error creating directory: {e}", level="error")
+            return 1
+
+        # Step 2: Set directory permissions
+        echo("Step 2/5: Setting directory permissions...")
+        try:
+            result = subprocess.run(
+                ["sudo", "chmod", "755", install_dir],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            if result.returncode != 0:
+                echo(
+                    f"  ✗ Failed to set directory permissions: {result.stderr}",
+                    level="error",
+                )
+                return 1
+
+            echo("  ✓ Set directory permissions to 755", level="debug")
+        except Exception as e:
+            echo(f"  ✗ Error setting directory permissions: {e}", level="error")
+            return 1
+
+        # Step 3: Copy config files
+        echo("Step 3/5: Copying configuration files...")
+        config_files = ["cyrus.conf", "imapd.conf", "imapd.annotations"]
+        script_dir = Path(__file__).parent.parent.parent / "config"
+
+        for config_file in config_files:
+            src_file = script_dir / config_file
+            dest_file = f"{install_dir}/{config_file}"
+
+            if not src_file.exists():
+                echo(f"  ✗ Source file not found: {src_file}", level="error")
+                return 1
+
+            try:
+                result = subprocess.run(
+                    ["sudo", "cp", str(src_file), dest_file],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+
+                if result.returncode != 0:
+                    echo(
+                        f"  ✗ Failed to copy {config_file}: {result.stderr}",
+                        level="error",
+                    )
+                    return 1
+
+                echo(f"  ✓ Copied {config_file}", level="debug")
+            except Exception as e:
+                echo(f"  ✗ Error copying {config_file}: {e}", level="error")
+                return 1
+
+        # Step 4: Set file permissions
+        echo("Step 4/5: Setting file permissions...")
+        try:
+            result = subprocess.run(
+                [
+                    "sudo",
+                    "chmod",
+                    "644",
+                    f"{install_dir}/cyrus.conf",
+                    f"{install_dir}/imapd.conf",
+                    f"{install_dir}/imapd.annotations",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            if result.returncode != 0:
+                echo(
+                    f"  ✗ Failed to set file permissions: {result.stderr}",
+                    level="error",
+                )
+                return 1
+
+            echo("  ✓ Set config file permissions to 644", level="debug")
+        except Exception as e:
+            echo(f"  ✗ Error setting file permissions: {e}", level="error")
+            return 1
+
+        # Step 5: Install encryption key
+        echo("Step 5/5: Installing encryption key...")
+        try:
+            # Call startup-install to handle encryption key
+            result = subprocess.run(
+                [sys.executable, "-m", "postoffice.startup", "--install"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+            if result.returncode != 0:
+                echo(
+                    f"  ✗ Failed to install encryption key: {result.stderr}",
+                    level="error",
+                )
+                echo(
+                    "  Note: Config files were installed, but encryption key setup failed.",
+                    level="warning",
+                )
+                # Don't fail here - config files are installed
+            else:
+                echo("  ✓ Encryption key installed", level="debug")
+        except subprocess.TimeoutExpired:
+            echo("  ✗ Encryption key installation timed out", level="error")
+            echo(
+                "  Note: Config files were installed, but encryption key setup failed.",
+                level="warning",
+            )
+        except Exception as e:
+            echo(f"  ✗ Error installing encryption key: {e}", level="error")
+            echo(
+                "  Note: Config files were installed, but encryption key setup failed.",
+                level="warning",
+            )
+
+        # Summary
+        echo("")
+        echo("╔════════════════════════════════════════════════════════════════╗")
+        echo("║                    Installation Complete                       ║")
+        echo("╚════════════════════════════════════════════════════════════════╝")
+        echo("")
+        echo("✓ Configuration files installed to:", level="info")
+        echo(f"  • {install_dir}/cyrus.conf", level="info")
+        echo(f"  • {install_dir}/imapd.conf", level="info")
+        echo(f"  • {install_dir}/imapd.annotations", level="info")
+        echo(
+            f"  • {install_dir}/password.key (if encryption key installed)",
+            level="info",
+        )
+        echo("")
+        echo("Next steps:", level="info")
+        echo("  1. Review and customize the config files as needed", level="info")
+        echo(
+            "  2. Restart the IMAP daemon: sudo systemctl restart cyrus-imapd",
+            level="info",
+        )
+        echo(
+            "  3. Test connectivity: python -m postoffice imap-check --verbose",
+            level="info",
+        )
+        echo("")
+
+        return 0
+
+    except KeyboardInterrupt:
+        echo("", level="info")
+        echo("Installation cancelled by user", level="info")
+        return 1
+    except Exception as e:
+        echo(f"Error during installation: {e}", level="error")
+        return 1
+
+
 def main():
     """Main entry point for postoffice module."""
     parser = argparse.ArgumentParser(
@@ -435,6 +654,7 @@ Commands:
   tui                                Message interface
   accounts                           Account management (admin only)
   imap-check                         Check IMAP server connectivity
+  install-postoffice                 Install config files to /etc/postoffice/
   startup-check                      Check encryption key setup
   startup-generate                   Generate new encryption key
   startup-install                    Install key to /etc/postoffice/
@@ -499,6 +719,7 @@ Examples:
         "tui": handle_tui,
         "accounts": handle_accounts,
         "imap-check": handle_imap_check,
+        "install-postoffice": handle_install_postoffice,
         "startup-check": handle_startup_check,
         "startup-generate": handle_startup_generate,
         "startup-install": handle_startup_install,
