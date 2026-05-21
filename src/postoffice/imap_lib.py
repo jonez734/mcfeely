@@ -8,41 +8,116 @@ from typing import Optional, Dict, Set, Tuple, Any
 
 from bbsengine6 import io
 
+from . import password_auth
+
+
+def get_imap_credentials(
+    args: Any,
+    member_moniker: Optional[str] = None,
+    mailbox_id: Optional[int] = None,
+) -> Optional[Dict[str, str]]:
+    """
+    Get IMAP credentials with fallback to password management system.
+
+    Priority order:
+    1. args.imaphost/imapuser/imappassword (direct config, highest priority)
+    2. Password management system (member_moniker required)
+    3. None (no credentials available)
+
+    Args:
+        args: bbsengine6 args object with IMAP configuration
+        member_moniker: Member's moniker for per-member password lookup
+        mailbox_id: Mailbox ID for shared mailbox password lookup
+
+    Returns:
+        Dict with 'host', 'port', 'username', 'password' keys, or None
+    """
+    host = getattr(args, "imaphost", None)
+    port = getattr(args, "imapport", None) or 993
+    username = getattr(args, "imapuser", None)
+    password = getattr(args, "imappassword", None)
+
+    # Direct args credentials take priority
+    if host and username and password:
+        return {
+            "host": host,
+            "port": port,
+            "username": username,
+            "password": password,
+        }
+
+    # Fall back to password management system if member specified
+    if member_moniker and host and username:
+        try:
+            system_password = password_auth.get_auth_password(
+                args,
+                mailbox_id=mailbox_id,
+                member_moniker=member_moniker,
+                password_type="inbound",
+                requester_moniker=member_moniker,
+            )
+
+            if system_password:
+                return {
+                    "host": host,
+                    "port": port,
+                    "username": username,
+                    "password": system_password,
+                }
+        except Exception as e:
+            if getattr(args, "debug", False):
+                io.echo(
+                    f"imap_lib.get_imap_credentials: password lookup failed: {e}",
+                    level="debug",
+                )
+
+    return None
+
 
 def connect_cyrus(
     args,
     readonly: bool = True,
     timeout: int = 10,
+    member_moniker: Optional[str] = None,
+    mailbox_id: Optional[int] = None,
 ) -> Optional[imaplib.IMAP4_SSL]:
     """
     Connect to Cyrus IMAP server using postoffice database credentials.
 
-    Credentials loaded from bbsengine6 args (from postoffice session).
-    - args.imaphost: IMAP server hostname
-    - args.imapport: IMAP server port (default 993)
-    - args.imapuser: IMAP login username
-    - args.imappassword: IMAP login password
+    Credentials loaded with fallback:
+    1. Direct args (args.imaphost/imapuser/imappassword) - highest priority
+    2. Password management system (requires member_moniker)
+    3. Error if no credentials found
 
     Args:
         args: bbsengine6 args object with IMAP configuration
         readonly: If True, open mailboxes read-only
         timeout: Connection timeout in seconds
+        member_moniker: Member moniker for password system lookup (optional)
+        mailbox_id: Mailbox ID for shared mailbox lookup (optional)
 
     Returns:
         Connected imaplib.IMAP4_SSL object, or None on error
     """
     try:
-        host = getattr(args, "imaphost", None)
-        port = getattr(args, "imapport", 993)
-        username = getattr(args, "imapuser", None)
-        password = getattr(args, "imappassword", None)
+        # Try to get credentials (with fallback to password system)
+        creds = get_imap_credentials(
+            args,
+            member_moniker=member_moniker,
+            mailbox_id=mailbox_id,
+        )
 
-        if not host or not username or not password:
+        if not creds:
             io.echo(
                 "imap_lib.connect_cyrus: Missing IMAP credentials (host/user/pass)",
                 level="error",
             )
             return None
+
+        host = creds["host"]
+        port = creds["port"]
+        username = creds["username"]
+        password = creds["password"]
 
         imap = imaplib.IMAP4_SSL(host, port, timeout=timeout)
         imap.login(username, password)
