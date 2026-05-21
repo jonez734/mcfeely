@@ -139,7 +139,7 @@ def show_key_setup_help():
     echo("\nTo set up encryption key, choose one method:", level="error")
     echo("\n1. Environment Variable (Development/Testing):", level="error")
     echo(
-        '   export POSTOFFICE_PASSWORD_KEY=$(openssl rand -base64 32)',
+        "   export POSTOFFICE_PASSWORD_KEY=$(openssl rand -base64 32)",
         level="error",
     )
 
@@ -167,7 +167,7 @@ def show_key_setup_help():
         level="error",
     )
     echo(
-        '   openssl rand -base64 32 > ~/.postoffice/password.key',
+        "   openssl rand -base64 32 > ~/.postoffice/password.key",
         level="error",
     )
     echo(
@@ -377,11 +377,15 @@ def check_key_setup(verbose: bool = True) -> bool:
         stat_info = os.stat(system_key_file)
         mode_octal = oct(stat_info.st_mode & 0o777)
         if stat_info.st_mode & 0o077:
-            echo(f"✗ {system_key_file} exists but has insecure permissions: {mode_octal}",
-                 level="error")
+            echo(
+                f"✗ {system_key_file} exists but has insecure permissions: {mode_octal}",
+                level="error",
+            )
         else:
-            echo(f"✓ {system_key_file} exists with secure permissions: {mode_octal}",
-                 level="debug")
+            echo(
+                f"✓ {system_key_file} exists with secure permissions: {mode_octal}",
+                level="debug",
+            )
     else:
         echo(f"✗ {system_key_file} does not exist", level="error")
 
@@ -391,11 +395,15 @@ def check_key_setup(verbose: bool = True) -> bool:
         stat_info = os.stat(user_key_file)
         mode_octal = oct(stat_info.st_mode & 0o777)
         if stat_info.st_mode & 0o077:
-            echo(f"✗ {user_key_file} exists but has insecure permissions: {mode_octal}",
-                 level="error")
+            echo(
+                f"✗ {user_key_file} exists but has insecure permissions: {mode_octal}",
+                level="error",
+            )
         else:
-            echo(f"✓ {user_key_file} exists with secure permissions: {mode_octal}",
-                 level="debug")
+            echo(
+                f"✓ {user_key_file} exists with secure permissions: {mode_octal}",
+                level="debug",
+            )
     else:
         echo(f"✗ {user_key_file} does not exist", level="error")
 
@@ -497,8 +505,10 @@ Examples:
             key = os.urandom(32)
             key_b64 = base64.b64encode(key).decode()
 
-            echo("Installing encryption key to /etc/postoffice/password.key...",
-                 level="debug")
+            echo(
+                "Installing encryption key to /etc/postoffice/password.key...",
+                level="debug",
+            )
 
             # Create directory
             subprocess.run(
@@ -508,7 +518,7 @@ Examples:
             )
 
             # Write key
-            result = subprocess.run(
+            subprocess.run(
                 ["sudo", "tee", "/etc/postoffice/password.key"],
                 input=key_b64.encode(),
                 capture_output=True,
@@ -525,16 +535,25 @@ Examples:
             # Set ownership (optional, requires postoffice user)
             try:
                 subprocess.run(
-                    ["sudo", "chown", "postoffice:postoffice", "/etc/postoffice/password.key"],
+                    [
+                        "sudo",
+                        "chown",
+                        "postoffice:postoffice",
+                        "/etc/postoffice/password.key",
+                    ],
                     check=True,
                     capture_output=True,
                 )
             except Exception:
-                echo("Note: Could not set ownership to postoffice:postoffice",
-                     level="error")
+                echo(
+                    "Note: Could not set ownership to postoffice:postoffice",
+                    level="error",
+                )
 
-            echo("✓ Encryption key installed to /etc/postoffice/password.key",
-                 level="debug")
+            echo(
+                "✓ Encryption key installed to /etc/postoffice/password.key",
+                level="debug",
+            )
             echo("  Permissions set to 0600", level="debug")
             echo()
             echo("Verify installation with:", level="debug")

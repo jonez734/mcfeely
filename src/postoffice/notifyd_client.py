@@ -261,7 +261,7 @@ def render_event_message(
 
     try:
         return template.format(**format_data)
-    except KeyError as e:
+    except KeyError:
         # If template formatting fails due to missing keys, return generic message
         return f"Event: {event_type}"
 

@@ -2,10 +2,15 @@
 # Personal account password management (inbound/outbound)
 # Stores encrypted passwords in engine.__member table
 
+import warnings
 from typing import Optional, Dict, Any
 from bbsengine6 import database
 from bbsengine6.io import echo
-from . import password_crypto
+
+# Use deprecated shim intentionally for backward compatibility
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", DeprecationWarning)
+    from . import password_crypto
 
 
 def _is_sysop(args: Any) -> bool:
