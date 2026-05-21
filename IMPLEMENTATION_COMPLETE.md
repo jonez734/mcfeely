@@ -389,3 +389,18 @@ Date:   Wed May 20 21:32:00 2026 +0000
 ✅ **Error handling and logging**
 
 The system is ready for deployment and integration with IMAP/SMTP daemons.
+
+---
+
+## ⚠️ Important Legal Note
+
+**Trademark Notice**: "Mr. McFeely" is a registered trademark. The project name `mistermcfeely` may require renaming in the future to ensure compliance with trademark law. This should be considered during any public release or commercial deployment.
+
+When renaming becomes necessary:
+- The password management system implementation remains unchanged
+- Only project directory and package names need updating
+- All modules can be moved with minimal changes
+- Tests and documentation will need path updates
+
+Consider planning for a future rename if this project will be publicly released or commercially deployed.
+
