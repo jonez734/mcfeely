@@ -356,3 +356,12 @@ If you have existing plaintext passwords in `mailbox_password`:
 - AES-256-GCM: NIST SP800-38D (https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf)
 - Python cryptography library: https://cryptography.io/
 - bbsengine6 encryption: See `bbsengine6/util.py`
+
+---
+
+## ⚠️ Important Legal Note
+
+**Trademark Notice**: "Mr. McFeely" is a registered trademark. The project name `mistermcfeely` may require renaming in the future to ensure compliance with trademark law. This should be considered during any public release or commercial deployment.
+
+When renaming becomes necessary, the password management system implementation will remain unchanged—only the project directory and package names will need to be updated.
+

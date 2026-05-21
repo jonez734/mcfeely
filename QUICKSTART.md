@@ -258,3 +258,12 @@ For issues or questions:
 - Check **IMPLEMENTATION_COMPLETE.md** for architecture
 - Run tests: `pytest tests/ -v`
 - Review module docstrings in Python code
+
+---
+
+## ⚠️ Legal Notice - Trademark
+
+**Important**: "Mr. McFeely" is a registered trademark. The project name `mistermcfeely` may need to be renamed for public or commercial use.
+
+The password management implementation is unaffected by any future rename—it's self-contained and portable.
+
