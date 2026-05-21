@@ -1,186 +1,186 @@
 # startup.py
-# Initializes the postoffice schema, tables, privileges, and configuration.
-# Also initializes and starts the IMAP monitoring thread for event detection.
+# Startup initialization for mistermcfeely password management system
+# Sets up encryption keys and validates configuration
 
-from bbsengine6 import database, io
+import os
+import sys
+import base64
+from typing import Optional, Dict, Any
 
-from . import imap_monitor
-
-
-def init(args, **kwargs) -> bool:
-    """Module init - no-op for startup module."""
-    return True
+from bbsengine6.io import echo
 
 
-def access(args, op, **kwargs) -> bool:
-    """All operations allowed."""
-    return True
+def validate_encryption_key() -> bool:
+    """
+    Validate that POSTOFFICE_PASSWORD_KEY is set and valid.
 
+    Returns:
+        True if valid, False otherwise
+    """
+    key_b64 = os.environ.get("POSTOFFICE_PASSWORD_KEY")
 
-def buildargs(args, **kwargs):
-    """No additional arguments."""
-    return None
-
-
-def main(args, **kwargs) -> bool:
-    """Initialize postoffice schema and tables on startup."""
-
-    def _work(conn, pool=None):
-        io.echo("running postoffice startup...")
-
-        # --- schema ---
-        io.echo(
-            "{var:labelcolor}schema {var:valuecolor}postoffice{var:labelcolor}: ",
-            end="",
+    if not key_b64:
+        echo(
+            "ERROR: POSTOFFICE_PASSWORD_KEY environment variable not set",
+            level="error",
         )
-        if not database.schemaexists(args, "postoffice", conn=conn):
-            io.echo("create ", end="")
-            if not database.createschema(args, "postoffice", conn=conn):
-                io.echo(" fail ", level="error")
-                return False
-        io.echo("  ok  ", level="ok")
-
-        # --- tables (in dependency order) ---
-        tables = (
-            ("postoffice.mailbox", "mailbox.sql"),
-            ("postoffice.virtual", "virtual.sql"),
-            ("postoffice.__message", "message.sql"),
-            ("postoffice.notification_routing", "notification_routing.sql"),
-            ("postoffice.notification_config", "notification_config.sql"),
+        echo(
+            "  Set it with: export POSTOFFICE_PASSWORD_KEY=$(openssl rand -base64 32)",
+            level="error",
         )
+        return False
 
-        failcount = 0
-        for table, sqlfile in tables:
-            io.echo(
-                f"{{var:labelcolor}}table {{var:valuecolor}}{table}{{var:labelcolor}}: ",
-                end="",
+    try:
+        key_bytes = base64.b64decode(key_b64)
+        if len(key_bytes) != 32:
+            echo(
+                f"ERROR: POSTOFFICE_PASSWORD_KEY must be 32 bytes (got {len(key_bytes)})",
+                level="error",
             )
-            if not database.classexists(args, table, conn=conn):
-                io.echo("import ", end="")
-                if not database.importsql(
-                    args, sqlfile, conn=conn, package="postoffice.sql"
-                ):
-                    io.echo(" fail ", level="error")
-                    failcount += 1
-                else:
-                    io.echo("  ok  ", level="ok")
-            else:
-                io.echo("  ok  ", level="ok")
-
-        if failcount > 0:
-            io.echo("table setup failed", level="error")
-            conn.rollback()
             return False
+        return True
+    except Exception as e:
+        echo(f"ERROR: POSTOFFICE_PASSWORD_KEY is not valid base64: {e}", level="error")
+        return False
 
-        # --- notification history view ---
-        io.echo(
-            "{var:labelcolor}view {var:valuecolor}postoffice.notification_history{var:labelcolor}: ",
-            end="",
+
+def validate_password_config() -> Dict[str, str]:
+    """
+    Validate password system configuration.
+
+    Returns:
+        Dict with 'cipher' and 'storage' keys, or empty dict on error
+    """
+    cipher = os.environ.get("PASSWORD_CIPHER", "aes256gcm")
+    storage = os.environ.get("PASSWORD_STORAGE", "postgresql")
+
+    # Validate cipher
+    valid_ciphers = ["aes256gcm", "plaintext"]
+    if cipher not in valid_ciphers:
+        echo(
+            f"WARNING: Unknown PASSWORD_CIPHER '{cipher}', using default 'aes256gcm'",
+            level="error",
         )
-        try:
-            # Create view (idempotent via CREATE OR REPLACE)
-            create_view_sql = """
-            CREATE OR REPLACE VIEW postoffice.notification_history AS
-            SELECT
-                n.id,
-                n.notification_type,
-                n.sender_moniker,
-                n.rendered_message,
-                n.data,
-                n.urgency,
-                n.datecreated,
-                (n.data->>'mailbox_name')::TEXT as mailbox_name,
-                (n.data->>'event_type')::TEXT as event_type,
-                (n.data->>'message_uid')::INTEGER as message_uid,
-                (n.data->>'actor_moniker')::TEXT as actor_moniker
-            FROM engine.__notify n
-            WHERE n.notification_type LIKE 'mcfeely-%'
-            ORDER BY n.datecreated DESC;
-            """
-            with database.cursor(conn) as cur:
-                cur.execute(create_view_sql)
-            io.echo("  ok  ", level="ok")
-        except Exception as e:
-            io.echo(f" fail ({e})", level="error")
-            failcount += 1
+        cipher = "aes256gcm"
 
-        if failcount > 0:
-            io.echo("view setup failed", level="error")
-            conn.rollback()
-            return False
-
-        # --- schema privileges ---
-        io.echo(
-            "{var:labelcolor}schema {var:valuecolor}postoffice {var:labelcolor}privs: ",
-            end="",
+    # Validate storage
+    valid_storages = ["postgresql"]
+    if storage not in valid_storages:
+        echo(
+            f"WARNING: Unknown PASSWORD_STORAGE '{storage}', using default 'postgresql'",
+            level="error",
         )
-        for role in ("web", "term", "sysop"):
-            if not database.manage_schema_priv(
-                args, "grant", "usage", "postoffice", role, conn=conn
-            ):
-                io.echo(f"fail ({role})", level="error")
-                failcount += 1
+        storage = "postgresql"
 
-        if not database.manage_schema_priv(
-            args, "grant", "create", "postoffice", "sysop", conn=conn
-        ):
-            io.echo("fail (sysop create)", level="error")
-            failcount += 1
+    return {"cipher": cipher, "storage": storage}
 
-        if failcount > 0:
-            io.echo("privilege setup failed", level="error")
-            conn.rollback()
-            return False
 
-        io.echo("  ok  ", level="ok")
+def initialize_password_system() -> bool:
+    """
+    Initialize the password management system.
 
-        conn.commit()
+    Checks encryption key, validates configuration, and logs startup info.
 
-        # --- register notification types ---
-        io.echo(
-            "{var:labelcolor}notify types{var:labelcolor}: ",
-            end="",
-        )
-        try:
-            with database.cursor(conn) as cur:
-                cur.execute("""
-                    INSERT INTO engine.__notify_type 
-                    (type_name, default_urgency, max_per_user_per_hour, persist_by_default)
-                    VALUES
-                        ('mcfeely-message-new', 'ROUTINE', 10, true),
-                        ('mcfeely-message-claimed', 'IMPORTANT', 5, true),
-                        ('mcfeely-message-unclaimed', 'ROUTINE', 5, true),
-                        ('mcfeely-message-flagged', 'ROUTINE', 10, true),
-                        ('mcfeely-message-deleted', 'ROUTINE', 10, true)
-                    ON CONFLICT (type_name) DO NOTHING
-                """)
-            io.echo("  ok  ", level="ok")
-        except Exception as e:
-            io.echo(f"fail ({e})", level="error")
-            io.echo("notification type setup failed, continuing anyway", level="warn")
-
-        # --- initialize IMAP monitor ---
-        io.echo(
-            "{var:labelcolor}imap_monitor{var:labelcolor}: ",
-            end="",
-        )
-        try:
-            imap_monitor.initialize_monitor(args, poll_interval_seconds=30, pool=pool)
-            imap_monitor.start_monitor()
-            io.echo("  ok  ", level="ok")
-        except Exception as e:
-            io.echo(f"fail ({e})", level="error")
-            io.echo("imap_monitor setup failed, continuing anyway", level="warn")
-
+    Returns:
+        True if initialization successful, False otherwise
+    """
+    if getattr(initialize_password_system, "_initialized", False):
         return True
 
-    conn = kwargs.get("conn", None)
-    if conn is None:
-        pool = kwargs.get("pool", None)
-        if pool is None:
-            io.echo("postoffice.startup.100: no pool", level="error")
-            return False
-        with database.connect(args, pool=pool) as conn:
-            return _work(conn, pool=pool)
-    pool = kwargs.get("pool", None)
-    return _work(conn, pool=pool)
+    echo("Initializing password management system...", level="debug")
+
+    # Validate encryption key
+    if not validate_encryption_key():
+        return False
+
+    # Validate configuration
+    config = validate_password_config()
+    if not config:
+        return False
+
+    echo(
+        f"Password system initialized: cipher={config['cipher']}, storage={config['storage']}",
+        level="debug",
+    )
+
+    initialize_password_system._initialized = True
+    return True
+
+
+def check_database_schema(args: Any) -> bool:
+    """
+    Check if postoffice database schema is initialized.
+
+    Args:
+        args: bbsengine6 args object with database connection
+
+    Returns:
+        True if schema exists, False otherwise
+    """
+    try:
+        from bbsengine6 import database
+
+        with database.connect(args) as conn:
+            with conn.cursor() as cur:
+                # Check if postoffice schema exists
+                cur.execute(
+                    """
+                    SELECT schema_name
+                    FROM information_schema.schemata
+                    WHERE schema_name = 'postoffice'
+                """
+                )
+                result = cur.fetchone()
+                if result:
+                    return True
+                else:
+                    echo(
+                        "WARNING: postoffice schema not found in database",
+                        level="error",
+                    )
+                    return False
+    except Exception as e:
+        echo(f"WARNING: Could not check database schema: {e}", level="error")
+        return False
+
+
+def startup(args: Optional[Any] = None) -> bool:
+    """
+    Run full startup sequence for mistermcfeely.
+
+    Initializes:
+    1. Password system configuration
+    2. Encryption key validation
+    3. Database schema check (if args provided)
+
+    Args:
+        args: Optional bbsengine6 args object for database checks
+
+    Returns:
+        True if startup successful, False otherwise
+    """
+    echo("Starting mistermcfeely...", level="debug")
+
+    # Initialize password system
+    if not initialize_password_system():
+        return False
+
+    # Check database schema if args provided
+    if args:
+        if not check_database_schema(args):
+            echo(
+                "WARNING: Database schema check failed (non-fatal)",
+                level="error",
+            )
+
+    echo("mistermcfeely startup complete", level="debug")
+    return True
+
+
+__all__ = [
+    "validate_encryption_key",
+    "validate_password_config",
+    "initialize_password_system",
+    "check_database_schema",
+    "startup",
+]
