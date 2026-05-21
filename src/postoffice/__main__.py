@@ -5,11 +5,9 @@
 
 import sys
 import argparse
-from typing import Optional, Any
+from typing import Any
 
 from bbsengine6.io import echo
-from bbsengine6 import module as bbsmodule
-
 from . import startup
 
 
@@ -149,7 +147,10 @@ def handle_startup_install(args: argparse.Namespace) -> int:
         key = os.urandom(32)
         key_b64 = base64.b64encode(key).decode()
 
-        echo("Installing encryption key to /etc/postoffice/password.key...", level="debug")
+        echo(
+            "Installing encryption key to /etc/postoffice/password.key...",
+            level="debug",
+        )
 
         # Create directory
         subprocess.run(
@@ -176,14 +177,23 @@ def handle_startup_install(args: argparse.Namespace) -> int:
         # Set ownership (optional)
         try:
             subprocess.run(
-                ["sudo", "chown", "postoffice:postoffice", "/etc/postoffice/password.key"],
+                [
+                    "sudo",
+                    "chown",
+                    "postoffice:postoffice",
+                    "/etc/postoffice/password.key",
+                ],
                 check=True,
                 capture_output=True,
             )
         except Exception:
-            echo("Note: Could not set ownership to postoffice:postoffice", level="error")
+            echo(
+                "Note: Could not set ownership to postoffice:postoffice", level="error"
+            )
 
-        echo("✓ Encryption key installed to /etc/postoffice/password.key", level="debug")
+        echo(
+            "✓ Encryption key installed to /etc/postoffice/password.key", level="debug"
+        )
         echo("  Permissions set to 0600", level="debug")
         echo()
         echo("Verify installation with:", level="debug")

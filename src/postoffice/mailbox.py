@@ -35,7 +35,7 @@ def _editmailbox(args, mailbox, mode="NEEDINFO"):
             "{var:optioncolor}[E]{var:labelcolor}nabled: {var:valuecolor}", end=""
         )  # %s" % (enabled))
         enabled = _mailbox["enabled"] if "enabled" in _mailbox else True
-        if enabled == True:
+        if enabled:
             io.echo("True", end="")
         else:
             io.echo("False", end="")
@@ -253,7 +253,7 @@ def main(args, **kw):
             summary(args)
         elif ch == "E":
             io.echo("edit")
-            edit(args)
+            # edit(args)  # TODO: Implement edit function
         elif ch == "A":
             io.echo("add")
             add(args)

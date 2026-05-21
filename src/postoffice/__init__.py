@@ -14,6 +14,6 @@ def buildargs(args, **kw: dict) -> bool:
 
 
 def main(args, **kw):
-    util.heading("post office")
+    # util.heading("post office")
     lib.runmodule("main", **kw)
     return True
