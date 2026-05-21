@@ -444,9 +444,7 @@ def handle_install_postoffice(args: argparse.Namespace) -> int:
         # Prompt for installation directory
         echo("Enter the directory where config files should be installed:")
         echo("(default: /etc/postoffice)", level="debug")
-        install_dir = inputstring(
-            prompt="Config directory: ", default="/etc/postoffice"
-        )
+        install_dir = inputstring("Config directory: ", oldvalue="/etc/postoffice")
 
         if not install_dir:
             install_dir = "/etc/postoffice"
