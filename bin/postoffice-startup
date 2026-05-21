@@ -1,0 +1,21 @@
+#!/bin/bash
+# postoffice-startup - mistermcfeely password system CLI wrapper
+# Usage: postoffice-startup [--check|--generate|--install|--init] [--verbose]
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Check if virtual environment exists
+if [ ! -f "$PROJECT_ROOT/.venv/bin/activate" ]; then
+    echo "ERROR: Virtual environment not found at $PROJECT_ROOT/.venv"
+    echo "Please create it with: python -m venv $PROJECT_ROOT/.venv"
+    exit 1
+fi
+
+# Activate virtual environment
+source "$PROJECT_ROOT/.venv/bin/activate"
+
+# Run the Python startup module
+python -m postoffice.startup "$@"
