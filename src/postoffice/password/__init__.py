@@ -1,11 +1,13 @@
-# password/__init__.py
-# Pluggable password management system with strategy pattern
-# Supports swappable cipher and storage implementations
+# postoffice/password/__init__.py
+# Bridge module: re-exports from bbsengine6.password
+# The actual implementation has moved to bbsengine6 for reusability
 
-from .cipher import PasswordCipher
-from .storage import PasswordStorage
-from .manager import PasswordManager
-from .config import get_password_manager
+from bbsengine6.password import (
+    PasswordCipher,
+    PasswordStorage,
+    PasswordManager,
+    get_password_manager,
+)
 
 __all__ = [
     "PasswordCipher",
