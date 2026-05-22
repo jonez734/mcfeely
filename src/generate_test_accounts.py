@@ -10,6 +10,7 @@ try:
     from postoffice import startup
     from bbsengine6.io import echo, inputboolean
     from bbsengine6 import database
+    from bbsengine6.util import heading
 except ImportError:
     print("Error: postoffice module not found. Run from mistermcfeely/src directory.")
     sys.exit(1)
@@ -122,7 +123,7 @@ class AccountGenerator:
         # Check if schema exists
         if not self.skip_mailboxes and not self._mailbox_table_exists():
             if self.create_schema:
-                echo("=== Creating postoffice schema ===", level="info")
+                heading("Creating Postoffice Schema")
                 if self._create_postoffice_schema():
                     echo("✓ Postoffice schema created", level="info")
                     echo("")
@@ -150,33 +151,31 @@ class AccountGenerator:
                     echo("")
 
         # Create test accounts
-        echo(f"=== Creating {self.num_accounts} test accounts ===", level="info")
+        heading(f"Creating {self.num_accounts} Test Accounts")
         accounts = self._create_test_accounts()
 
-        if not accounts:
+        if accounts is None:
             echo("Failed to create test accounts", level="error")
             return False
 
-        echo(f"✓ Created {len(accounts)} account(s)", level="info")
+        echo(f"✓ All {self.num_accounts} account(s) ready ({len(accounts)} newly created, {self.num_accounts - len(accounts)} already existed)", level="info")
         echo("")
 
         # Create shared mailboxes (optional)
         mailboxes = []
         if not self.skip_mailboxes:
-            echo(
-                f"=== Creating {self.num_mailboxes} shared mailboxes ===", level="info"
-            )
+            heading(f"Creating {self.num_mailboxes} Shared Mailboxes")
             mailboxes = self._create_test_mailboxes()
 
             if mailboxes:
                 echo(f"✓ Created {len(mailboxes)} mailbox(es)", level="info")
                 echo("")
 
-        echo("=== Test Data Generation Complete ===", level="info")
+        heading("Test Data Generation Complete")
         echo("")
-        echo("Created accounts:", level="info")
-        for account in accounts:
-            echo(f"  • {account['moniker']}", level="info")
+        echo("Existing accounts:", level="info")
+        for i in range(1, self.num_accounts + 1):
+            echo(f"  • testuser{i}", level="info")
 
         if mailboxes:
             echo("")
@@ -208,9 +207,10 @@ class AccountGenerator:
                     id BIGSERIAL PRIMARY KEY,
                     name TEXT NOT NULL UNIQUE,
                     description TEXT,
-                    created_by TEXT NOT NULL,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    datecreated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    createdbymoniker TEXT NOT NULL,
+                    dateupdated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    updatedbymoniker TEXT,
                     enabled BOOLEAN DEFAULT TRUE
                 )
                 """
@@ -224,8 +224,8 @@ class AccountGenerator:
                 """)
 
                 cur.execute("""
-                CREATE INDEX IF NOT EXISTS idx_shared_mailbox_created
-                    ON postoffice.shared_mailbox(created_at DESC)
+                CREATE INDEX IF NOT EXISTS idx_shared_mailbox_datecreated
+                    ON postoffice.shared_mailbox(datecreated DESC)
                 """)
 
                 if self.verbose:
@@ -266,13 +266,13 @@ class AccountGenerator:
                             "engine.__member",
                             {"moniker": moniker, "email": email},
                             conn=conn,
-                            returnid=False,
+                            returnid=True,
                         )
 
-                        if mailbox_id:
+                        if mailbox_id is not None:
                             if self.verbose:
                                 echo(f"✓ Created account: {moniker}", level="debug")
-                            accounts.append({"moniker": moniker})
+                            accounts.append({"moniker": moniker, "id": mailbox_id})
 
             except Exception as e:
                 echo(f"Error creating account {moniker}: {e}", level="error")
@@ -308,7 +308,7 @@ class AccountGenerator:
                         mailbox_id = database.insert(
                             self.args,
                             "postoffice.shared_mailbox",
-                            {"name": name, "created_by": "admin"},
+                            {"name": name, "createdbymoniker": "admin"},
                             conn=conn,
                             returnid=True,
                         )
