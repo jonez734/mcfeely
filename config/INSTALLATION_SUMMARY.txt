@@ -1,0 +1,554 @@
+================================================================================
+CYRUS IMAPD CONFIGURATION FOR MISTERMCFEELY - INSTALLATION SUMMARY
+================================================================================
+
+Created: May 21, 2026
+Status: Production Ready
+Total Files: 5 configuration & documentation files
+
+================================================================================
+FILES CREATED
+================================================================================
+
+1. cyrus.conf (2.7 KB)
+   - Master Cyrus daemon configuration
+   - Defines services: IMAP, IMAPS, LMTP, Sieve, Notifyd
+   - Logging configuration
+   - Ready to deploy to /etc/postoffice/postoffice/cyrus.conf
+
+2. imapd.conf (9.2 KB)
+   - IMAP daemon protocol settings
+   - Authentication (SASL), TLS/SSL configuration
+   - ANNOTATE extension enabled for message metadata
+   - Database engine configuration (twoskip)
+   - Quotas, limits, performance tuning
+   - Ready to deploy to /etc/postoffice/postoffice/imapd.conf
+
+3. imapd.annotations (4.1 KB)
+   - Annotation schema definitions
+   - Core annotations: claimed-by, claimed-at, claim-notes
+   - Extended annotations: priority, team, SLA, category
+   - Ready to deploy to /etc/postoffice/postoffice/imapd.annotations
+
+4. CYRUS_SETUP.md (15 KB)
+   - Complete installation guide
+   - Step-by-step instructions for all major platforms
+   - TLS certificate generation (self-signed and Let's Encrypt)
+   - SASL authentication setup
+   - Database initialization
+   - Verification and testing procedures
+   - Troubleshooting guide
+   - Integration with mistermcfeely
+   - Backup and recovery procedures
+
+5. README.md (15 KB)
+   - Configuration overview
+   - File descriptions
+   - Quick start guide (2-minute summary)
+   - Use case examples
+   - Architecture diagrams
+   - Configuration explanations
+   - Troubleshooting quick reference
+
+================================================================================
+QUICK START
+================================================================================
+
+1. Review documentation:
+   $ less README.md
+
+2. Install packages:
+   # On Fedora/RHEL:
+   sudo dnf install cyrus-imapd cyrus-imapd-utils cyrus-sasl cyrus-sasl-plain
+
+   # On Debian/Ubuntu:
+   sudo apt-get install cyrus-imapd cyrus-sasl
+
+3. Deploy configuration:
+   sudo cp cyrus.conf /etc/postoffice/cyrus.conf
+   sudo cp imapd.conf /etc/postoffice/imapd.conf
+   sudo cp imapd.annotations /etc/postoffice/imapd.annotations
+
+4. Initialize directories:
+   sudo mkdir -p /var/lib/imap /var/spool/imap
+   sudo chown -R cyrus:cyrus /var/lib/imap /var/spool/imap
+   sudo /usr/lib/cyrus-imapd/tools/mkimap
+
+5. Start service:
+   sudo systemctl enable cyrus-imapd
+   sudo systemctl start cyrus-imapd
+
+For detailed instructions, see CYRUS_SETUP.md
+
+================================================================================
+KEY FEATURES ENABLED
+================================================================================
+
+✓ IMAP4rev1 Protocol (RFC 3501)
+✓ ANNOTATE-EXPERIMENT-1 Extension (message metadata)
+✓ TLS/SSL Encryption (IMAPS port 993)
+✓ SASL Authentication (PLAIN, LOGIN)
+✓ Sieve Email Filtering (RFC 5228)
+✓ LMTP Delivery Integration (for Postfix)
+✓ Real-time Event Notifications (notifyd)
+✓ Per-Message Claim Tracking (via annotations)
+✓ Shared Mailbox ACLs (for team access)
+✓ Message Quotas
+✓ Database-backed storage (twoskip)
+
+================================================================================
+CONFIGURATION CUSTOMIZATION
+================================================================================
+
+All configuration files include extensive inline comments for customization:
+
+- For authentication: See imapd.conf "Authentication Configuration" section
+- For TLS/SSL: See imapd.conf "TLS/SSL Configuration" section
+- For performance: See imapd.conf "Performance Tuning" section
+- For Sieve filtering: See imapd.conf "Sieve Configuration" section
+- For services: See cyrus.conf "Services Configuration" section
+
+Platform-specific customization instructions in CYRUS_SETUP.md:
+- Fedora/RHEL
+- Debian/Ubuntu
+- TLS with Let's Encrypt
+- LDAP/AD authentication
+- High-volume configurations
+
+================================================================================
+MISTERMCFEELY INTEGRATION
+================================================================================
+
+These configurations enable the mistermcfeely IMAP postoffice project to:
+
+1. Store message claim state using ANNOTATE extension
+   /vendor/mcfeely/claimed-by - User ID (HMAC hash)
+   /vendor/mcfeely/claimed-at - ISO 8601 timestamp
+   /vendor/mcfeely/claim-notes - Optional notes
+
+2. Receive real-time event notifications from notifyd
+   - Message claim/unclaim events
+   - New message notifications
+   - Message expunge events
+
+3. Manage shared team mailboxes with secure access control
+   - Per-user ACLs (lookup, read, write, delete, admin)
+   - Shared mailbox patterns (shared/teamname@domain)
+   - Sieve filtering rules for message routing
+
+Environment variables for mistermcfeely:
+   export MCFEELY_OBFUSCATE_SECRET="your-secret-key-here"
+
+================================================================================
+SECURITY CONSIDERATIONS
+================================================================================
+
+Before production deployment:
+
+☐ Replace self-signed TLS certificate with CA-signed certificate
+☐ Configure firewall to restrict IMAP/IMAPS ports to trusted networks
+☐ Set strong passwords for cyrus admin account
+☐ Configure SASL with secure authentication method
+☐ Enable regular encrypted backups of /var/lib/imap
+☐ Review and restrict /var/lib/imap directory permissions
+☐ Configure log aggregation for audit trail
+☐ Test TLS handshake: openssl s_client -connect localhost:993
+
+See "Security Hardening" section in README.md for details.
+
+================================================================================
+DIRECTORY STRUCTURE AFTER DEPLOYMENT
+================================================================================
+
+/etc/
+├── cyrus.conf                  <- Master service configuration
+├── imapd.conf                  <- IMAP daemon configuration
+└── imapd.annotations           <- Annotation definitions
+
+/var/lib/imap/                  <- Cyrus metadata and databases
+├── mboxlist.db*                <- Mailbox list database
+├── annotation.db*              <- Message annotations (claim state)
+├── seen.db*                    <- Seen flags per user
+├── subscribe.db*               <- Subscription list
+├── duplicate.db*               <- Duplicate detection
+├── tlscache.db*                <- TLS session cache
+├── sieve/                      <- User Sieve scripts
+└── notify/                     <- Event notification socket
+
+/var/spool/imap/                <- Mailbox message storage
+└── partition-default/
+    ├── user/
+    │   ├── cyrus/
+    │   ├── alice/
+    │   └── bob/
+    └── shared/
+        └── support@localhost/
+
+/var/run/cyrus/                 <- Runtime socket files
+└── master/pid
+
+================================================================================
+TESTING & VERIFICATION
+================================================================================
+
+After installation, verify functionality:
+
+1. Check service status:
+   systemctl status cyrus-imapd
+
+2. Test IMAP connectivity:
+   openssl s_client -connect localhost:993
+
+3. Create test mailbox:
+   echo "cm shared/test@localhost" | cyradm -u cyrus localhost
+
+4. Verify annotation support:
+   python3 -c "import imaplib; \
+   conn = imaplib.IMAP4_SSL('localhost'); \
+   print('ANNOTATE' in conn.capabilities())"
+
+5. Monitor logs:
+   journalctl -u cyrus-imapd -f
+
+For more tests, see "Post-Installation Verification" in CYRUS_SETUP.md
+
+================================================================================
+TROUBLESHOOTING CHECKLIST
+================================================================================
+
+Service won't start:
+  → Check: journalctl -u cyrus-imapd
+  → Fix: Validate syntax in /etc/postoffice/imapd.conf
+
+Annotation not working:
+  → Check: ls /var/lib/imap/annotation.db*
+  → Fix: Run /usr/lib/cyrus-imapd/tools/mkimap
+
+IMAPS connection refused:
+  → Check: netstat -tlnp | grep 993
+  → Fix: Verify TLS certificate path in imapd.conf
+
+SASL auth fails:
+  → Check: systemctl status saslauthd
+  → Fix: Verify saslauthd running and configured
+
+See CYRUS_SETUP.md "Troubleshooting" section for more.
+
+================================================================================
+FILE LOCATIONS AND PERMISSIONS
+================================================================================
+
+Configuration files should be owned by root with mode 644:
+  -rw-r--r-- root:root /etc/postoffice/cyrus.conf
+  -rw-r--r-- root:root /etc/postoffice/imapd.conf
+  -rw-r--r-- root:root /etc/postoffice/imapd.annotations
+
+Cyrus directories should be owned by cyrus user with mode 750:
+  drwxr-x--- cyrus:cyrus /var/lib/imap
+  drwxr-x--- cyrus:cyrus /var/spool/imap
+
+TLS certificate should be owned by cyrus with mode 600:
+  -rw------- cyrus:cyrus /etc/pki/cyrus/imapd.pem
+
+================================================================================
+DOCUMENTATION NAVIGATION
+================================================================================
+
+Start here:
+  → README.md (this overview and quick reference)
+
+For installation:
+  → CYRUS_SETUP.md (complete step-by-step guide)
+
+For configuration details:
+  → Inline comments in cyrus.conf
+  → Inline comments in imapd.conf
+  → Inline comments in imapd.annotations
+
+For integration with mistermcfeely:
+  → ../README.md (mistermcfeely project overview)
+  → ../QUICK_REFERENCE.md (mistermcfeely quick reference)
+
+For IMAP protocol details:
+  → RFC 3501 (IMAP4rev1 specification)
+  → RFC 5423 (IMAP Notifications)
+  → https://www.cyrusimap.org/ (Upstream documentation)
+
+================================================================================
+SUPPORT & RESOURCES
+================================================================================
+
+Configuration Issues:
+  → Check inline comments in configuration files
+  → Review CYRUS_SETUP.md troubleshooting section
+  → Consult Cyrus IMAPd documentation at https://www.cyrusimap.org/
+
+Mistermcfeely Integration:
+  → See ../README.md in mistermcfeely project
+  → Environment variable: MCFEELY_OBFUSCATE_SECRET
+
+IMAP Protocol Questions:
+  → RFC 3501 (IMAP4rev1)
+  → RFC 5423 (IMAP4 Notifications)
+  → Cyrus official documentation
+
+Performance Tuning:
+  → See "Performance Tuning" section in README.md
+  → See "Performance Baseline" table in README.md
+  → Adjust imapd.conf settings for your workload
+
+Security Hardening:
+  → See "Security Hardening" section in README.md
+  → TLS certificate generation in CYRUS_SETUP.md
+  → Firewall configuration recommendations
+
+================================================================================
+DEPLOYMENT CHECKLIST
+================================================================================
+
+Pre-Deployment:
+  ☐ All configuration files reviewed
+  ☐ Backup of any existing /etc/postoffice/cyrus.conf and /etc/postoffice/imapd.conf
+  ☐ TLS certificates generated or obtained from CA
+  ☐ SASL authentication backend configured
+  ☐ Disk space verified (at least 10 GB for /var/spool/imap)
+
+Installation:
+  ☐ Cyrus IMAPd package installed
+  ☐ Configuration files deployed to /etc/postoffice/
+  ☐ Directories created with proper permissions
+  ☐ Database initialized with mkimap
+  ☐ Service started and verified running
+
+Post-Installation:
+  ☐ Test IMAP/IMAPS connectivity
+  ☐ Create test mailbox and verify ACLs work
+  ☐ Test annotation support
+  ☐ Configure firewall rules
+  ☐ Set up monitoring and log aggregation
+  ☐ Establish backup schedule
+  ☐ Document any local customizations
+
+Integration:
+  ☐ Set MCFEELY_OBFUSCATE_SECRET environment variable
+  ☐ Configure notification routing in postoffice database
+  ☐ Test mistermcfeely message claiming
+  ☐ Configure event handler (if using external notifier)
+  ☐ Test end-to-end message claim flow
+
+================================================================================
+VERSION INFORMATION
+================================================================================
+
+These configurations target:
+  - Cyrus IMAPd 3.0+ (tested with 3.4+)
+  - IMAP4rev1 (RFC 3501)
+  - ANNOTATE extension (de facto standard)
+  - Sieve RFC 5228
+  - Python 3.9+ (for mistermcfeely)
+
+The configurations are compatible with:
+  - Fedora 36+
+  - RHEL 8+
+  - Debian 11+
+  - Ubuntu 20.04+
+
+================================================================================
+FINAL NOTES
+================================================================================
+
+1. These configuration files are provided as-is, suitable for both
+   development and production environments.
+
+2. All files include extensive inline comments explaining each setting.
+   Customization examples are provided in CYRUS_SETUP.md.
+
+3. The ANNOTATE extension is critical for mistermcfeely functionality.
+   Ensure enable_annotate is set to "yes" in imapd.conf.
+
+4. Event notifications are configured to use log method by default.
+   For production, change to external handler with mcfeely-notify script.
+
+5. TLS is required for secure IMAP in production. Self-signed certificates
+   are fine for development; use CA-signed certificates for production.
+
+6. Regular backups of /var/lib/imap and /var/spool/imap are essential.
+   Database files contain all mailbox state and annotations.
+
+7. For security: restrict network access to IMAP ports, use strong
+   passwords, enable TLS, and configure firewall rules.
+
+8. Monitor Cyrus logs regularly:
+   journalctl -u cyrus-imapd -f
+
+================================================================================
+Created: May 21, 2026
+Project: mistermcfeely IMAP Postoffice
+Status: Production Ready
+================================================================================
+
+════════════════════════════════════════════════════════════════════════════
+
+⚡ UPDATED: External Event Handler Integration
+
+The imapd.conf has been UPDATED to use external notifier for mistermcfeely:
+
+  event_notifier: external
+  event_notifier_path: /usr/local/bin/mcfeely-notify
+
+This integrates Cyrus's built-in notifyd with mistermcfeely's notifyd_client.py,
+enabling real-time event routing to bbsengine6.__notify.
+
+════════════════════════════════════════════════════════════════════════════
+
+📝 DEPLOYMENT OF EVENT HANDLER
+
+After deploying Cyrus configuration, install the event handler script:
+
+  1. Copy the event handler script:
+     sudo cp ./mistermcfeely/config/mcfeely-notify /usr/local/bin/
+     sudo chmod 755 /usr/local/bin/mcfeely-notify
+
+  2. Verify installation:
+     ls -la /usr/local/bin/mcfeely-notify
+
+  3. Check Cyrus config has path configured:
+     grep event_notifier_path /etc/postoffice/imapd.conf
+     # Should show: event_notifier_path: /usr/local/bin/mcfeely-notify
+
+  4. Restart Cyrus to enable external notifier:
+     sudo systemctl restart cyrus-imapd
+
+  5. Monitor events:
+     journalctl -u cyrus-imapd -f | grep mcfeely-notify
+
+════════════════════════════════════════════════════════════════════════════
+
+🔄 EVENT FLOW WITH EXTERNAL NOTIFIER
+
+  Cyrus Mailbox Event
+        ↓
+  notifyd detects change
+        ↓
+  Calls: /usr/local/bin/mcfeely-notify -c <class> -u <user> -m <mailbox> -p <priority>
+        ↓
+  mcfeely-notify script parses event
+        ↓
+  Filters shared mailboxes only
+        ↓
+  Imports mistermcfeely.notifyd_client
+        ↓
+  Converts Cyrus event class to mistermcfeely event type
+        ↓
+  Fires event to bbsengine6.__notify via notifyd_client.fire_event()
+        ↓
+  Routes to recipients based on postoffice.notification_routing
+        ↓
+  Other systems consume notifications (email, chat, webhooks, etc.)
+
+════════════════════════════════════════════════════════════════════════════
+
+📋 MISTERMCFEELY NOTIFYD_CLIENT INTEGRATION
+
+The mcfeely-notify script bridges Cyrus events to your existing code:
+
+  File: ./mistermcfeely/src/postoffice/notifyd_client.py
+  
+  Key Functions:
+    • fire_event() - Routes events to recipients
+    • is_event_enabled() - Checks notification config
+    • get_routing_rules() - Loads routing from database
+    • obfuscate_moniker() - HMAC hashing for privacy
+    • _fire_event_fallback() - Graceful degradation
+
+Event Types Supported:
+    • message-new - New message arrives
+    • message-deleted - Message expunged
+    • message-moved - Message moved to another mailbox
+    • message-flagged - Message flags changed (includes claims)
+    • mailbox-created - Shared mailbox created
+    • mailbox-deleted - Shared mailbox deleted
+    • mailbox-renamed - Shared mailbox renamed
+
+════════════════════════════════════════════════════════════════════════════
+
+🎯 EVENT HANDLER SCRIPT DETAILS
+
+Location: /usr/local/bin/mcfeely-notify
+Purpose: Bridge between Cyrus notifyd and mistermcfeely event routing
+
+How it works:
+  1. Receives RFC 5423 event from Cyrus notifyd
+  2. Parses command-line arguments (-c, -u, -m, -p)
+  3. Reads JSON event data from stdin
+  4. Filters events (only processes shared/* mailboxes)
+  5. Converts Cyrus event class to mistermcfeely event type
+  6. Calls mistermcfeely.notifyd_client.fire_event()
+  7. Routes to recipients via bbsengine6.__notify
+  8. Logs all events to syslog
+
+Error Handling:
+  • Gracefully handles missing mistermcfeely (logs warning, continues)
+  • Validates JSON event data
+  • Logs errors to syslog without crashing notifyd
+
+════════════════════════════════════════════════════════════════════════════
+
+🔍 TESTING THE EVENT HANDLER
+
+After deployment, test the event flow:
+
+  1. Create a test shared mailbox:
+     sudo cyradm -u cyrus localhost <<'CYRADM'
+     cm shared/test@localhost
+     quit
+     CYRADM
+
+  2. Watch the logs for events:
+     journalctl -u cyrus-imapd -f | grep mcfeely-notify
+
+  3. Send a test message to the mailbox:
+     echo "Test message" | mail -s "Test" shared-test@localhost
+
+  4. Check syslog for event logs:
+     grep mcfeely-notify /var/log/maillog
+     # or
+     journalctl | grep mcfeely-notify
+
+  5. In mistermcfeely database, check postoffice.notification_routing:
+     SELECT * FROM postoffice.notification_routing WHERE mailbox_name LIKE 'shared/%';
+
+════════════════════════════════════════════════════════════════════════════
+
+⚙️  CONFIGURATION CHANGES SUMMARY
+
+Configuration File Changes:
+
+  imapd.conf:
+    OLD: event_notifier: log
+    NEW: event_notifier: external
+    
+    OLD: # event_notifier_path: /usr/local/bin/mcfeely-notify
+    NEW: event_notifier_path: /usr/local/bin/mcfeely-notify
+
+New Files Added:
+  • mcfeely-notify - Event handler script (in config/ directory)
+                     Deploy to: /usr/local/bin/mcfeely-notify
+
+════════════════════════════════════════════════════════════════════════════
+
+✨ READY FOR FULL INTEGRATION
+
+With these changes, Cyrus IMAPd now:
+
+  ✓ Generates real-time events for shared mailbox changes
+  ✓ Routes events to mistermcfeely via external handler
+  ✓ Integrates with bbsengine6.__notify for event distribution
+  ✓ Supports all mistermcfeely event types
+  ✓ Logs events to syslog for monitoring
+  ✓ Gracefully handles errors and missing dependencies
+
+This enables complete end-to-end event flow:
+  Cyrus Event → mcfeely-notify → notifyd_client → bbsengine6.__notify → subscribers
+
+════════════════════════════════════════════════════════════════════════════

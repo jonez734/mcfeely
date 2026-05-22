@@ -3,7 +3,7 @@
 
 from typing import Any
 from bbsengine6.io import echo
-from bbsengine6.console.inputpassword import inputpassword
+from bbsengine6.util import inputpassword
 from .. import member_password, shared_mailbox_password
 
 

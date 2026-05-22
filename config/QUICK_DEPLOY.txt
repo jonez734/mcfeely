@@ -1,0 +1,323 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                    CYRUS IMAPD QUICK DEPLOYMENT GUIDE                      ║
+║              For mistermcfeely with External Event Handler                 ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+ONE-LINE SETUP (if already installed)
+═════════════════════════════════════════════════════════════════════════════
+
+cd ./mistermcfeely/config && \
+sudo cp cyrus.conf imapd.conf imapd.annotations /etc/postoffice/ && \
+sudo cp mcfeely-notify /usr/local/bin/ && \
+sudo chmod 755 /usr/local/bin/mcfeely-notify && \
+sudo systemctl restart cyrus-imapd
+
+
+STEP-BY-STEP DEPLOYMENT
+═════════════════════════════════════════════════════════════════════════════
+
+STEP 1: Install Cyrus IMAPd (if not already installed)
+───────────────────────────────────────────────────────
+
+  Fedora/RHEL:
+  sudo dnf install cyrus-imapd cyrus-imapd-utils cyrus-sasl cyrus-sasl-plain
+
+  Debian/Ubuntu:
+  sudo apt-get install cyrus-imapd cyrus-sasl
+
+
+STEP 2: Deploy Configuration Files
+───────────────────────────────────
+
+  cd ./mistermcfeely/config
+  
+  sudo cp cyrus.conf /etc/postoffice/cyrus.conf
+  sudo cp imapd.conf /etc/postoffice/imapd.conf
+  sudo cp imapd.annotations /etc/postoffice/imapd.annotations
+  
+  Verify permissions:
+  ls -la /etc/postoffice/cyrus.conf /etc/postoffice/imapd.conf /etc/postoffice/imapd.annotations
+  # Should show: -rw-r--r-- root:root
+
+
+STEP 3: Deploy Event Handler Script
+─────────────────────────────────────
+
+  sudo cp mcfeely-notify /usr/local/bin/
+  sudo chmod 755 /usr/local/bin/mcfeely-notify
+  
+  Verify:
+  ls -la /usr/local/bin/mcfeely-notify
+  # Should show: -rwxr-xr-x
+
+
+STEP 4: Create Required Directories
+──────────────────────────────────────
+
+  sudo mkdir -p /var/lib/imap /var/spool/imap
+  sudo chown -R cyrus:cyrus /var/lib/imap /var/spool/imap
+  sudo chmod 750 /var/lib/imap /var/spool/imap
+
+
+STEP 5: Initialize Cyrus Databases
+──────────────────────────────────
+
+  sudo /usr/lib/cyrus-imapd/tools/mkimap
+  
+  Verify:
+  ls -la /var/lib/imap/*.db*
+
+
+STEP 6: Start Cyrus Service
+──────────────────────────
+
+  sudo systemctl enable cyrus-imapd
+  sudo systemctl start cyrus-imapd
+  
+  Check status:
+  sudo systemctl status cyrus-imapd
+
+
+STEP 7: Verify Deployment
+──────────────────────────
+
+  # Check service is running
+  systemctl is-active cyrus-imapd
+
+  # Check event handler path is configured
+  grep event_notifier_path /etc/postoffice/imapd.conf
+
+  # Check event handler is external
+  grep "^event_notifier:" /etc/imapd.conf
+
+  # View recent logs
+  journalctl -u cyrus-imapd -n 20
+
+
+STEP 8: Configure Database Notification Rules
+───────────────────────────────────────────────
+
+  In your PostgreSQL/MySQL database:
+
+  -- Enable notifications for shared mailboxes
+  INSERT INTO postoffice.notification_config
+  (mailbox_name, enable_new_message_events, imap_poll_interval_seconds)
+  VALUES ('shared/%', TRUE, 5);
+
+  -- Route events to admin
+  INSERT INTO postoffice.notification_routing
+  (mailbox_name, event_type, actor_moniker, recipient_moniker, urgency)
+  VALUES ('shared/%', '*', NULL, 'admin', 'ROUTINE');
+
+
+STEP 9: Test the Integration
+─────────────────────────────
+
+  # Create test mailbox
+  sudo cyradm -u cyrus localhost <<'CYRADM'
+  cm shared/test@localhost
+  quit
+  CYRADM
+
+  # Watch logs for events
+  journalctl -u cyrus-imapd -f | grep mcfeely-notify
+
+  # Send test message (in another terminal)
+  echo "Test message" | mail -s "Test" shared-test@localhost
+
+  # Check event was logged
+  journalctl -u cyrus-imapd | grep "mcfeely-notify: Event:"
+
+
+CRITICAL FILES TO VERIFY
+═════════════════════════════════════════════════════════════════════════════
+
+  Configuration:
+  ✓ /etc/postoffice/cyrus.conf exists
+  ✓ /etc/postoffice/imapd.conf contains "event_notifier: external"
+  ✓ /etc/postoffice/imapd.conf contains "event_notifier_path: /usr/local/bin/mcfeely-notify"
+  ✓ /etc/postoffice/imapd.annotations exists
+
+  Event Handler:
+  ✓ /usr/local/bin/mcfeely-notify exists
+  ✓ /usr/local/bin/mcfeely-notify is executable (755)
+  ✓ /usr/local/bin/mcfeely-notify is Python 3 script
+
+  Directories:
+  ✓ /var/lib/imap/ owned by cyrus:cyrus
+  ✓ /var/spool/imap/ owned by cyrus:cyrus
+  ✓ /var/lib/imap/annotation.db* files exist
+
+
+TROUBLESHOOTING QUICK CHECKS
+═════════════════════════════════════════════════════════════════════════════
+
+  Service won't start:
+  → sudo journalctl -u cyrus-imapd | tail -30
+  → Look for configuration errors in imapd.conf
+
+  Event handler not called:
+  → sudo grep event_notifier /etc/postoffice/imapd.conf
+  → Restart service: sudo systemctl restart cyrus-imapd
+  → Send message and check: journalctl -u cyrus-imapd | grep mcfeely
+
+  Annotation not working:
+  → Check: ls -la /var/lib/imap/annotation.db*
+  → If missing: run /usr/lib/cyrus-imapd/tools/mkimap again
+
+  Permission errors:
+  → Check: ls -la /var/lib/imap
+  → Should be: drwxr-x--- cyrus:cyrus
+  → Fix: sudo chown -R cyrus:cyrus /var/lib/imap
+
+  Port conflicts:
+  → Check: netstat -tlnp | grep -E ':143|:993|:4190'
+  → If ports in use: stop other IMAP services
+
+
+COMMON CUSTOMIZATIONS
+═════════════════════════════════════════════════════════════════════════════
+
+  Change admin user:
+  In /etc/postoffice/imapd.conf:
+    admins: cyrus        → admins: mailops
+
+  Change max connections:
+  In /etc/postoffice/imapd.conf:
+    maxchild: 100        → maxchild: 200
+
+  Change message size limit:
+  In /etc/postoffice/imapd.conf:
+    maxmessagesize: 102400  → maxmessagesize: 524288000
+
+  Change SASL mechanism:
+  In /etc/postoffice/imapd.conf:
+    sasl_mech_list: PLAIN LOGIN  → sasl_mech_list: DIGEST-MD5 PLAIN
+
+
+MONITORING THE EVENT HANDLER
+═════════════════════════════════════════════════════════════════════════════
+
+  Real-time event monitoring:
+  journalctl -u cyrus-imapd -f | grep mcfeely
+
+  View last 50 events:
+  journalctl -u cyrus-imapd -n 50 | grep mcfeely
+
+  Search for errors:
+  journalctl -u cyrus-imapd | grep -i "error\|warn"
+
+  View all logs since service start:
+  journalctl -u cyrus-imapd --no-pager
+
+
+DOCUMENTATION REFERENCE
+═════════════════════════════════════════════════════════════════════════════
+
+  README.md                          - Overview & quick reference
+  CYRUS_SETUP.md                     - Detailed installation guide
+  EVENT_HANDLER_INTEGRATION.md       - Event handler specifics
+  INSTALLATION_SUMMARY.txt           - Feature checklist
+  cyrus.conf (inline comments)       - Service configuration
+  imapd.conf (inline comments)       - IMAP daemon settings
+  imapd.annotations (inline comments)- Annotation schema
+
+
+WHAT HAPPENS WHEN YOU SEND A MESSAGE
+═════════════════════════════════════════════════════════════════════════════
+
+  1. Message arrives at Postfix
+  2. Postfix delivers via LMTP to Cyrus
+  3. Cyrus stores in /var/spool/imap/shared/test@localhost/
+  4. imapd processes the message
+  5. notifyd detects new message
+  6. notifyd calls mcfeely-notify script
+  7. mcfeely-notify parses RFC 5423 event
+  8. mcfeely-notify calls notifyd_client.fire_event()
+  9. notifyd_client checks notification_config
+  10. notifyd_client loads notification_routing rules
+  11. For each matching rule, inserts into engine.__notify
+  12. External systems (email, chat, dashboard) consume event
+
+
+PORTS USED
+═════════════════════════════════════════════════════════════════════════════
+
+  143   - IMAP (plaintext)
+  993   - IMAPS (TLS encrypted)
+  4190  - Sieve (email filtering)
+  (24)  - LMTP (internal, Unix socket by default)
+
+
+KEY ENVIRONMENT VARIABLES FOR MISTERMCFEELY
+═════════════════════════════════════════════════════════════════════════════
+
+  # Optional: Secret key for HMAC obfuscation of claim IDs
+  export MCFEELY_OBFUSCATE_SECRET="your-secret-key-here"
+
+  # If not set, falls back to database password
+
+
+VERIFY EVENT HANDLER INTEGRATION
+═════════════════════════════════════════════════════════════════════════════
+
+  Check that your code can be imported:
+  python3 -c "from postoffice import notifyd_client; print('OK')"
+
+  Check annotation support:
+  python3 -c "import imaplib; c = imaplib.IMAP4_SSL('localhost'); \
+    print('ANNOTATE' in c.capabilities())"
+
+  Check event handler script syntax:
+  python3 -m py_compile /usr/local/bin/mcfeely-notify
+
+
+EMERGENCY REVERT
+═════════════════════════════════════════════════════════════════════════════
+
+  If something goes wrong, you can revert to log-based events:
+
+  1. Edit /etc/postoffice/imapd.conf:
+     Change: event_notifier: external
+     Back to: event_notifier: log
+
+  2. Restart service:
+     sudo systemctl restart cyrus-imapd
+
+  3. Check logs (events now in syslog instead):
+     journalctl -u cyrus-imapd
+
+
+SUCCESS INDICATORS
+═════════════════════════════════════════════════════════════════════════════
+
+  When everything is working:
+
+  ✓ systemctl status cyrus-imapd shows "active (running)"
+  ✓ netstat shows ports 143, 993, 4190 listening
+  ✓ /var/lib/imap/*.db* files exist and are recent
+  ✓ journalctl shows no errors from cyrus-imapd
+  ✓ Messages sent to shared mailboxes trigger logs in journalctl
+  ✓ mcfeely-notify script logs appear: "mcfeely-notify: Event:"
+  ✓ notifyd_client.fire_event() is called for shared/* mailboxes
+
+
+NEXT STEPS
+═════════════════════════════════════════════════════════════════════════════
+
+  1. Review full documentation in README.md
+  2. Read EVENT_HANDLER_INTEGRATION.md for event flow details
+  3. Configure database notification routing rules
+  4. Test with sample message
+  5. Monitor logs during operation
+  6. Set up log aggregation for production
+  7. Configure firewall rules
+  8. Set up regular backups of /var/lib/imap
+
+
+═════════════════════════════════════════════════════════════════════════════
+
+Last Updated: May 21, 2026
+Status: Production Ready
+
+═════════════════════════════════════════════════════════════════════════════
