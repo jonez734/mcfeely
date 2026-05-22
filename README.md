@@ -1,255 +1,152 @@
-# Mistermcfeely: IMAP Postoffice with NotifyD Integration
+# Mistermcfeely: IMAP Postoffice with BBS Engine Integration
 
 **Mr. McFeely was the postman on Mr. Rogers' Neighborhood**
 
-A basic IMAP client for shared Cyrus mailboxes, integrated with bbsengine6's notifyd event system. Enables real-time notifications when messages are claimed/unclaimed in shared mailboxes.
+A basic IMAP client for shared Cyrus mailboxes, integrated with bbsengine6's notifyd event system and member management. Enables real-time notifications when messages are claimed/unclaimed in shared mailboxes.
 
 **⚠️ IMPORTANT:** All database functions in this project use the bbsengine6 **kwargs pattern for connection management. See [CONN_POOL_PATTERN.md](./CONN_POOL_PATTERN.md) for details.
 
 ## Overview
 
-**Purpose:** Sync mistermcfeely with bbsengine6's core notification system to enable event-driven workflows for shared mailbox operations (support queues, team inboxes, etc.).
+**Purpose:** Manage IMAP mailboxes for bbsengine6 members with shared mailbox support and event-driven notifications.
 
 **Key Features:**
-- **Cyrus as source of truth** - Custom flags store message claim state
+- **Cyrus IMAP integration** - Manage user and shared mailboxes via IMAP
+- **BBS Engine member system** - Users are looked up from `engine.__member`
+- **SYSOP flag detection** - Auto-detect sysop users via `engine.map_member_flag`
+- **Message tracking** - Track message claims in PostgreSQL (`public.__message`)
+- **Shared mailboxes** - Multiple users can access team mailboxes
 - **NotifyD integration** - Events fire to `engine.__notify` for consumption by other systems
-- **Pattern-based routing** - Flexible mailbox patterns (`shared/%`, `shared/%@machine%.example.com`)
-- **Obfuscated flags** - HMAC-SHA256 hashing for claim flag obfuscation (reversible with secret)
-- **Five event types:** message-new, message-claimed, message-unclaimed, message-flagged, message-deleted
-- **Background monitoring** - Embedded polling thread detects mailbox changes
-- **Configurable intervals** - Per-mailbox poll intervals via PostgreSQL config
 
-## Architecture
+## Database Schema
 
-### Data Flow
+### Tables
 
+| Table | Schema | Purpose |
+|-------|--------|---------|
+| `postoffice.mailbox` | postoffice | Individual user mailboxes (user.jam) |
+| `postoffice.mailbox_password` | postoffice | Mailbox authentication passwords |
+| `postoffice.shared_mailbox` | postoffice | Shared team mailboxes (shared/support) |
+| `public.__message` | public | Message metadata and claim tracking |
+
+### Member Integration
+
+Users are stored in `engine.__member` and their sysop status is checked via `engine.map_member_flag`:
+
+```sql
+-- Check if user has SYSOP flag
+SELECT value FROM engine.map_member_flag 
+WHERE moniker = 'jam' AND name = 'SYSOP';
+-- Returns True if jam is a sysop
 ```
-User claims message
-    ↓
-Set Cyrus flag: ClaimedBy_<obfuscated>
-    ↓
-fire_event() in imap_client.py
-    ├─ Check postoffice.notification_config (enabled?)
-    ├─ Query postoffice.notification_routing (pattern-based match)
-    └─ Insert into engine.__notify (for each recipient)
-         └─ Other systems consume: email, chat, in-app, webhooks, etc.
+
+## Usage
+
+### Command Line
+
+```bash
+# Start the interactive menu (auto-detects user from OS login)
+python -m postoffice
+
+# Specify user manually
+python -m postoffice --loginid jam
+
+# Access account management (requires SYSOP flag or --issuperuser)
+python -m postoffice accounts --issuperuser
+
+# Check IMAP connectivity
+python -m postoffice imap-check --verbose
 ```
 
-### Modules
+### User Detection
 
-| Module | Purpose | Status |
-|--------|---------|--------|
-| `notifyd_client.py` | Event firing, routing, flag obfuscation | ✅ Complete |
-| `imap_client.py` | Message-level operations (claim/unclaim) | ✅ Complete |
-| `imap_monitor.py` | Background polling for mailbox changes | ✅ Complete |
-| `startup.py` | Schema initialization, monitor startup | ✅ Complete |
+The system automatically detects the current user by:
+
+1. First checks `--loginid` argument if provided
+2. Falls back to `bbsengine6.member.getcurrentmoniker()` which:
+   - Uses `util.getcurrentloginid()` to get OS login name
+   - Looks up `loginid` in `engine.__member` table
+   - Returns the member's `moniker`
+
+**Example:** If your OS user is `jam` and `engine.__member` has `loginid='jam'` pointing to `moniker='jam'`, you're automatically logged in.
+
+### SYSOP Detection
+
+When accessing account management:
+
+1. If `--issuperuser` is passed, skip prompt
+2. Otherwise, check `engine.map_member_flag` for SYSOP flag
+3. If user has SYSOP flag, prompt: "Administer postoffice? [Y/N]: "
+4. If user declines, exit gracefully
 
 ## Configuration
 
 ### Environment Variables
 
 ```bash
-# Obfuscation secret for claim flags (optional)
+# Required: Encryption key for password storage
+export POSTOFFICE_PASSWORD_KEY="$(openssl rand -base64 32)"
+
+# Optional: Obfuscation secret for claim flags
 export MCFEELY_OBFUSCATE_SECRET="your-shared-secret-key-here"
-
-# If not set, falls back to database password
-# If neither set, uses plain text (backward compat)
 ```
 
-### Database Setup (SQL)
+### Database Configuration
 
-#### Routing Rules
+Default database is `zoid6test` (testing mode). Override with:
 
-```sql
--- Admin sees all events for all shared mailboxes
-INSERT INTO postoffice.notification_routing
-(mailbox_name, event_type, actor_moniker, recipient_moniker, urgency)
-VALUES ('shared/%', '*', NULL, 'admin', 'ROUTINE');
-
--- Team members notified when someone claims
-INSERT INTO postoffice.notification_routing
-(mailbox_name, event_type, actor_moniker, recipient_moniker, urgency)
-VALUES 
-  ('shared/support%', 'message-claimed', 'alice', 'bob', 'IMPORTANT'),
-  ('shared/support%', 'message-claimed', 'bob', 'alice', 'IMPORTANT');
+```bash
+python -m postoffice --databasename zoid6 --databasehost localhost
 ```
 
-#### Per-Mailbox Config
+## Architecture
 
-```sql
--- Disable new message events (too noisy)
-INSERT INTO postoffice.notification_config
-(mailbox_name, enable_new_message_events, imap_poll_interval_seconds)
-VALUES ('shared/support@machine1.example.com', FALSE, 30);
+### Data Flow
+
+```
+User runs postoffice
+    ↓
+Detect user (--loginid or getcurrentmoniker)
+    ↓
+Check SYSOP flag in engine.map_member_flag
+    ↓
+If SYSOP, prompt for admin access
+    ↓
+CyrusAdmin TUI or MessageInterface TUI
+    ↓
+Manage mailboxes via IMAP
+    ↓
+Store metadata in PostgreSQL
 ```
 
-## Event Payloads
+### Modules
 
-All events stored in `engine.__notify.data` as JSON.
-
-### message-new
-```json
-{
-    "event_type": "message-new",
-    "mailbox_name": "shared/support@machine1.example.com",
-    "message_uid": 423,
-    "message_id": "<abc123@example.com>",
-    "from": "user@example.com",
-    "subject": "Help: Password reset",
-    "date": "2026-05-18T14:30:00Z"
-}
-```
-
-### message-claimed / message-unclaimed
-```json
-{
-    "event_type": "message-claimed",
-    "mailbox_name": "shared/support@machine1.example.com",
-    "message_uid": 423,
-    "actor_moniker": "alice",
-    "timestamp": "2026-05-18T14:31:00Z"
-}
-```
-
-### message-flagged
-```json
-{
-    "event_type": "message-flagged",
-    "mailbox_name": "shared/support@machine1.example.com",
-    "message_uid": 423,
-    "flag_name": "\\Seen",
-    "added": true,
-    "actor_moniker": "alice",
-    "timestamp": "2026-05-18T14:33:00Z"
-}
-```
-
-### message-deleted
-```json
-{
-    "event_type": "message-deleted",
-    "mailbox_name": "shared/support@machine1.example.com",
-    "message_uid": 423,
-    "timestamp": "2026-05-18T14:34:00Z"
-}
-```
-
-## Usage
-
-**Important:** All functions use the bbsengine6 **kwargs pattern. Pass `conn` or `pool` via kwargs.
-
-### Claiming a Message
-
-```python
-from postoffice import imap_client
-from bbsengine6 import database
-
-# Claim message with connection pool
-with database.connect(args, pool=pool) as conn:
-    success = imap_client.claim_message(
-        args,
-        mailbox_name="shared/support@example.com",
-        message_uid=423,
-        actor_moniker="alice",
-        message_id="<abc@example.com>",
-        message_from="user@example.com",
-        message_subject="Help needed",
-        pool=pool  # Pass pool via kwargs
-    )
-
-# Or with explicit connection
-success = imap_client.claim_message(
-    args,
-    mailbox_name="shared/support@example.com",
-    message_uid=423,
-    actor_moniker="alice",
-    message_id="<abc@example.com>",
-    message_from="user@example.com",
-    message_subject="Help needed",
-    conn=conn  # Pass conn via kwargs
-)
-```
-
-### Unclaiming a Message
-
-```python
-# Unclaim message (removes flag + fires event)
-success = imap_client.unclaim_message(
-    args,
-    mailbox_name="shared/support@example.com",
-    message_uid=423,
-    actor_moniker="alice",
-    pool=pool  # Pass pool via kwargs
-)
-```
-
-### Manual Event Firing
-
-```python
-# Fire custom event with pool
-success = imap_client.fire_new_message_event(
-    args,
-    mailbox_name="shared/support@example.com",
-    message_uid=423,
-    message_id="<abc@example.com>",
-    message_from="user@example.com",
-    message_subject="Help needed",
-    pool=pool  # Pass pool via kwargs
-)
-```
-
-## IMAP Monitoring
-
-The background polling thread automatically monitors configured mailboxes:
-
-- Detects new messages → fires `message-new` event
-- Detects flag changes → fires `message-flagged` event
-- Detects deletions → fires `message-deleted` event
-- Configurable per-mailbox poll intervals (default: 30 seconds)
-- Thread-safe state tracking
-- Graceful error handling (continues on IMAP errors)
-
-### Registering Mailboxes for Monitoring
-
-```python
-from postoffice import imap_monitor
-
-monitor = imap_monitor.get_monitor()
-monitor.add_mailbox("shared/support@example.com")
-monitor.add_mailbox("shared/sales@example.com")
-```
+| Module | Purpose | Status |
+|--------|---------|--------|
+| `__main__.py` | CLI entry point, command routing | ✅ Complete |
+| `cyrus_admin.py` | Account and shared mailbox TUI | ✅ Complete |
+| `message_interface.py` | Message viewing and claiming | ✅ Complete |
+| `startup.py` | Encryption key and schema init | ✅ Complete |
+| `imap_checker.py` | IMAP connectivity diagnostics | ✅ Complete |
 
 ## Testing
 
-Run test suite:
+Run the message system test:
 
 ```bash
-python -m pytest tests/ -v
-```
-
-Current test coverage:
-- **64 tests** - All passing
-- Flag obfuscation and verification
-- Event routing with pattern matching
-- Message operations (claim/unclaim)
-- Monitor lifecycle and polling
-- Event payload structure validation
-
-## Multi-Machine Support
-
-Pattern-based routing enables multi-machine scenarios:
-
-1. **Cyrus Replication** - Machine A and Machine B replicate mailbox state (flags) via Cyrus sync
-2. **Shared IMAP Namespace** - Both machines see same logical mailbox: `shared/support@example.com`
-3. **Shared PostgreSQL** - Both machines query same routing rules and write to same `engine.__notify`
-4. **Pattern Rules** - Rules like `shared/%` match mailboxes on any machine
-
-Example:
-```sql
--- Single rule matches across all machines
-INSERT INTO postoffice.notification_routing
-(mailbox_name, event_type, recipient_moniker)
-VALUES ('shared/%@%.example.com', 'message-claimed', 'admin');
+# Verify database access
+python -c "
+from bbsengine6 import database
+import argparse
+parser = argparse.ArgumentParser()
+defaults = {'databasename': 'zoid6test', 'databasehost': 'localhost', 'databaseport': 5432}
+database.buildargdatabasegroup(parser, defaults)
+args = parser.parse_args([])
+pool = database.getpool(args)
+with database.connect(args, pool=pool) as conn:
+    with database.cursor(conn) as cur:
+        cur.execute('SELECT COUNT(*) as cnt FROM public.__message')
+        print(f'Messages: {cur.fetchone()[\"cnt\"]}')"
 ```
 
 ## Complete Specification
@@ -258,32 +155,26 @@ For comprehensive documentation including SQL schema, implementation notes, and 
 
 ## Implementation Status
 
-### ✅ Completed (Phases 0-9 + Final Refactoring)
+### ✅ Completed
 
-**All Core Functionality:**
-- Phase 0: Code cleanup and schema initialization ✅
-- Phase 2: Event integration layer with flag obfuscation ✅
-- Phase 3: IMAP client operations (claim/unclaim) ✅
-- Phase 4: Event firing integration ✅
-- Phase 5: Enhanced pattern-based routing with actor_moniker wildcards ✅
-- Phase 6: IMAP monitoring with embedded polling thread ✅
-- Phase 7: Comprehensive testing (64 tests, all passing) ✅
-- Phase 8: Complete documentation ✅
-- Phase 9: Code cleanup and polish ✅
-
-**Final Refactoring:**
-- CONN_POOL_PATTERN refactoring: All database functions use **kwargs pattern ✅
-- Marked as REQUIRED in documentation ✅
-- bbsengine6 compliance verified ✅
+- CLI with menu and account management modes
+- User detection from OS login via `getcurrentmoniker()`
+- SYSOP flag detection from `engine.map_member_flag`
+- Interactive prompt for admin access
+- Account creation (engine.__member + postoffice.mailbox)
+- Shared mailbox management
+- Message claim tracking in `public.__message`
+- Screen initialization with termios error handling
+- Terminal cleanup on exit (INTR/EOF)
 
 ### 🔮 Future Enhancements (Optional)
 
-- IDLE-based monitoring (optimization over polling)
+- IDLE-based IMAP monitoring
 - Full integration testing with real Cyrus server
 - Production metrics and observability
 
 ## References
 
-- [Dovecot Shared Mailboxes](https://doc.dovecot.org/configuration_manual/shared_mailboxes/)
+- [Cyrus IMAP Documentation](https://www.cyrusimap.org/)
 - [Python IMAP Documentation](https://docs.python.org/3/library/imaplib.html)
 - [bbsengine6 Documentation](https://github.com/anomalyco/bbsengine6)
