@@ -423,7 +423,6 @@ def handle_tui(args: argparse.Namespace) -> int:
 
 def handle_accounts(args: argparse.Namespace) -> int:
     """Handle accounts command for account management."""
-    # Check if encryption key is available
     key = startup.get_encryption_key()
     if key is None:
         echo("Error: Encryption key not available", level="error")
@@ -432,23 +431,40 @@ def handle_accounts(args: argparse.Namespace) -> int:
         )
         return 1
 
-    # Check if user is sysop
     is_sysop = getattr(args, "issuperuser", False)
     if not is_sysop:
         echo("Error: Only administrators can access account management", level="error")
         return 1
 
-    # Run account management TUI
+    try:
+        current_user = member.getcurrentmoniker(args)
+    except Exception:
+        current_user = None
+
+    if current_user is None:
+        echo("Error: Could not determine current user", level="error")
+        return False
+
+    args.loginid = current_user
+
+    from bbsengine6 import screen
+
+    screen.init()
+
     try:
         admin = CyrusAdmin(args)
         return admin.run()
     except KeyboardInterrupt:
-        echo("", level="info")
-        echo("Interrupted by user", level="info")
-        return 0
-    except Exception as e:
-        echo(f"Error running account management: {e}", level="error")
-        return 1
+        echo("{/all}*INTR*")
+    except EOFError:
+        echo("{/all}*EOF*")
+    finally:
+        from bbsengine6.io import terminal
+
+        echo(
+            f"{{savecursor}}{{curpos:{terminal.height()},0}}{{el}}{{reset}}{{restorecursor}}"
+        )
+    return 0
 
 
 # ============================================================================
