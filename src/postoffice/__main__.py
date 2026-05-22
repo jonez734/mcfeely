@@ -367,7 +367,6 @@ def handle_menu(args: argparse.Namespace) -> int:
 
 def handle_tui(args: argparse.Namespace) -> int:
     """Handle TUI command for interactive message interface."""
-    # Check if encryption key is available
     key = startup.get_encryption_key()
     if key is None:
         echo("Error: Encryption key not available", level="error")
@@ -376,17 +375,24 @@ def handle_tui(args: argparse.Namespace) -> int:
         )
         return 1
 
-    # Run message interface TUI
+    from bbsengine6 import screen
+
+    screen.init()
+
     try:
         tui = MessageInterface(args)
         return tui.run()
     except KeyboardInterrupt:
-        echo("", level="info")
-        echo("Interrupted by user", level="info")
-        return 0
-    except Exception as e:
-        echo(f"Error running TUI: {e}", level="error")
-        return 1
+        echo("{/all}*INTR*")
+    except EOFError:
+        echo("{/all}*EOF*")
+    finally:
+        from bbsengine6.io import terminal
+
+        echo(
+            f"{{savecursor}}{{curpos:{terminal.height()},0}}{{el}}{{reset}}{{restorecursor}}"
+        )
+    return 0
 
 
 def handle_accounts(args: argparse.Namespace) -> int:
@@ -738,6 +744,19 @@ Examples:
         "--imapport",
         type=int,
         help="IMAP port override (for imap-check)",
+    )
+    parser.add_argument(
+        "--loginid",
+        type=str,
+        dest="loginid",
+        help="Login ID for the current user (for account management)",
+    )
+    parser.add_argument(
+        "--issuperuser",
+        action="store_true",
+        dest="issuperuser",
+        default=False,
+        help="Run as superuser/administrator (required for accounts command)",
     )
 
     args = parser.parse_args()
