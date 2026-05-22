@@ -316,7 +316,6 @@ def handle_menu(args: argparse.Namespace) -> int:
 
     if current_user is None:
         echo("Error: Could not determine current user", level="error")
-        echo("Please run from a logged-in BBS session or specify --loginid")
         return False
 
     args.loginid = current_user
