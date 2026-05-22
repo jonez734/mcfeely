@@ -45,17 +45,18 @@ create table if not exists postoffice.shared_mailbox (
     id bigserial primary key,
     name text not null unique,
     description text,
-    created_by citext not null,
-    created_at timestamp with time zone default now(),
-    updated_at timestamp with time zone default now(),
+    datecreated timestamp with time zone default now(),
+    createdbymoniker text not null,
+    dateupdated timestamp with time zone default now(),
+    updatedbymoniker text,
     enabled boolean default true
 );
 
 create index if not exists idx_shared_mailbox_name 
     on postoffice.shared_mailbox(name);
 
-create index if not exists idx_shared_mailbox_created 
-    on postoffice.shared_mailbox(created_at desc);
+create index if not exists idx_shared_mailbox_datecreated 
+    on postoffice.shared_mailbox(datecreated desc);
 
 -- ============================================================================
 -- Permissions
