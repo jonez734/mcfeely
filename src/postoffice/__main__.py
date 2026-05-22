@@ -310,7 +310,10 @@ def handle_menu(args: argparse.Namespace) -> int:
         return 1
 
     try:
-        current_user = member.getcurrentmoniker(args)
+        from bbsengine6 import database as db_module
+
+        pool = db_module.getpool(args)
+        current_user = member.getcurrentmoniker(args, pool=pool)
     except Exception:
         current_user = None
 
@@ -437,7 +440,10 @@ def handle_accounts(args: argparse.Namespace) -> int:
         return 1
 
     try:
-        current_user = member.getcurrentmoniker(args)
+        from bbsengine6 import database as db_module
+
+        pool = db_module.getpool(args)
+        current_user = member.getcurrentmoniker(args, pool=pool)
     except Exception:
         current_user = None
 
