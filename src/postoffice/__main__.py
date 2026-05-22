@@ -12,6 +12,7 @@ from typing import Any
 
 from bbsengine6.io import echo
 from bbsengine6.io.inputchoice import inputchoice
+from bbsengine6.io.inputboolean import inputboolean
 from bbsengine6.io import inputstring
 from bbsengine6 import database, member, util
 from . import startup
@@ -65,6 +66,37 @@ def access_postoffice(args: Any) -> bool:
         echo("postoffice: encryption key not available", level="error")
         return False
     return True
+
+
+def check_sysop_flag(args: Any, moniker: str, pool: Any) -> bool:
+    """
+    Check if a member has the SYSOP flag set.
+
+    Args:
+        args: bbsengine6 args object
+        moniker: The member's moniker to check
+        pool: Database connection pool
+
+    Returns:
+        True if member has SYSOP flag, False otherwise
+    """
+    try:
+        with database.connect(args, pool=pool) as conn:
+            with database.cursor(conn) as cur:
+                cur.execute(
+                    """
+                    SELECT value
+                    FROM engine.map_member_flag
+                    WHERE moniker = %s AND name = 'SYSOP'
+                    """,
+                    (moniker,),
+                )
+                row = cur.fetchone()
+                if row is not None and len(row) > 0:
+                    return bool(row["value"])
+    except Exception:
+        pass
+    return False
 
 
 def help_postoffice(args: Any) -> str:
@@ -310,13 +342,12 @@ def handle_menu(args: argparse.Namespace) -> int:
         )
         return 1
 
+    pool = None
     current_user = getattr(args, "loginid", None)
 
     if current_user is None:
         try:
-            from bbsengine6 import database as db_module
-
-            pool = db_module.getpool(args)
+            pool = database.getpool(args)
             current_user = member.getcurrentmoniker(args, pool=pool)
         except Exception:
             current_user = None
@@ -327,7 +358,26 @@ def handle_menu(args: argparse.Namespace) -> int:
 
     args.loginid = current_user
 
+    # Check if user has SYSOP flag
+    if pool is None:
+        pool = database.getpool(args)
+
+    is_bbsengine_sysop = check_sysop_flag(args, current_user, pool)
+
+    # If user is BBS engine sysop, ask if they want to admin postoffice
     is_sysop = getattr(args, "issuperuser", False)
+    if is_bbsengine_sysop and not is_sysop:
+        try:
+            echo("")
+            echo(f"You have SYSOP access as {current_user}")
+            ch = inputboolean(
+                "Administer postoffice? [Y/N]: ",
+                default="Y",
+            )
+            if ch is True:
+                is_sysop = True
+        except termios.error:
+            is_sysop = False
 
     while True:
         util.heading("postoffice")
@@ -462,18 +512,13 @@ def handle_accounts(args: argparse.Namespace) -> int:
         )
         return 1
 
+    pool = None
     is_sysop = getattr(args, "issuperuser", False)
-    if not is_sysop:
-        echo("Error: Only administrators can access account management", level="error")
-        return 1
-
     current_user = getattr(args, "loginid", None)
 
     if current_user is None:
         try:
-            from bbsengine6 import database as db_module
-
-            pool = db_module.getpool(args)
+            pool = database.getpool(args)
             current_user = member.getcurrentmoniker(args, pool=pool)
         except Exception:
             current_user = None
@@ -483,6 +528,36 @@ def handle_accounts(args: argparse.Namespace) -> int:
         return False
 
     args.loginid = current_user
+
+    # Check if user has SYSOP flag (for non-cli sysop mode)
+    if pool is None:
+        pool = database.getpool(args)
+
+    is_bbsengine_sysop = check_sysop_flag(args, current_user, pool)
+
+    # If user is BBS engine sysop and not already in admin mode, ask
+    if is_bbsengine_sysop and not is_sysop:
+        try:
+            echo("")
+            echo(f"You have SYSOP access as {current_user}")
+            ch = inputboolean(
+                "Administer postoffice? [Y/N]: ",
+                default="Y",
+            )
+            if ch is True:
+                is_sysop = True
+            elif ch is False or ch is None:
+                # None means non-interactive or invalid input; False means "N"
+                # Both mean: don't admin this session
+                echo("Goodbye!")
+                return 0
+        except termios.error:
+            echo("Terminal not available for interactive prompt", level="error")
+            return 1
+
+    if not is_sysop:
+        echo("Error: Only administrators can access account management", level="error")
+        return 1
 
     from bbsengine6 import screen
 
