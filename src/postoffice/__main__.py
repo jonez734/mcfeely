@@ -929,6 +929,7 @@ Examples:
     database.buildargdatabasegroup(parser, defaults)
 
     args = parser.parse_args()
+    args.debug = False  # Ensure debug attribute exists for bbsengine6 functions
 
     # Handle version
     if args.version:
