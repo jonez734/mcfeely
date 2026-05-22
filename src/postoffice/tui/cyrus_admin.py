@@ -10,6 +10,9 @@ from bbsengine6 import database
 from .. import member_password, shared_mailbox_password
 
 
+DEFAULT_EMAIL_DOMAIN = 'local'
+
+
 class CyrusAdmin:
     """Interactive TUI for Cyrus IMAP administration."""
 
@@ -135,10 +138,10 @@ class CyrusAdmin:
             with database.connect(self.args, pool=self.pool) as conn:
                 with conn.cursor() as cur:
                     sql = """
-                        INSERT INTO engine.__member (moniker, datecreated, dateupdated)
-                        VALUES (%s, NOW(), NOW())
+                        INSERT INTO engine.__member (moniker, email, datecreated, dateupdated)
+                        VALUES (%s, %s, NOW(), NOW())
                     """
-                    cur.execute(sql, (moniker,))
+                    cur.execute(sql, (moniker, f'{moniker}@{DEFAULT_EMAIL_DOMAIN}'))
 
             echo(f"✓ Account '{moniker}' created")
 
