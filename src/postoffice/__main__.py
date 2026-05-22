@@ -6,13 +6,14 @@
 import sys
 import argparse
 import configparser
+import termios
 from pathlib import Path
 from typing import Any
 
 from bbsengine6.io import echo
 from bbsengine6.io.inputchoice import inputchoice
 from bbsengine6.io import inputstring
-from bbsengine6 import member, util
+from bbsengine6 import database, member, util
 from . import startup
 from .imap_checker import IMAPChecker
 from .tui.message_interface import MessageInterface
@@ -309,13 +310,16 @@ def handle_menu(args: argparse.Namespace) -> int:
         )
         return 1
 
-    try:
-        from bbsengine6 import database as db_module
+    current_user = getattr(args, "loginid", None)
 
-        pool = db_module.getpool(args)
-        current_user = member.getcurrentmoniker(args, pool=pool)
-    except Exception:
-        current_user = None
+    if current_user is None:
+        try:
+            from bbsengine6 import database as db_module
+
+            pool = db_module.getpool(args)
+            current_user = member.getcurrentmoniker(args, pool=pool)
+        except Exception:
+            current_user = None
 
     if current_user is None:
         echo("Error: Could not determine current user", level="error")
@@ -349,7 +353,10 @@ def handle_menu(args: argparse.Namespace) -> int:
         elif choice == "T":
             from bbsengine6 import screen
 
-            screen.init()
+            try:
+                screen.init()
+            except termios.error:
+                pass
             try:
                 tui = MessageInterface(args)
                 result = tui.run()
@@ -359,17 +366,25 @@ def handle_menu(args: argparse.Namespace) -> int:
                 echo("{/all}*INTR*")
             except EOFError:
                 echo("{/all}*EOF*")
+            except termios.error:
+                pass
             finally:
                 from bbsengine6.io import terminal
 
-                echo(
-                    f"{{savecursor}}{{curpos:{terminal.height()},0}}{{el}}{{reset}}{{restorecursor}}"
-                )
+                try:
+                    echo(
+                        f"{{savecursor}}{{curpos:{terminal.height()},0}}{{el}}{{reset}}{{restorecursor}}"
+                    )
+                except termios.error:
+                    pass
         elif choice == "M":
             if is_sysop:
                 from bbsengine6 import screen
 
-                screen.init()
+                try:
+                    screen.init()
+                except termios.error:
+                    pass
                 try:
                     admin = CyrusAdmin(args)
                     result = admin.run()
@@ -379,12 +394,17 @@ def handle_menu(args: argparse.Namespace) -> int:
                     echo("{/all}*INTR*")
                 except EOFError:
                     echo("{/all}*EOF*")
+                except termios.error:
+                    pass
                 finally:
                     from bbsengine6.io import terminal
 
-                    echo(
-                        f"{{savecursor}}{{curpos:{terminal.height()},0}}{{el}}{{reset}}{{restorecursor}}"
-                    )
+                    try:
+                        echo(
+                            f"{{savecursor}}{{curpos:{terminal.height()},0}}{{el}}{{reset}}{{restorecursor}}"
+                        )
+                    except termios.error:
+                        pass
             else:
                 echo(
                     "Error: Only administrators can access account management",
@@ -406,7 +426,10 @@ def handle_tui(args: argparse.Namespace) -> int:
 
     from bbsengine6 import screen
 
-    screen.init()
+    try:
+        screen.init()
+    except termios.error:
+        pass
 
     try:
         tui = MessageInterface(args)
@@ -415,12 +438,17 @@ def handle_tui(args: argparse.Namespace) -> int:
         echo("{/all}*INTR*")
     except EOFError:
         echo("{/all}*EOF*")
+    except termios.error:
+        pass
     finally:
         from bbsengine6.io import terminal
 
-        echo(
-            f"{{savecursor}}{{curpos:{terminal.height()},0}}{{el}}{{reset}}{{restorecursor}}"
-        )
+        try:
+            echo(
+                f"{{savecursor}}{{curpos:{terminal.height()},0}}{{el}}{{reset}}{{restorecursor}}"
+            )
+        except termios.error:
+            pass
     return 0
 
 
@@ -439,13 +467,16 @@ def handle_accounts(args: argparse.Namespace) -> int:
         echo("Error: Only administrators can access account management", level="error")
         return 1
 
-    try:
-        from bbsengine6 import database as db_module
+    current_user = getattr(args, "loginid", None)
 
-        pool = db_module.getpool(args)
-        current_user = member.getcurrentmoniker(args, pool=pool)
-    except Exception:
-        current_user = None
+    if current_user is None:
+        try:
+            from bbsengine6 import database as db_module
+
+            pool = db_module.getpool(args)
+            current_user = member.getcurrentmoniker(args, pool=pool)
+        except Exception:
+            current_user = None
 
     if current_user is None:
         echo("Error: Could not determine current user", level="error")
@@ -455,7 +486,10 @@ def handle_accounts(args: argparse.Namespace) -> int:
 
     from bbsengine6 import screen
 
-    screen.init()
+    try:
+        screen.init()
+    except Exception:
+        pass
 
     try:
         admin = CyrusAdmin(args)
@@ -464,12 +498,17 @@ def handle_accounts(args: argparse.Namespace) -> int:
         echo("{/all}*INTR*")
     except EOFError:
         echo("{/all}*EOF*")
+    except termios.error:
+        pass
     finally:
         from bbsengine6.io import terminal
 
-        echo(
-            f"{{savecursor}}{{curpos:{terminal.height()},0}}{{el}}{{reset}}{{restorecursor}}"
-        )
+        try:
+            echo(
+                f"{{savecursor}}{{curpos:{terminal.height()},0}}{{el}}{{reset}}{{restorecursor}}"
+            )
+        except termios.error:
+            pass
     return 0
 
 
@@ -806,6 +845,13 @@ Examples:
         default=False,
         help="Run as superuser/administrator (required for accounts command)",
     )
+
+    defaults = {
+        "databasename": "zoid6test",
+        "databasehost": "localhost",
+        "databaseport": 5432,
+    }
+    database.buildargdatabasegroup(parser, defaults)
 
     args = parser.parse_args()
 

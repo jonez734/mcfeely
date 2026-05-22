@@ -10,7 +10,7 @@ from bbsengine6 import database
 from .. import member_password, shared_mailbox_password
 
 
-DEFAULT_EMAIL_DOMAIN = 'local'
+DEFAULT_EMAIL_DOMAIN = "local"
 
 
 class CyrusAdmin:
@@ -20,15 +20,7 @@ class CyrusAdmin:
         self.args = args
         self.current_user = getattr(args, "loginid", None)
         self.is_sysop = getattr(args, "issuperuser", False)
-        import argparse
-        parser = argparse.ArgumentParser()
-        database.buildargs(parser, defaults={"databasename": "zoid6test"})
-        self.args = parser.parse_args([])
-        self.args.loginid = self.current_user
-        self.args.issuperuser = self.is_sysop
         self.pool = database.getpool(self.args)
-        if not hasattr(self.args, "debug"):
-            self.args.debug = False
 
     def run(self) -> int:
         """Main TUI loop. Returns exit code."""
@@ -96,7 +88,7 @@ class CyrusAdmin:
                     echo("")
                     echo(f"Total: {len(rows)} account(s)")
 
-        except Exception as e:
+        except Exception:
             echo_traceback("Error listing accounts")
 
     def _create_account(self) -> None:
@@ -118,7 +110,7 @@ class CyrusAdmin:
                     if cur.rowcount > 0:
                         echo(f"Account '{moniker}' already exists", level="error")
                         return
-        except Exception as e:
+        except Exception:
             echo_traceback("Error checking account existence")
             return
 
@@ -141,7 +133,7 @@ class CyrusAdmin:
                         INSERT INTO engine.__member (moniker, email, datecreated, dateupdated)
                         VALUES (%s, %s, NOW(), NOW())
                     """
-                    cur.execute(sql, (moniker, f'{moniker}@{DEFAULT_EMAIL_DOMAIN}'))
+                    cur.execute(sql, (moniker, f"{moniker}@{DEFAULT_EMAIL_DOMAIN}"))
 
             echo(f"✓ Account '{moniker}' created")
 
@@ -178,7 +170,7 @@ class CyrusAdmin:
             echo("")
             echo(f"✓ Account '{moniker}' created successfully")
 
-        except Exception as e:
+        except Exception:
             echo_traceback("Error creating account")
 
     def _list_shared_mailboxes(self) -> None:
@@ -186,7 +178,9 @@ class CyrusAdmin:
         echo("")
         heading("Shared Mailboxes")
 
-        sql = "SELECT id, name, datecreated FROM postoffice.shared_mailbox ORDER BY name"
+        sql = (
+            "SELECT id, name, datecreated FROM postoffice.shared_mailbox ORDER BY name"
+        )
 
         try:
             with database.connect(self.args, pool=self.pool) as conn:
@@ -219,7 +213,7 @@ class CyrusAdmin:
                     echo("")
                     echo(f"Total: {len(rows)} mailbox(es)")
 
-        except Exception as e:
+        except Exception:
             echo_traceback("Error listing shared mailboxes")
 
     def _manage_shared_mailbox(self) -> None:
@@ -245,7 +239,7 @@ class CyrusAdmin:
                         return
                     mailbox = cur.fetchone()
                     mailbox_name = mailbox["name"]
-        except Exception as e:
+        except Exception:
             echo_traceback("Error retrieving mailbox")
             return
 
@@ -299,7 +293,7 @@ class CyrusAdmin:
                         member = row["member_moniker"]
                         echo(f"  • {member}")
 
-        except Exception as e:
+        except Exception:
             echo_traceback("Error listing mailbox members")
 
     def _create_shared_mailbox(self) -> None:
@@ -331,7 +325,7 @@ class CyrusAdmin:
 
             echo(f"✓ Shared mailbox '{name}' created")
 
-        except Exception as e:
+        except Exception:
             echo_traceback("Error creating shared mailbox")
 
     def _set_shared_mailbox_password(self, mailbox_id: int, mailbox_name: str) -> None:
@@ -353,7 +347,7 @@ class CyrusAdmin:
                     if cur.rowcount == 0:
                         echo(f"Member '{member}' not found", level="error")
                         return
-        except Exception as e:
+        except Exception:
             echo_traceback("Error verifying member")
             return
 
