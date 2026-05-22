@@ -448,3 +448,59 @@ See `tests/` directory for comprehensive unit and integration tests.
 - Error handling and edge cases
 
 ---
+
+---
+
+## Update: Cyrus Admin TUI (May 21, 2026)
+
+### New Module: `src/postoffice/tui/cyrus_admin.py`
+
+Interactive TUI for managing Cyrus IMAP accounts and shared mailboxes.
+
+**Features:**
+- List all user accounts
+- Create new user accounts with inbound/outbound passwords
+- List shared mailboxes with member counts
+- Manage shared mailbox members and passwords
+
+**Access:** Requires `issuperuser` flag.
+
+**Database:** Uses `zoid6test` database via `bbsengine6.database.buildargs()`.
+
+**Schema Changes:**
+- `postoffice.shared_mailbox` columns renamed to match `engine.__member`:
+  - `created_by` → `createdbymoniker`
+  - `created_at` → `datecreated`
+  - `updated_at` → `dateupdated`
+  - Added `updatedbymoniker` (optional)
+
+**Migration:** `sql/006_migrate_shared_mailbox_columns.sql`
+
+---
+
+## Connection Pattern
+
+All database operations use the **CONN_POOL_PATTERN**:
+```python
+from bbsengine6 import database
+
+# In __init__:
+self.pool = database.getpool(args)
+
+# In methods:
+with database.connect(self.args, pool=self.pool) as conn:
+    # database operations
+```
+
+**For admin operations with different database:**
+```python
+import argparse
+from bbsengine6 import database
+
+parser = argparse.ArgumentParser()
+database.buildargs(parser, defaults={"databasename": "zoid6test"})
+admin_args = parser.parse_args([])
+admin_args.loginid = current_user
+admin_args.issuperuser = True
+pool = database.getpool(admin_args)
+```
