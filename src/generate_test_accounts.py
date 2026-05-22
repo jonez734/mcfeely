@@ -120,7 +120,7 @@ class AccountGenerator:
         echo("")
 
         # Check if schema exists
-        if not self.skip_mailboxes and not self._schema_exists():
+        if not self.skip_mailboxes and not self._mailbox_table_exists():
             if self.create_schema:
                 echo("=== Creating postoffice schema ===", level="info")
                 if self._create_postoffice_schema():
@@ -188,7 +188,7 @@ class AccountGenerator:
         echo("Tip: Use 'python -m postoffice accounts' to manage these", level="info")
         return True
 
-    def _schema_exists(self) -> bool:
+    def _mailbox_table_exists(self) -> bool:
         """Check if postoffice.shared_mailbox table exists."""
         return database.tableexists(
             self.args, "postoffice", "shared_mailbox", pool=self.pool
