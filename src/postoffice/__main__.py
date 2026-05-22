@@ -12,6 +12,7 @@ from typing import Any
 from bbsengine6.io import echo
 from bbsengine6.io.inputchoice import inputchoice
 from bbsengine6.io import inputstring
+from bbsengine6 import member, util
 from . import startup
 from .imap_checker import IMAPChecker
 from .tui.message_interface import MessageInterface
@@ -308,12 +309,22 @@ def handle_menu(args: argparse.Namespace) -> int:
         )
         return 1
 
+    try:
+        current_user = member.getcurrentmoniker(args)
+    except Exception:
+        current_user = None
+
+    if current_user is None:
+        echo("Error: Could not determine current user", level="error")
+        echo("Please run from a logged-in BBS session or specify --loginid")
+        return False
+
+    args.loginid = current_user
+
     is_sysop = getattr(args, "issuperuser", False)
 
     while True:
-        echo("")
-        echo("=== postoffice ===", level="info")
-        echo("")
+        util.heading("postoffice")
 
         if is_sysop:
             choice = inputchoice(
@@ -334,28 +345,44 @@ def handle_menu(args: argparse.Namespace) -> int:
             echo("Goodbye!")
             return 0
         elif choice == "T":
+            from bbsengine6 import screen
+
+            screen.init()
             try:
                 tui = MessageInterface(args)
                 result = tui.run()
                 if result != 0:
                     return result
             except KeyboardInterrupt:
-                echo("", level="info")
-                echo("Interrupted by user", level="info")
-            except Exception as e:
-                echo(f"Error running message interface: {e}", level="error")
+                echo("{/all}*INTR*")
+            except EOFError:
+                echo("{/all}*EOF*")
+            finally:
+                from bbsengine6.io import terminal
+
+                echo(
+                    f"{{savecursor}}{{curpos:{terminal.height()},0}}{{el}}{{reset}}{{restorecursor}}"
+                )
         elif choice == "M":
             if is_sysop:
+                from bbsengine6 import screen
+
+                screen.init()
                 try:
                     admin = CyrusAdmin(args)
                     result = admin.run()
                     if result != 0:
                         return result
                 except KeyboardInterrupt:
-                    echo("", level="info")
-                    echo("Interrupted by user", level="info")
-                except Exception as e:
-                    echo(f"Error running account management: {e}", level="error")
+                    echo("{/all}*INTR*")
+                except EOFError:
+                    echo("{/all}*EOF*")
+                finally:
+                    from bbsengine6.io import terminal
+
+                    echo(
+                        f"{{savecursor}}{{curpos:{terminal.height()},0}}{{el}}{{reset}}{{restorecursor}}"
+                    )
             else:
                 echo(
                     "Error: Only administrators can access account management",
