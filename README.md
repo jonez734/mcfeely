@@ -139,7 +139,7 @@ python -c "
 from bbsengine6 import database
 import argparse
 parser = argparse.ArgumentParser()
-defaults = {'databasename': 'zoid6test', 'databasehost': 'localhost', 'databaseport': 5432}
+defaults = {'databasename': 'zoid6test', 'databasehost': '127.0.0.1', 'databaseport': 5432}
 database.buildargdatabasegroup(parser, defaults)
 args = parser.parse_args([])
 pool = database.getpool(args)
