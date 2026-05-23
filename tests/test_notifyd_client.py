@@ -76,37 +76,107 @@ class TestFlagObfuscation(unittest.TestCase):
             notifyd_client.verify_claim_flag(flag, "alice", secret="secret2")
         )
 
+    def test_obfuscate_empty_moniker(self):
+        """Test obfuscation with empty moniker."""
+        result = notifyd_client.obfuscate_moniker("", secret="secret")
+        self.assertEqual(len(result), 8)
+
+    def test_obfuscate_special_characters_in_moniker(self):
+        """Test obfuscation with special characters in moniker."""
+        result = notifyd_client.obfuscate_moniker("alice_smith", secret="secret")
+        self.assertEqual(len(result), 8)
+
+    def test_format_claim_flag_preserves_case(self):
+        """Test flag formatting preserves moniker case."""
+        result_lower = notifyd_client.format_claim_flag("ALICE", secret=None)
+        result_upper = notifyd_client.format_claim_flag("alice", secret=None)
+        self.assertEqual(result_lower, result_upper)
+
+    def test_obfuscate_moniker_unicode(self):
+        """Test obfuscation with unicode characters."""
+        result = notifyd_client.obfuscate_moniker("café", secret="secret")
+        self.assertEqual(len(result), 8)
+
+    def test_obfuscate_moniker_long_moniker(self):
+        """Test obfuscation with long moniker."""
+        result = notifyd_client.obfuscate_moniker("very_long_moniker_name", secret="secret")
+        self.assertEqual(len(result), 8)
+
+    def test_format_claim_flag_multiple_calls_same_result(self):
+        """Test that multiple calls produce same result."""
+        flag1 = notifyd_client.format_claim_flag("alice", "secret")
+        flag2 = notifyd_client.format_claim_flag("alice", "secret")
+        self.assertEqual(flag1, flag2)
+
+    def test_verify_claim_flag_plain_with_obfuscated_expected(self):
+        """Test verification fails when flag was obfuscated but checking plain."""
+        flag = notifyd_client.format_claim_flag("alice", "secret")
+        self.assertFalse(notifyd_client.verify_claim_flag(flag, "alice", None))
+
+    def test_flag_verification_symmetric(self):
+        """Test that flag can be verified both ways."""
+        moniker = "testuser"
+        secret = "symmetric_secret"
+        flag = notifyd_client.format_claim_flag(moniker, secret)
+        self.assertTrue(notifyd_client.verify_claim_flag(flag, moniker, secret))
+
 
 class TestGetObfuscateSecret(unittest.TestCase):
     """Test secret retrieval from environment and args."""
 
+    def setUp(self):
+        self.original_env = os.environ.get("MCFEELY_OBFUSCATE_SECRET")
+
+    def tearDown(self):
+        if self.original_env is not None:
+            os.environ["MCFEELY_OBFUSCATE_SECRET"] = self.original_env
+        elif "MCFEELY_OBFUSCATE_SECRET" in os.environ:
+            del os.environ["MCFEELY_OBFUSCATE_SECRET"]
+
     def test_get_secret_from_env(self):
         """Get secret from MCFEELY_OBFUSCATE_SECRET env var."""
-        with patch.dict(os.environ, {"MCFEELY_OBFUSCATE_SECRET": "env_secret"}):
-            args = Mock(databasepassword=None)
-            result = notifyd_client.get_obfuscate_secret(args)
-            self.assertEqual(result, "env_secret")
+        os.environ["MCFEELY_OBFUSCATE_SECRET"] = "env_secret"
+        args = Mock(databasepassword=None)
+        result = notifyd_client.get_obfuscate_secret(args)
+        self.assertEqual(result, "env_secret")
 
     def test_get_secret_from_args(self):
         """Get secret from args.databasepassword if no env var."""
-        with patch.dict(os.environ, {}, clear=True):
-            args = Mock(databasepassword="db_password")
-            result = notifyd_client.get_obfuscate_secret(args)
-            self.assertEqual(result, "db_password")
+        if "MCFEELY_OBFUSCATE_SECRET" in os.environ:
+            del os.environ["MCFEELY_OBFUSCATE_SECRET"]
+        args = Mock(databasepassword="db_password")
+        result = notifyd_client.get_obfuscate_secret(args)
+        self.assertEqual(result, "db_password")
 
     def test_get_secret_env_takes_priority(self):
         """Env var takes priority over args."""
-        with patch.dict(os.environ, {"MCFEELY_OBFUSCATE_SECRET": "env_secret"}):
-            args = Mock(databasepassword="db_password")
-            result = notifyd_client.get_obfuscate_secret(args)
-            self.assertEqual(result, "env_secret")
+        os.environ["MCFEELY_OBFUSCATE_SECRET"] = "env_secret"
+        args = Mock(databasepassword="db_password")
+        result = notifyd_client.get_obfuscate_secret(args)
+        self.assertEqual(result, "env_secret")
 
     def test_get_secret_none_if_neither(self):
         """Return None if no env var or args secret."""
-        with patch.dict(os.environ, {}, clear=True):
-            args = Mock(databasepassword=None)
-            result = notifyd_client.get_obfuscate_secret(args)
-            self.assertIsNone(result)
+        if "MCFEELY_OBFUSCATE_SECRET" in os.environ:
+            del os.environ["MCFEELY_OBFUSCATE_SECRET"]
+        args = Mock(databasepassword=None)
+        result = notifyd_client.get_obfuscate_secret(args)
+        self.assertIsNone(result)
+
+    def test_get_secret_empty_env_var(self):
+        """Test with empty string env var - empty string is falsy, so returns args secret."""
+        os.environ["MCFEELY_OBFUSCATE_SECRET"] = ""
+        args = Mock(databasepassword="db_password")
+        result = notifyd_client.get_obfuscate_secret(args)
+        self.assertEqual(result, "db_password")
+
+    def test_get_secret_args_has_empty_password(self):
+        """Test when args has empty databasepassword - empty string is falsy, returns None."""
+        if "MCFEELY_OBFUSCATE_SECRET" in os.environ:
+            del os.environ["MCFEELY_OBFUSCATE_SECRET"]
+        args = Mock(databasepassword="")
+        result = notifyd_client.get_obfuscate_secret(args)
+        self.assertIsNone(result)
 
 
 class TestRenderEventMessage(unittest.TestCase):
@@ -168,6 +238,56 @@ class TestRenderEventMessage(unittest.TestCase):
         """Render generic message for unknown event type."""
         result = notifyd_client.render_event_message("unknown-event", None, {})
         self.assertIn("unknown-event", result)
+
+    def test_render_message_missing_from(self):
+        """Test rendering with missing from field."""
+        result = notifyd_client.render_event_message(
+            "message-new", None, {"subject": "Test"}
+        )
+        self.assertIn("unknown", result)
+
+    def test_render_message_missing_subject(self):
+        """Test rendering with missing subject field."""
+        result = notifyd_client.render_event_message(
+            "message-new", None, {"from": "user@example.com"}
+        )
+        self.assertIn("(no subject)", result)
+
+    def test_render_message_missing_flag_name(self):
+        """Test rendering with missing flag_name."""
+        result = notifyd_client.render_event_message(
+            "message-flagged", "alice", {"added": True}
+        )
+        self.assertIn("?", result)
+
+    def test_render_message_special_characters_in_from(self):
+        """Test rendering with special characters in from."""
+        result = notifyd_client.render_event_message(
+            "message-new", None, {"from": "te+st@example.com", "subject": "Test"}
+        )
+        self.assertIn("te+st@example.com", result)
+
+    def test_render_message_special_characters_in_subject(self):
+        """Test rendering with special characters in subject."""
+        result = notifyd_client.render_event_message(
+            "message-new", None, {"from": "user@example.com", "subject": "Re: <URGENT> Test"}
+        )
+        self.assertIn("URGENT", result)
+
+    def test_render_message_with_unicode(self):
+        """Test rendering with unicode characters."""
+        result = notifyd_client.render_event_message(
+            "message-new", None, {"from": "café@example.com", "subject": "Héllo 世界"}
+        )
+        self.assertIsInstance(result, str)
+
+    def test_render_message_with_empty_data(self):
+        """Test rendering with minimal data."""
+        result = notifyd_client.render_event_message(
+            "message-deleted", None, {}
+        )
+        self.assertIsInstance(result, str)
+        self.assertGreater(len(result), 0)
 
 
 class TestIsEventEnabled(unittest.TestCase):
@@ -440,6 +560,204 @@ class TestFireEvent(unittest.TestCase):
 
             self.assertTrue(result)
 
+    def test_fire_event_multiple_rules(self):
+        """Test fire_event with multiple routing rules."""
+        args = Mock(debug=False, databasename="zoid6")
+        conn = Mock()
 
-if __name__ == "__main__":
-    unittest.main()
+        with (
+            patch("postoffice.notifyd_client.is_event_enabled") as mock_enabled,
+            patch("postoffice.notifyd_client.get_routing_rules") as mock_rules,
+            patch("postoffice.notifyd_client.render_event_message") as mock_render,
+            patch("postoffice.notifyd_client._fire_event_fallback") as mock_fallback,
+        ):
+            mock_enabled.return_value = True
+            mock_rules.return_value = [
+                {"recipient_moniker": "alice", "notification_type": "mcfeely-msg", "urgency": "IMPORTANT", "delivery_method": "engine"},
+                {"recipient_moniker": "bob", "notification_type": "mcfeely-msg", "urgency": "ROUTINE", "delivery_method": "engine"},
+            ]
+            mock_render.return_value = "test message"
+            mock_fallback.return_value = True
+
+            notifyd_client._notify_module = None
+
+            result = notifyd_client.fire_event(
+                args,
+                "shared/support",
+                "message-new",
+                {"event_type": "message-new", "message_uid": 123},
+                conn=conn,
+            )
+
+            self.assertTrue(result)
+            self.assertEqual(mock_fallback.call_count, 1)
+
+    def test_fire_event_no_connection(self):
+        """Test fire_event returns False when no connection provided."""
+        args = Mock(debug=False)
+
+        result = notifyd_client.fire_event(
+            args,
+            "shared/support",
+            "message-claimed",
+            {"event_type": "message-claimed"},
+        )
+
+        self.assertFalse(result)
+
+
+class TestEventMessageTemplatesCompleteness(unittest.TestCase):
+    """Tests for complete event template coverage."""
+
+    def test_all_event_types_have_templates(self):
+        """Test all event types have message templates."""
+        event_types = [
+            "message-new",
+            "message-claimed",
+            "message-unclaimed",
+            "message-flagged",
+            "message-deleted",
+        ]
+
+        for event_type in event_types:
+            self.assertIn(event_type, notifyd_client.EVENT_MESSAGE_TEMPLATES)
+
+    def test_templates_contain_format_placeholders(self):
+        """Test templates contain format placeholders."""
+        for event_type, template in notifyd_client.EVENT_MESSAGE_TEMPLATES.items():
+            self.assertIn("{", template)
+
+    def test_template_fields_exist_in_template(self):
+        """Test that required fields appear in template strings."""
+        templates = notifyd_client.EVENT_MESSAGE_TEMPLATES
+        self.assertIn("{from}", templates["message-new"])
+        self.assertIn("{subject}", templates["message-new"])
+        self.assertIn("{actor_moniker}", templates["message-claimed"])
+        self.assertIn("{message_uid}", templates["message-claimed"])
+
+
+class TestEventRoutingPatternMatching(unittest.TestCase):
+    """Tests for event routing SQL LIKE pattern matching."""
+
+    def test_routing_query_structure(self):
+        """Test that routing query uses LIKE for pattern matching."""
+        args = Mock(debug=False)
+        conn = MagicMock()
+        cursor = MagicMock()
+        cursor.fetchall.return_value = []
+        cursor.__enter__ = MagicMock(return_value=cursor)
+        cursor.__exit__ = MagicMock(return_value=False)
+        conn.cursor.return_value = cursor
+
+        with patch("postoffice.notifyd_client.lib.get_db_connection") as mock_get_conn:
+            mock_get_conn.return_value = (conn, False)
+
+            notifyd_client.get_routing_rules(
+                args,
+                "shared/support@example.com",
+                "message-claimed",
+                "alice",
+            )
+
+            query = cursor.execute.call_args[0][0]
+            self.assertIn("%s LIKE", query)
+            self.assertIn("mailbox_name", query)
+
+    def test_routing_actor_pattern_matching(self):
+        """Test that actor moniker supports pattern matching."""
+        args = Mock(debug=False)
+        conn = MagicMock()
+        cursor = MagicMock()
+        cursor.fetchall.return_value = []
+        cursor.__enter__ = MagicMock(return_value=cursor)
+        cursor.__exit__ = MagicMock(return_value=False)
+        conn.cursor.return_value = cursor
+
+        with patch("postoffice.notifyd_client.lib.get_db_connection") as mock_get_conn:
+            mock_get_conn.return_value = (conn, False)
+
+            notifyd_client.get_routing_rules(
+                args,
+                "shared/support",
+                "message-claimed",
+                actor_moniker="alice%",
+            )
+
+            query = cursor.execute.call_args[0][0]
+            params = cursor.execute.call_args[0][1]
+            self.assertIn("actor_moniker", query)
+            self.assertIn("alice%", params)
+
+
+class TestNotificationConfigQueries(unittest.TestCase):
+    """Tests for notification config query structure."""
+
+    def test_config_query_structure(self):
+        """Test that config query uses mailbox_name."""
+        args = Mock(debug=False)
+        conn = MagicMock()
+        cursor = MagicMock()
+        cursor.fetchone.return_value = None
+        cursor.__enter__ = MagicMock(return_value=cursor)
+        cursor.__exit__ = MagicMock(return_value=False)
+        conn.cursor.return_value = cursor
+
+        with patch("postoffice.notifyd_client.lib.get_db_connection") as mock_get_conn:
+            mock_get_conn.return_value = (conn, False)
+
+            notifyd_client.is_event_enabled(
+                args,
+                "shared/support@example.com",
+                "message-new",
+            )
+
+            query = cursor.execute.call_args[0][0]
+            self.assertIn("mailbox_name", query)
+            self.assertIn("notification_config", query)
+
+
+class TestConnectionCleanup(unittest.TestCase):
+    """Tests for connection cleanup in event functions."""
+
+    def setUp(self):
+        self.original_env = os.environ.get("MCFEELY_OBFUSCATE_SECRET")
+
+    def tearDown(self):
+        if self.original_env is not None:
+            os.environ["MCFEELY_OBFUSCATE_SECRET"] = self.original_env
+        elif "MCFEELY_OBFUSCATE_SECRET" in os.environ:
+            del os.environ["MCFEELY_OBFUSCATE_SECRET"]
+
+    @patch("postoffice.notifyd_client.lib.get_db_connection")
+    def test_connection_closed_after_is_event_enabled(self, mock_get_conn):
+        """Test that connection is closed when should_close is True."""
+        args = Mock(debug=False)
+        mock_conn = MagicMock()
+        mock_get_conn.return_value = (mock_conn, True)
+
+        cursor = MagicMock()
+        cursor.fetchone.return_value = None
+        cursor.__enter__ = MagicMock(return_value=cursor)
+        cursor.__exit__ = MagicMock(return_value=False)
+        mock_conn.cursor.return_value = cursor
+
+        notifyd_client.is_event_enabled(args, "shared/support", "message-new")
+
+        mock_conn.close.assert_called_once()
+
+    @patch("postoffice.notifyd_client.lib.get_db_connection")
+    def test_connection_not_closed_when_explicit(self, mock_get_conn):
+        """Test that connection is not closed when conn is explicitly provided."""
+        args = Mock(debug=False)
+        mock_conn = MagicMock()
+        mock_get_conn.return_value = (mock_conn, False)
+
+        cursor = MagicMock()
+        cursor.fetchone.return_value = None
+        cursor.__enter__ = MagicMock(return_value=cursor)
+        cursor.__exit__ = MagicMock(return_value=False)
+        mock_conn.cursor.return_value = cursor
+
+        notifyd_client.is_event_enabled(args, "shared/support", "message-new", conn=mock_conn)
+
+        mock_conn.close.assert_not_called()

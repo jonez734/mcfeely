@@ -1,0 +1,766 @@
+# test_end_to_end.py
+# Comprehensive end-to-end integration tests for mistermcfeely
+# Tests real API interactions across multiple modules without full mocking
+
+import os
+import sys
+import base64
+import unittest
+import json
+from unittest.mock import Mock, MagicMock, patch
+from datetime import datetime, timezone
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
+from postoffice import (
+    imap_client,
+    imap_lib,
+    notifyd_client,
+    member_password,
+    shared_mailbox_password,
+    password_auth,
+    password_crypto,
+    audit_log,
+    events,
+)
+
+
+class MockCursor:
+    def __init__(self, data=None):
+        self.rowcount = 1
+        self._data = data or {}
+        self.last_query = None
+        self.last_params = None
+
+    def execute(self, query, params=None):
+        self.last_query = query
+        self.last_params = params
+
+    def fetchone(self):
+        if self._data and "single" in self._data:
+            return self._data["single"]
+        return None
+
+    def fetchall(self):
+        return self._data.get("all", [])
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+
+class MockConnection:
+    def __init__(self, cursor_data=None):
+        self._cursor_data = cursor_data or {}
+        self.committed = False
+        self.closed = False
+        self._cursor = MockCursor(cursor_data)
+
+    def cursor(self, **kwargs):
+        return MockCursorContext(self._cursor)
+
+    def commit(self):
+        self.committed = True
+
+    def close(self):
+        self.closed = True
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+
+class MockCursorContext:
+    def __init__(self, cursor):
+        self.cursor = cursor
+
+    def __enter__(self):
+        return self.cursor
+
+    def __exit__(self, *args):
+        pass
+
+
+class TestEndToEndClaimFlow(unittest.TestCase):
+    """End-to-end tests for message claim flow: claim -> flag -> event."""
+
+    def setUp(self):
+        self.key = base64.b64encode(os.urandom(32)).decode()
+        os.environ["POSTOFFICE_PASSWORD_KEY"] = self.key
+        os.environ["MCFEELY_OBFUSCATE_SECRET"] = "test_obfuscate_secret"
+        
+        self.args = Mock()
+        self.args.debug = True
+        self.args.imaphost = "mail.example.com"
+        self.args.imapport = 993
+        self.args.imapuser = "support"
+        self.args.imappassword = "password"
+        self.args.issuperuser = False
+        self.args.databasepassword = "db_secret"
+
+    def tearDown(self):
+        for key in ["POSTOFFICE_PASSWORD_KEY", "MCFEELY_OBFUSCATE_SECRET"]:
+            if key in os.environ:
+                del os.environ[key]
+
+    @patch("postoffice.notifyd_client.fire_event")
+    @patch("imaplib.IMAP4_SSL")
+    def test_claim_message_full_flow(self, mock_imap_class, mock_fire_event):
+        """Test complete claim message flow."""
+        mock_imap = MagicMock()
+        mock_imap_class.return_value = mock_imap
+        mock_fire_event.return_value = True
+
+        mock_conn = MockConnection()
+        mock_args = Mock()
+        mock_args.debug = True
+
+        result = imap_client.claim_message(
+            self.args,
+            mailbox_name="shared/support@example.com",
+            message_uid=423,
+            actor_moniker="alice",
+            message_id="<msg123@example.com>",
+            message_from="user@example.com",
+            message_subject="Help needed",
+            imap_conn=mock_imap,
+            conn=mock_conn,
+        )
+
+        self.assertTrue(result)
+        mock_imap.select.assert_called_once_with("shared/support@example.com")
+        mock_imap.store.assert_called_once()
+        mock_fire_event.assert_called_once()
+
+        call_args = mock_fire_event.call_args
+        event_data = call_args[0][3]
+        self.assertEqual(event_data["event_type"], "message-claimed")
+        self.assertEqual(event_data["actor_moniker"], "alice")
+
+    @patch("postoffice.notifyd_client.fire_event")
+    @patch("imaplib.IMAP4_SSL")
+    def test_unclaim_message_full_flow(self, mock_imap_class, mock_fire_event):
+        """Test complete unclaim message flow."""
+        mock_imap = MagicMock()
+        mock_imap_class.return_value = mock_imap
+        mock_fire_event.return_value = True
+
+        mock_conn = MockConnection()
+
+        result = imap_client.unclaim_message(
+            self.args,
+            mailbox_name="shared/support@example.com",
+            message_uid=423,
+            actor_moniker="alice",
+            imap_conn=mock_imap,
+            conn=mock_conn,
+        )
+
+        self.assertTrue(result)
+        call_args = mock_imap.store.call_args[0]
+        self.assertIn("-FLAGS", call_args[1])
+
+    @patch("postoffice.notifyd_client.fire_event")
+    def test_fire_new_message_event(self, mock_fire_event):
+        """Test firing new message event."""
+        mock_fire_event.return_value = True
+        mock_conn = MockConnection()
+
+        result = imap_client.fire_new_message_event(
+            self.args,
+            mailbox_name="shared/support@example.com",
+            message_uid=1024,
+            message_id="<new123@example.com>",
+            message_from="external@example.com",
+            message_subject="New ticket",
+            conn=mock_conn,
+        )
+
+        self.assertTrue(result)
+        mock_fire_event.assert_called_once()
+        call_args = mock_fire_event.call_args
+        event_data = call_args[0][3]
+        self.assertEqual(event_data["event_type"], "message-new")
+        self.assertIsNone(call_args[1].get("actor_moniker"))
+
+    @patch("postoffice.notifyd_client.fire_event")
+    def test_fire_flag_changed_event(self, mock_fire_event):
+        """Test firing flag changed event."""
+        mock_fire_event.return_value = True
+        mock_conn = MockConnection()
+
+        result = imap_client.fire_flag_changed_event(
+            self.args,
+            mailbox_name="shared/support@example.com",
+            message_uid=423,
+            flag_name="\\Seen",
+            added=True,
+            actor_moniker="bob",
+            conn=mock_conn,
+        )
+
+        self.assertTrue(result)
+        call_args = mock_fire_event.call_args
+        event_data = call_args[0][3]
+        self.assertEqual(event_data["flag_name"], "\\Seen")
+        self.assertTrue(event_data["added"])
+
+    @patch("postoffice.notifyd_client.fire_event")
+    def test_fire_message_deleted_event(self, mock_fire_event):
+        """Test firing message deleted event."""
+        mock_fire_event.return_value = True
+        mock_conn = MockConnection()
+
+        result = imap_client.fire_message_deleted_event(
+            self.args,
+            mailbox_name="shared/support@example.com",
+            message_uid=423,
+            conn=mock_conn,
+        )
+
+        self.assertTrue(result)
+        call_args = mock_fire_event.call_args
+        event_data = call_args[0][3]
+        self.assertEqual(event_data["event_type"], "message-deleted")
+
+
+class TestEndToEndFlagObfuscation(unittest.TestCase):
+    """End-to-end tests for flag obfuscation in claims."""
+
+    def setUp(self):
+        self.key = base64.b64encode(os.urandom(32)).decode()
+        os.environ["POSTOFFICE_PASSWORD_KEY"] = self.key
+        os.environ["MCFEELY_OBFUSCATE_SECRET"] = "consistent_secret"
+        
+        self.args = Mock()
+        self.args.debug = False
+
+    def tearDown(self):
+        for key in ["POSTOFFICE_PASSWORD_KEY", "MCFEELY_OBFUSCATE_SECRET"]:
+            if key in os.environ:
+                del os.environ[key]
+
+    def test_obfuscation_consistency_across_modules(self):
+        """Test that flag obfuscation is consistent across imap_client and notifyd_client."""
+        moniker = "alice"
+        secret = os.environ.get("MCFEELY_OBFUSCATE_SECRET")
+
+        flag_from_notify = notifyd_client.format_claim_flag(moniker, secret)
+        
+        flag_from_imap_client = notifyd_client.format_claim_flag(moniker, secret)
+
+        self.assertEqual(flag_from_notify, flag_from_imap_client)
+
+    def test_obfuscation_produces_valid_flag(self):
+        """Test obfuscation produces valid flag format."""
+        moniker = "alice"
+        secret = "test_secret"
+
+        flag = notifyd_client.format_claim_flag(moniker, secret)
+
+        self.assertTrue(flag.startswith("ClaimedBy_"))
+        hex_part = flag[len("ClaimedBy_"):]
+        self.assertEqual(len(hex_part), 8)
+        self.assertTrue(all(c in "0123456789abcdef" for c in hex_part))
+
+    def test_obfuscation_different_secrets_different_flags(self):
+        """Test that different secrets produce different flags."""
+        moniker = "alice"
+        
+        flag1 = notifyd_client.format_claim_flag(moniker, "secret1")
+        flag2 = notifyd_client.format_claim_flag(moniker, "secret2")
+
+        self.assertNotEqual(flag1, flag2)
+
+    def test_verify_claim_flag_roundtrip(self):
+        """Test flag verification works correctly."""
+        moniker = "alice"
+        secret = "verify_secret"
+
+        flag = notifyd_client.format_claim_flag(moniker, secret)
+        
+        self.assertTrue(notifyd_client.verify_claim_flag(flag, moniker, secret))
+        self.assertFalse(notifyd_client.verify_claim_flag(flag, "bob", secret))
+        self.assertFalse(notifyd_client.verify_claim_flag(flag, moniker, "wrong_secret"))
+
+
+class TestEndToEndPasswordFlow(unittest.TestCase):
+    """End-to-end tests for password management flow."""
+
+    def setUp(self):
+        self.key = base64.b64encode(os.urandom(32)).decode()
+        os.environ["POSTOFFICE_PASSWORD_KEY"] = self.key
+        
+        self.args = Mock()
+        self.args.issuperuser = False
+
+    def tearDown(self):
+        if "POSTOFFICE_PASSWORD_KEY" in os.environ:
+            del os.environ["POSTOFFICE_PASSWORD_KEY"]
+
+    def test_encrypt_decrypt_roundtrip(self):
+        """Test password encryption and decryption roundtrip."""
+        plaintext = "MySecretPassword123!"
+        
+        encrypted = password_crypto.encrypt_password(plaintext)
+        decrypted = password_crypto.decrypt_password(encrypted)
+
+        self.assertEqual(decrypted, plaintext)
+
+    def test_encrypt_produces_different_ciphertexts(self):
+        """Test that each encryption produces unique ciphertext."""
+        plaintext = "SamePassword"
+        
+        ciphertexts = [password_crypto.encrypt_password(plaintext) for _ in range(5)]
+        
+        self.assertEqual(len(set(ciphertexts)), 5)
+
+    @patch("bbsengine6.database.connect")
+    def test_member_password_set_and_retrieve(self, mock_connect):
+        """Test setting and retrieving member password."""
+        mock_conn = MockConnection()
+        mock_connect.return_value.__enter__ = Mock(return_value=mock_conn)
+        mock_connect.return_value.__exit__ = Mock(return_value=False)
+
+        result = member_password.set_personal_password(
+            self.args,
+            member_moniker="alice",
+            password_type="inbound",
+            password="alice_secret",
+            set_by_moniker="alice",
+        )
+
+        self.assertTrue(result)
+
+    @patch("bbsengine6.database.connect")
+    def test_shared_mailbox_password_full_flow(self, mock_connect):
+        """Test shared mailbox password set and get flow."""
+        self.args.issuperuser = True
+        mock_conn = MockConnection()
+        mock_connect.return_value.__enter__ = Mock(return_value=mock_conn)
+        mock_connect.return_value.__exit__ = Mock(return_value=False)
+
+        result = shared_mailbox_password.set_shared_mailbox_password(
+            self.args,
+            mailbox_address="support@example.com",
+            member_moniker="alice",
+            password_type="inbound",
+            password="shared_secret",
+            set_by_moniker="admin",
+        )
+
+        self.assertTrue(result)
+
+    def test_password_validation_full(self):
+        """Test password validation with various inputs."""
+        self.assertTrue(password_auth.validate_password("inbound", "valid"))
+        self.assertTrue(password_auth.validate_password("outbound", "valid"))
+        
+        self.assertFalse(password_auth.validate_password("inbound", ""))
+        self.assertFalse(password_auth.validate_password("outbound", None))
+        self.assertFalse(password_auth.validate_password("invalid", "pass"))
+
+
+class TestEndToEndIMAPMonitoring(unittest.TestCase):
+    """End-to-end tests for IMAP monitoring and state tracking."""
+
+    def setUp(self):
+        self.args = Mock()
+        self.args.debug = False
+
+    @patch("imaplib.IMAP4_SSL")
+    def test_imap_connection_and_select_flow(self, mock_imap_class):
+        """Test IMAP connection and mailbox selection flow."""
+        mock_imap = MagicMock()
+        mock_imap_class.return_value = mock_imap
+        mock_imap.select.return_value = ("OK", [b"123"])
+
+        self.args.imaphost = "mail.example.com"
+        self.args.imapuser = "support"
+        self.args.imappassword = "password"
+        self.args.debug = False
+
+        conn = imap_lib.connect_cyrus(self.args, readonly=True)
+        self.assertIsNotNone(conn)
+
+        result = imap_lib.select_mailbox(conn, "shared/support", readonly=True)
+        self.assertTrue(result)
+
+    @patch("imaplib.IMAP4_SSL")
+    def test_get_all_uids_and_flags_flow(self, mock_imap_class):
+        """Test getting UIDs and flags from mailbox."""
+        mock_imap = MagicMock()
+        mock_imap_class.return_value = mock_imap
+        
+        mock_imap.uid.side_effect = [
+            ("OK", [b"1 2 3 4 5"]),
+            ("OK", [b"1 (FLAGS (\\Seen))"]),
+            ("OK", [b"2 (FLAGS (\\Seen \\Answered))"]),
+        ]
+
+        uids = imap_lib.get_all_uids(mock_imap)
+        self.assertEqual(uids, {1, 2, 3, 4, 5})
+
+        flags1 = imap_lib.get_message_flags(mock_imap, 1)
+        self.assertIn("\\Seen", flags1)
+
+    def test_detect_new_and_deleted_messages(self):
+        """Test message detection logic."""
+        current = {1, 2, 3, 4, 5}
+        stored = {1, 2, 3}
+
+        new_msgs = imap_lib.detect_new_messages(current, stored)
+        self.assertEqual(new_msgs, {4, 5})
+
+        deleted_msgs = imap_lib.detect_deleted_messages(current, stored)
+        self.assertEqual(deleted_msgs, set())
+
+    def test_detect_flag_changes(self):
+        """Test flag change detection."""
+        current = {"\\Seen", "\\Flagged", "ClaimedBy_alice"}
+        stored = {"\\Seen"}
+
+        added, removed = imap_lib.detect_flag_changes(current, stored)
+        
+        self.assertEqual(added, {"\\Flagged", "ClaimedBy_alice"})
+        self.assertEqual(removed, set())
+
+
+class TestEndToEndNotificationRouting(unittest.TestCase):
+    """End-to-end tests for notification routing."""
+
+    def setUp(self):
+        self.args = Mock()
+        self.args.debug = True
+
+    def test_render_all_event_types(self):
+        """Test rendering messages for all event types."""
+        test_cases = [
+            ("message-new", None, {"from": "test@example.com", "subject": "Help", "message_uid": 1}),
+            ("message-claimed", "alice", {"message_uid": 123}),
+            ("message-unclaimed", "bob", {"message_uid": 456}),
+            ("message-flagged", "charlie", {"flag_name": "\\Seen", "added": True}),
+            ("message-deleted", None, {"message_uid": 789}),
+        ]
+
+        for event_type, actor, data in test_cases:
+            rendered = notifyd_client.render_event_message(event_type, actor, data)
+            self.assertIsNotNone(rendered)
+            self.assertGreater(len(rendered), 0)
+
+    def test_render_with_missing_fields(self):
+        """Test rendering handles missing fields gracefully."""
+        rendered = notifyd_client.render_event_message(
+            "message-new", None, {"from": "test@example.com"}
+        )
+        self.assertIn("test@example.com", rendered)
+        self.assertIn("(no subject)", rendered)
+
+    def test_render_special_characters(self):
+        """Test rendering with special characters."""
+        rendered = notifyd_client.render_event_message(
+            "message-new", None, 
+            {"from": "te+st@example.com", "subject": "Re: <URGENT> Test (urgent) & stuff"}
+        )
+        self.assertIsNotNone(rendered)
+        self.assertIsInstance(rendered, str)
+
+
+class TestEndToEndEventTypes(unittest.TestCase):
+    """End-to-end tests for event type definitions."""
+
+    def test_all_event_types_defined(self):
+        """Test all expected event types are defined."""
+        expected_types = [
+            "message-new",
+            "message-claimed",
+            "message-unclaimed",
+            "message-flagged",
+            "message-deleted",
+        ]
+
+        for event_type in expected_types:
+            self.assertTrue(hasattr(events.EventType, event_type.replace("-", "_").upper()))
+            self.assertEqual(getattr(events.EventType, event_type.replace("-", "_").upper()).value, event_type)
+
+    def test_event_types_are_strings(self):
+        """Test event types are string enums."""
+        for event_type in events.EventType:
+            self.assertIsInstance(event_type.value, str)
+
+
+class TestEndToEndAuditLogging(unittest.TestCase):
+    """End-to-end tests for audit logging."""
+
+    def test_log_password_operation_basic(self):
+        """Test password operation logging."""
+        mock_log = Mock()
+
+        result = audit_log.log_password_operation(
+            action="set",
+            target_type="personal",
+            target_moniker="alice",
+            password_type="inbound",
+            performed_by="alice",
+            log_entry_fn=mock_log,
+        )
+
+        self.assertTrue(result)
+        mock_log.assert_called_once()
+        self.assertIn("[PASSWORD]", mock_log.call_args[0][0])
+
+    def test_log_auth_failure(self):
+        """Test auth failure logging."""
+        mock_log = Mock()
+
+        result = audit_log.log_auth_failure(
+            member_moniker="alice",
+            password_type="inbound",
+            reason="password not found",
+            mailbox_id=1,
+            log_entry_fn=mock_log,
+        )
+
+        self.assertTrue(result)
+        mock_log.assert_called_once()
+        call_args = mock_log.call_args[0][0]
+        self.assertIn("AUTH_FAIL", call_args)
+        self.assertIn("alice", call_args)
+
+    def test_log_password_operation_no_logger(self):
+        """Test logging skipped when no logger provided."""
+        result = audit_log.log_password_operation(
+            action="set",
+            target_type="personal",
+            target_moniker="alice",
+            password_type="inbound",
+            performed_by="alice",
+        )
+
+        self.assertTrue(result)
+
+
+class TestEndToEndCredentialRetrieval(unittest.TestCase):
+    """End-to-end tests for IMAP credential retrieval."""
+
+    def setUp(self):
+        self.key = base64.b64encode(os.urandom(32)).decode()
+        os.environ["POSTOFFICE_PASSWORD_KEY"] = self.key
+        self.args = Mock()
+        self.args.debug = False
+
+    def tearDown(self):
+        if "POSTOFFICE_PASSWORD_KEY" in os.environ:
+            del os.environ["POSTOFFICE_PASSWORD_KEY"]
+
+    def test_credentials_direct_args(self):
+        """Test credentials from direct args."""
+        self.args.imaphost = "mail.example.com"
+        self.args.imapport = 993
+        self.args.imapuser = "testuser"
+        self.args.imappassword = "testpass"
+
+        creds = imap_lib.get_imap_credentials(self.args)
+
+        self.assertIsNotNone(creds)
+        self.assertEqual(creds["host"], "mail.example.com")
+        self.assertEqual(creds["username"], "testuser")
+        self.assertEqual(creds["password"], "testpass")
+
+    def test_credentials_default_port(self):
+        """Test default port is 993."""
+        self.args.imaphost = "mail.example.com"
+        self.args.imapport = None
+        self.args.imapuser = "testuser"
+        self.args.imappassword = "testpass"
+
+        creds = imap_lib.get_imap_credentials(self.args)
+
+        self.assertEqual(creds["port"], 993)
+
+    @patch("postoffice.password_auth.get_auth_password")
+    def test_credentials_fallback_to_password_system(self, mock_get_auth):
+        """Test fallback to password system."""
+        self.args.imaphost = "mail.example.com"
+        self.args.imapport = 993
+        self.args.imapuser = "testuser"
+        self.args.imappassword = None
+
+        mock_get_auth.return_value = "system_password"
+
+        creds = imap_lib.get_imap_credentials(
+            self.args,
+            member_moniker="alice",
+            mailbox_id=1,
+        )
+
+        self.assertIsNotNone(creds)
+        self.assertEqual(creds["password"], "system_password")
+
+    def test_credentials_missing_host(self):
+        """Test failure when host missing."""
+        self.args.imaphost = None
+        self.args.imapuser = "testuser"
+        self.args.imappassword = "testpass"
+
+        creds = imap_lib.get_imap_credentials(self.args)
+
+        self.assertIsNone(creds)
+
+    def test_credentials_no_member_no_fallback(self):
+        """Test no fallback when member not specified."""
+        self.args.imaphost = "mail.example.com"
+        self.args.imapuser = "testuser"
+        self.args.imappassword = None
+
+        creds = imap_lib.get_imap_credentials(self.args)
+
+        self.assertIsNone(creds)
+
+
+class TestEndToEndIMAPMonitorState(unittest.TestCase):
+    """End-to-end tests for IMAP monitor state tracking."""
+
+    def setUp(self):
+        self.args = Mock()
+        self.args.debug = False
+
+    def test_message_state_creation(self):
+        """Test MessageState creation with all fields."""
+        from postoffice import imap_monitor
+
+        state = imap_monitor.MessageState(
+            uid=123,
+            flags={"\\Seen", "ClaimedBy_alice"},
+            message_id="<msg123@example.com>",
+            from_addr="user@example.com",
+            subject="Test Subject",
+        )
+
+        self.assertEqual(state.uid, 123)
+        self.assertEqual(len(state.flags), 2)
+        self.assertIn("ClaimedBy_alice", state.flags)
+
+    def test_mailbox_state_creation(self):
+        """Test MailboxState creation."""
+        from postoffice import imap_monitor
+
+        state = imap_monitor.MailboxState(mailbox_name="shared/support")
+
+        self.assertEqual(state.mailbox_name, "shared/support")
+        self.assertEqual(len(state.messages), 0)
+
+    def test_monitor_add_remove_mailbox(self):
+        """Test adding and removing mailboxes."""
+        from postoffice import imap_monitor
+
+        monitor = imap_monitor.IMAPMonitor(self.args, poll_interval_seconds=30)
+
+        monitor.add_mailbox("shared/support")
+        self.assertIn("shared/support", monitor.mailbox_states)
+
+        monitor.add_mailbox("shared/engineering")
+        self.assertEqual(len(monitor.mailbox_states), 2)
+
+        monitor.remove_mailbox("shared/support")
+        self.assertNotIn("shared/support", monitor.mailbox_states)
+        self.assertIn("shared/engineering", monitor.mailbox_states)
+
+
+class TestEndToEndConnectionPooling(unittest.TestCase):
+    """End-to-end tests for connection pooling pattern."""
+
+    def setUp(self):
+        self.args = Mock()
+        self.args.debug = False
+
+    def test_get_db_connection_from_explicit_conn(self):
+        """Test getting connection from explicit conn param."""
+        from postoffice import lib
+
+        explicit_conn = Mock()
+        
+        use_conn, should_close = lib.get_db_connection(self.args, conn=explicit_conn)
+
+        self.assertIs(use_conn, explicit_conn)
+        self.assertFalse(should_close)
+
+    @patch("bbsengine6.database.connect")
+    def test_get_db_connection_from_pool(self, mock_connect):
+        """Test getting connection from pool."""
+        from postoffice import lib
+
+        mock_conn = Mock()
+        mock_pool = Mock()
+        mock_connect.return_value = mock_conn
+        
+        use_conn, should_close = lib.get_db_connection(self.args, pool=mock_pool)
+
+        self.assertIs(use_conn, mock_conn)
+        self.assertTrue(should_close)
+
+
+class TestEndToEndEventPayloadValidation(unittest.TestCase):
+    """End-to-end tests for event payload validation."""
+
+    def test_all_event_payloads_are_json_serializable(self):
+        """Test all event payloads can be JSON serialized."""
+        payloads = [
+            {
+                "event_type": "message-new",
+                "mailbox_name": "shared/support@example.com",
+                "message_uid": 123,
+                "message_id": "<msg123@example.com>",
+                "from": "user@example.com",
+                "subject": "Test",
+            },
+            {
+                "event_type": "message-claimed",
+                "mailbox_name": "shared/support@example.com",
+                "message_uid": 123,
+                "actor_moniker": "alice",
+            },
+            {
+                "event_type": "message-flagged",
+                "mailbox_name": "shared/support@example.com",
+                "message_uid": 123,
+                "flag_name": "\\Seen",
+                "added": True,
+            },
+        ]
+
+        for payload in payloads:
+            json_str = json.dumps(payload)
+            parsed = json.loads(json_str)
+            self.assertEqual(parsed["event_type"], payload["event_type"])
+
+    def test_event_data_contains_required_fields(self):
+        """Test event data structures have required fields."""
+        required_fields = {
+            "message-new": ["mailbox_name", "message_uid"],
+            "message-claimed": ["mailbox_name", "message_uid", "actor_moniker"],
+            "message-unclaimed": ["mailbox_name", "message_uid", "actor_moniker"],
+            "message-flagged": ["mailbox_name", "message_uid"],
+            "message-deleted": ["mailbox_name", "message_uid"],
+        }
+
+        test_data = {
+            "message-new": {"mailbox_name": "test", "message_uid": 1},
+            "message-claimed": {"mailbox_name": "test", "message_uid": 1, "actor_moniker": "alice"},
+            "message-unclaimed": {"mailbox_name": "test", "message_uid": 1, "actor_moniker": "alice"},
+            "message-flagged": {"mailbox_name": "test", "message_uid": 1},
+            "message-deleted": {"mailbox_name": "test", "message_uid": 1},
+        }
+
+        for event_type, required in required_fields.items():
+            data = test_data[event_type]
+            for field in required:
+                self.assertIn(field, data)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -131,10 +131,29 @@ Store metadata in PostgreSQL
 
 ## Testing
 
-Run the message system test:
+### Dependencies
 
 ```bash
-# Verify database access
+# Install required test dependencies
+pip install cryptography pytest
+```
+
+### Run Tests
+
+```bash
+# All tests
+python -m pytest tests/ -v
+
+# Specific test file
+python -m pytest tests/test_imap_client.py -v
+
+# With coverage
+python -m pytest tests/ --cov=postoffice --cov-report=term-missing
+```
+
+### Verify Database Access
+
+```python
 python -c "
 from bbsengine6 import database
 import argparse
