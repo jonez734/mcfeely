@@ -180,7 +180,7 @@ def _load_imap_config() -> tuple:
                 imap_port = config.getint("imap", "port", fallback=993)
             return imap_host, imap_port
         except Exception as e:
-            echo(f"Warning: Could not read system config file: {e}", level="warning")
+            echo(f"Warning: Could not read system config file: {e}", level="error")
 
     # Fall back to user config for development
     user_config_path = Path.home() / ".postoffice"
