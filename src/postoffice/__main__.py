@@ -19,6 +19,7 @@ from . import startup
 from .imap_checker import IMAPChecker
 from .tui.message_interface import MessageInterface
 from .tui.cyrus_admin import CyrusAdmin
+from bbsengine6.notify.tui import run as notify_run
 
 
 # ============================================================================
@@ -179,7 +180,7 @@ def _load_imap_config() -> tuple:
                 imap_port = config.getint("imap", "port", fallback=993)
             return imap_host, imap_port
         except Exception as e:
-            echo(f"Warning: Could not read system config file: {e}", level="error")
+            echo(f"Warning: Could not read system config file: {e}", level="warning")
 
     # Fall back to user config for development
     user_config_path = Path.home() / ".postoffice"
@@ -358,6 +359,10 @@ def handle_menu(args: argparse.Namespace) -> int:
 
     args.loginid = current_user
 
+    imap_host, imap_port = _load_imap_config()
+    args.imaphost = imap_host
+    args.imapport = imap_port
+
     # Check if user has SYSOP flag
     if pool is None:
         pool = database.getpool(args)
@@ -385,16 +390,16 @@ def handle_menu(args: argparse.Namespace) -> int:
         if is_sysop:
             choice = inputchoice(
                 "Choose action: ",
-                "tmaqx",
+                "tnmax",
                 default="m",
-                help="(t)ui messages, (m)anage accounts, (a)dmin menu, (q)uit, e(x)it",
+                help="(t)ui messages, (n)otifications, (m)anage accounts, (a)dmin menu, e(x)it",
             )
         else:
             choice = inputchoice(
                 "Choose action: ",
-                "tmqx",
+                "tnqx",
                 default="m",
-                help="(t)ui messages, (m)anage accounts, (q)uit, e(x)it",
+                help="(t)ui messages, (n)otifications, (m)anage accounts, e(x)it",
             )
 
         if choice in ("Q", "X"):
@@ -410,6 +415,32 @@ def handle_menu(args: argparse.Namespace) -> int:
             try:
                 tui = MessageInterface(args)
                 result = tui.run()
+                if result != 0:
+                    return result
+            except KeyboardInterrupt:
+                echo("{/all}*INTR*")
+            except EOFError:
+                echo("{/all}*EOF*")
+            except termios.error:
+                pass
+            finally:
+                from bbsengine6.io import terminal
+
+                try:
+                    echo(
+                        f"{{savecursor}}{{curpos:{terminal.height()},0}}{{el}}{{reset}}{{restorecursor}}"
+                    )
+                except termios.error:
+                    pass
+        elif choice == "N":
+            from bbsengine6 import screen
+
+            try:
+                screen.init()
+            except termios.error:
+                pass
+            try:
+                result = notify_run(args, current_user)
                 if result != 0:
                     return result
             except KeyboardInterrupt:
@@ -484,6 +515,51 @@ def handle_tui(args: argparse.Namespace) -> int:
     try:
         tui = MessageInterface(args)
         return tui.run()
+    except KeyboardInterrupt:
+        echo("{/all}*INTR*")
+    except EOFError:
+        echo("{/all}*EOF*")
+    except termios.error:
+        pass
+    finally:
+        from bbsengine6.io import terminal
+
+        try:
+            echo(
+                f"{{savecursor}}{{curpos:{terminal.height()},0}}{{el}}{{reset}}{{restorecursor}}"
+            )
+        except termios.error:
+            pass
+    return 0
+
+
+def handle_notify(args: argparse.Namespace) -> int:
+    """Handle notify command for notification interface."""
+    pool = None
+    current_user = getattr(args, "loginid", None)
+
+    if current_user is None:
+        try:
+            pool = database.getpool(args)
+            current_user = member.getcurrentmoniker(args, pool=pool)
+        except Exception:
+            current_user = None
+
+    if current_user is None:
+        echo("Error: Could not determine current user", level="error")
+        return 1
+
+    args.loginid = current_user
+
+    from bbsengine6 import screen
+
+    try:
+        screen.init()
+    except termios.error:
+        pass
+
+    try:
+        return notify_run(args, current_user)
     except KeyboardInterrupt:
         echo("{/all}*INTR*")
     except EOFError:
@@ -854,6 +930,7 @@ def main():
 Commands:
   menu                               Interactive menu (default)
   tui                                Message interface
+  notify                             Notification interface
   accounts                           Account management (admin only)
   imap-check                         Check IMAP server connectivity
   install-postoffice                 Install config files to /etc/postoffice/
@@ -940,6 +1017,7 @@ Examples:
     command_map = {
         "menu": handle_menu,
         "tui": handle_tui,
+        "notify": handle_notify,
         "accounts": handle_accounts,
         "imap-check": handle_imap_check,
         "install-postoffice": handle_install_postoffice,
