@@ -2,9 +2,9 @@
 CYRUS IMAPD CONFIGURATION FOR MISTERMCFEELY - INSTALLATION SUMMARY
 ================================================================================
 
-Created: May 21, 2026
+Created: May 23, 2026
 Status: Production Ready
-Total Files: 5 configuration & documentation files
+Total Files: 8 configuration & documentation files
 
 ================================================================================
 FILES CREATED
@@ -41,14 +41,30 @@ FILES CREATED
    - Integration with mistermcfeely
    - Backup and recovery procedures
 
-5. README.md (15 KB)
+5. README.md (18 KB)
    - Configuration overview
    - File descriptions
    - Quick start guide (2-minute summary)
    - Use case examples
    - Architecture diagrams
    - Configuration explanations
-   - Troubleshooting quick reference
+
+6. saslauthd.conf (2.8 KB)
+   - Main saslauthd daemon configuration
+   - Mechanism selection (PAM, LDAP, rimap)
+   - Socket and runtime settings
+   - Ready to deploy to /etc/sasl2/saslauthd.conf
+
+7. saslauthd.sysconfig (0.3 KB)
+   - System startup configuration
+   - Runtime flags for sysconfig/defaults
+   - Platform-aware (RHEL/Debian)
+   - Ready to deploy to /etc/sysconfig/saslauthd or /etc/default/saslauthd
+
+8. pam.d-saslauthd (1.1 KB)
+   - PAM authentication rules
+   - System user authentication for IMAP
+   - Ready to deploy to /etc/pam.d/saslauthd
 
 ================================================================================
 QUICK START

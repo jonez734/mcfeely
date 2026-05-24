@@ -66,9 +66,38 @@ annotation_definitions: /etc/postoffice/imapd.annotations
   - `/vendor/mcfeely/mailbox-sla` - Service level agreement
   - `/vendor/mcfeely/mailbox-category` - Mailbox type classification
 
+### SASL Authentication Files
+
+#### 4. **saslauthd.conf** - saslauthd Daemon Configuration
+- Main SASL authentication daemon settings
+- Mechanism selection (PAM, LDAP, rimap)
+- Runtime configuration (socket dir, PID file, flags)
+
+**Key Settings:**
+```conf
+MECHANISMS = pam
+SOCKETDIR = /var/run/saslauthd
+PAM_SERVICE = imap
+```
+
+#### 5. **saslauthd.sysconfig** - System Startup Configuration
+- Runtime flags for sysconfig (RHEL) or defaults (Debian)
+- Mechanism and socket directory settings
+
+**Key Settings:**
+```conf
+SOCKETDIR=/var/run/saslauthd
+MECH=pam
+FLAGS="-r"
+```
+
+#### 6. **pam.d-saslauthd** - PAM Authentication Rules
+- PAM service configuration for saslauthd
+- System authentication for IMAP users
+
 ### Documentation Files
 
-#### 4. **CYRUS_SETUP.md** - Complete Installation Guide
+#### 7. **CYRUS_SETUP.md** - Complete Installation Guide
 Comprehensive step-by-step instructions including:
 - Package installation (Fedora/RHEL and Debian/Ubuntu)
 - Configuration file deployment
@@ -83,7 +112,7 @@ Comprehensive step-by-step instructions including:
 - Backup and recovery procedures
 - Performance tuning recommendations
 
-#### 5. **README.md** - This File
+#### 8. **README.md** - This File
 Overview, file descriptions, and quick reference.
 
 ## Quick Start (2-Minute Summary)
@@ -104,15 +133,26 @@ sudo cp imapd.conf /etc/postoffice/imapd.conf
 sudo cp imapd.annotations /etc/postoffice/imapd.annotations
 ```
 
-### 3. Initialize Cyrus
+### 3. Install SASL Authentication
+```bash
+make install-auth
+# or manually:
+sudo cp saslauthd.conf /etc/sasl2/saslauthd.conf
+sudo cp saslauthd.sysconfig /etc/sysconfig/saslauthd  # or /etc/default/saslauthd on Debian
+sudo cp pam.d-saslauthd /etc/pam.d/saslauthd
+```
+
+### 4. Initialize Cyrus
 ```bash
 sudo mkdir -p /var/lib/imap /var/spool/imap
 sudo chown -R cyrus:cyrus /var/lib/imap /var/spool/imap
 sudo /usr/lib/cyrus-imapd/tools/mkimap
 ```
 
-### 4. Start Service
+### 5. Start Service
 ```bash
+sudo systemctl enable saslauthd
+sudo systemctl start saslauthd
 sudo systemctl enable cyrus-imapd
 sudo systemctl start cyrus-imapd
 sudo systemctl status cyrus-imapd
@@ -292,6 +332,8 @@ export MCFEELY_OBFUSCATE_SECRET="your-shared-secret-key-minimum-32-chars"
 Use this before deploying to production:
 
 - [ ] Configuration files copied to /etc/postoffice/cyrus.conf, /etc/postoffice/imapd.conf, /etc/postoffice/imapd.annotations
+- [ ] SASL configuration installed (saslauthd.conf, saslauthd.sysconfig, pam.d-saslauthd)
+- [ ] Makefile targets available: `make install-auth`
 - [ ] Permissions set: 644 for config files, 750+ for directories
 - [ ] TLS certificates generated or deployed from CA
 - [ ] SASL authentication mechanism configured (saslauthd running)

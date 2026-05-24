@@ -132,10 +132,27 @@ sudo mkdir -p /var/run/saslauthd
 sudo chown cyrus:cyrus /var/run/saslauthd
 sudo chmod 710 /var/run/saslauthd
 
-# Create /etc/sysconfig/saslauthd (or /etc/default/saslauthd on Debian)
-echo 'SOCKETDIR=/var/run/saslauthd
-MECH=pam
-FLAGS=""' | sudo tee /etc/sysconfig/saslauthd
+# Or use Makefile:
+make install-auth
+```
+
+The `make install-auth` command installs all saslauthd configuration files:
+- `/etc/sasl2/saslauthd.conf` - Main daemon configuration
+- `/etc/sysconfig/saslauthd` (or `/etc/default/saslauthd` on Debian) - Runtime flags
+- `/etc/pam.d/saslauthd` - PAM authentication rules
+
+Manual installation:
+```bash
+# Main saslauthd config
+sudo cp etc-postoffice/saslauthd.conf /etc/sasl2/saslauthd.conf
+
+# Sysconfig (RHEL) or defaults (Debian)
+[ -f /etc/debian_version ] && \
+    sudo cp etc-postoffice/saslauthd.sysconfig /etc/default/saslauthd || \
+    sudo cp etc-postoffice/saslauthd.sysconfig /etc/sysconfig/saslauthd
+
+# PAM rules
+sudo cp etc-postoffice/pam.d-saslauthd /etc/pam.d/saslauthd
 
 # Enable and start saslauthd
 sudo systemctl enable saslauthd
@@ -160,7 +177,7 @@ This creates:
 - `/var/lib/imap/duplicate.db` - Duplicate delivery detection
 - `/var/lib/imap/annotation.db` - Message annotations (for mistermcfeely)
 
-### 8. Start Cyrus IMAPd
+### 9. Start Cyrus IMAPd
 
 ```bash
 # Enable at boot
@@ -176,7 +193,7 @@ sudo systemctl status cyrus-imapd
 sudo journalctl -u cyrus-imapd -f
 ```
 
-### 9. Create Admin Account
+### 10. Create Admin Account
 
 The default admin is "cyrus". To create the initial Cyrus admin:
 

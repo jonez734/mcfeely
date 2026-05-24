@@ -1,0 +1,13 @@
+# saslauthd sysconfig/default configuration
+# Location: /etc/sysconfig/saslauthd (RHEL/CentOS) or /etc/default/saslauthd (Debian)
+
+# Socket directory for saslauthd communication
+SOCKETDIR=/var/run/saslauthd
+
+# Run as this user (create cyrus user first)
+# MECH=pam will use PAM for authentication
+MECH=pam
+
+# Additional runtime flags
+# -r: merge realm and user (user@domain becomes "user realm")
+FLAGS="-r"
