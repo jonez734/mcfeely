@@ -1,0 +1,124 @@
+# /etc/imapd.annotations
+# Cyrus IMAP Annotation Definitions for mistermcfeely
+# 
+# Defines custom per-message metadata stored by the ANNOTATE-EXPERIMENT-1 extension
+# These annotations track message claim state in shared mailboxes
+#
+# Syntax:
+# <annotation-name> <type> <scope> <access>
+#
+# annotation-name: The full path of the annotation (starts with /)
+# type: Data type (string, number, boolean)
+# scope: Where annotation applies (message, mailbox, server)
+# access: Access level (private, shared, public, required)
+#
+# Private: Only the setting user can see/modify
+# Shared: Authenticated users can see/modify (based on mailbox ACLs)
+# Public: Everyone can see (only admins can modify)
+# Required: Must be present on all items
+
+##############################################
+# MCFeely Claim Annotations
+##############################################
+
+# Obfuscated user identifier who claimed this message
+# Stored as HMAC-SHA256 hash of the claiming user's ID
+# Type: String (hex-encoded SHA256 hash)
+# Scope: Per-message
+# Access: Shared (anyone with read/write on mailbox can see)
+/vendor/mcfeely/claimed-by value string shared
+
+# Timestamp when message was claimed (ISO 8601 format)
+# Format: YYYY-MM-DDTHH:MM:SSZ (UTC)
+# Example: 2026-05-18T14:30:00Z
+# Type: String (ISO 8601 timestamp)
+# Scope: Per-message
+# Access: Shared (anyone with read/write on mailbox can see)
+/vendor/mcfeely/claimed-at value string shared
+
+##############################################
+# Extended MCFeely Annotations (Optional)
+##############################################
+
+# Claim notes or reason for claiming (optional)
+# Allows users to annotate WHY they claimed a message
+# Type: String (free text, max 512 bytes recommended)
+# Scope: Per-message
+# Access: Shared
+/vendor/mcfeely/claim-notes value string shared
+
+# Claim priority (optional)
+# Allows marking claimed messages as high/normal/low priority
+# Values: HIGH, NORMAL, LOW
+# Type: String
+# Scope: Per-message
+# Access: Shared
+/vendor/mcfeely/claim-priority value string shared
+
+# Assignment to team/group (optional)
+# For routing claimed messages to specific teams
+# Type: String
+# Scope: Per-message
+# Access: Shared
+/vendor/mcfeely/assigned-team value string shared
+
+# Custom metadata for external systems (optional)
+# Generic field for third-party integrations
+# Type: String (JSON-formatted recommended)
+# Scope: Per-message
+# Access: Shared
+/vendor/mcfeely/custom-metadata value string shared
+
+##############################################
+# MCFeely Mailbox-Level Annotations (Optional)
+##############################################
+
+# Mailbox owner team (optional)
+# Marks which team owns/manages this shared mailbox
+# Type: String
+# Scope: Mailbox
+# Access: Shared
+/vendor/mcfeely/owner-team value string shared mailbox
+
+# Mailbox SLA (optional)
+# Service level agreement for response time
+# Example: "4h" (4 hour response time)
+# Type: String
+# Scope: Mailbox
+# Access: Shared
+/vendor/mcfeely/mailbox-sla value string shared mailbox
+
+# Mailbox category (optional)
+# Type of shared mailbox (support, sales, billing, etc.)
+# Type: String
+# Scope: Mailbox
+# Access: Shared
+/vendor/mcfeely/mailbox-category value string shared mailbox
+
+##############################################
+# Notes on Annotation Usage
+##############################################
+
+# Recommended Usage:
+# 1. Store HMAC hash in claimed-by for privacy
+#    - Users see only their own hash
+#    - Hash can be reversed using MCFEELY_OBFUSCATE_SECRET
+#
+# 2. Use claimed-at with proper timestamps for audit trails
+#
+# 3. Optional fields can be added incrementally
+#    - Start with basic claimed-by/at
+#    - Add priority, notes, teams as needed
+#
+# 4. All annotations are optional except claimed-by/at
+#    - Begin with required pair, extend later
+#
+# Performance Notes:
+# - Annotations are indexed in twoskip database
+# - Queries on annotation values are reasonably fast
+# - Avoid storing large values (keep to <1KB per annotation)
+#
+# Security Notes:
+# - "shared" scope means all authenticated mailbox members see values
+# - Use obfuscation (HMAC) to hide sensitive identifying information
+# - Admin-only fields can be implemented via ACL restrictions
