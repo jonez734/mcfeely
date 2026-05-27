@@ -433,7 +433,7 @@ class TestGetRoutingRules(unittest.TestCase):
             cursor.__enter__.return_value = cursor
             mock_db.cursor.return_value = cursor
 
-            result = notifyd_client.get_routing_rules(
+            notifyd_client.get_routing_rules(
                 args,
                 "shared/support@machine1.example.com",
                 "message-claimed",

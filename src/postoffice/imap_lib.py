@@ -75,22 +75,23 @@ def get_imap_credentials(
 
 
 def connect_cyrus(
-    args,
+    args_or_creds,
     readonly: bool = True,
     timeout: int = 10,
     member_moniker: Optional[str] = None,
     mailbox_id: Optional[int] = None,
 ) -> Optional[imaplib.IMAP4_SSL]:
     """
-    Connect to Cyrus IMAP server using postoffice database credentials.
+    Connect to Cyrus IMAP server.
 
     Credentials loaded with fallback:
-    1. Direct args (args.imaphost/imapuser/imappassword) - highest priority
-    2. Password management system (requires member_moniker)
-    3. Error if no credentials found
+    1. Direct dict with 'host'/'port'/'username'/'password' keys
+    2. Direct args (args.imaphost/imapuser/imappassword) - highest priority
+    3. Password management system (requires member_moniker)
+    4. Error if no credentials found
 
     Args:
-        args: bbsengine6 args object with IMAP configuration
+        args_or_creds: Either args object or pre-fetched creds dict
         readonly: If True, open mailboxes read-only
         timeout: Connection timeout in seconds
         member_moniker: Member moniker for password system lookup (optional)
@@ -100,12 +101,15 @@ def connect_cyrus(
         Connected imaplib.IMAP4_SSL object, or None on error
     """
     try:
-        # Try to get credentials (with fallback to password system)
-        creds = get_imap_credentials(
-            args,
-            member_moniker=member_moniker,
-            mailbox_id=mailbox_id,
-        )
+        if isinstance(args_or_creds, dict):
+            creds = args_or_creds
+        else:
+            args = args_or_creds
+            creds = get_imap_credentials(
+                args,
+                member_moniker=member_moniker,
+                mailbox_id=mailbox_id,
+            )
 
         if not creds:
             io.echo(
@@ -122,7 +126,8 @@ def connect_cyrus(
         imap = imaplib.IMAP4_SSL(host, port, timeout=timeout)
         imap.login(username, password)
 
-        if getattr(args, "debug", False):
+        debug = getattr(args_or_creds, "debug", False) if not isinstance(args_or_creds, dict) else False
+        if debug:
             io.echo(
                 f"imap_lib.connect_cyrus: Connected to {host}:{port}",
                 level="debug",

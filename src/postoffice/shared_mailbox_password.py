@@ -28,7 +28,7 @@ def _can_manage_mailbox_password(
 
 def set_shared_mailbox_password(
     args: Any,
-    mailbox_id: int,
+    mailbox_address: str | int,
     member_moniker: str,
     password_type: str,
     password: str,
@@ -38,7 +38,7 @@ def set_shared_mailbox_password(
 
     Args:
         args: bbsengine6 args object with database connection.
-        mailbox_id: ID of the shared mailbox.
+        mailbox_address: Address of the mailbox (text, e.g., 'alice').
         member_moniker: Member's moniker.
         password_type: 'inbound' or 'outbound'.
         password: Plaintext password to store (encrypted).
@@ -68,13 +68,13 @@ def set_shared_mailbox_password(
 
     sql = """
         INSERT INTO postoffice.member_mailbox_password
-        (mailbox_id, member_moniker, password_type, encrypted_password, set_by_moniker, created_at, updated_at)
+        (mailbox_address, member_moniker, password_type, encrypted_password, set_by_moniker, created_at, updated_at)
         VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
-        ON CONFLICT (mailbox_id, member_moniker, password_type)
+        ON CONFLICT (mailbox_address, member_moniker, password_type)
         DO UPDATE SET encrypted_password = %s, set_by_moniker = %s, updated_at = NOW()
     """
     dat = (
-        mailbox_id,
+        mailbox_address,
         member_moniker,
         password_type,
         encrypted,
@@ -85,7 +85,7 @@ def set_shared_mailbox_password(
 
     try:
         with database.connect(args) as conn:
-            with conn.cursor() as cur:
+            with database.cursor(conn) as cur:
                 cur.execute(sql, dat)
         return True
     except Exception as e:
@@ -95,7 +95,7 @@ def set_shared_mailbox_password(
 
 def get_shared_mailbox_password(
     args: Any,
-    mailbox_id: int,
+    mailbox_address: int,
     member_moniker: str,
     password_type: str,
     requester_moniker: str,
@@ -104,7 +104,7 @@ def get_shared_mailbox_password(
 
     Args:
         args: bbsengine6 args object with database connection.
-        mailbox_id: ID of the shared mailbox.
+        mailbox_address: ID of the shared mailbox.
         member_moniker: Member's moniker.
         password_type: 'inbound' or 'outbound'.
         requester_moniker: Who is requesting (for permission check).
@@ -126,13 +126,13 @@ def get_shared_mailbox_password(
 
     sql = """
         SELECT encrypted_password FROM postoffice.member_mailbox_password
-        WHERE mailbox_id = %s AND member_moniker = %s AND password_type = %s
+        WHERE mailbox_address = %s AND member_moniker = %s AND password_type = %s
     """
-    dat = (mailbox_id, member_moniker, password_type)
+    dat = (mailbox_address, member_moniker, password_type)
 
     try:
         with database.connect(args) as conn:
-            with conn.cursor() as cur:
+            with database.cursor(conn) as cur:
                 cur.execute(sql, dat)
                 if cur.rowcount == 0:
                     return None
@@ -148,7 +148,7 @@ def get_shared_mailbox_password(
 
 def delete_shared_mailbox_password(
     args: Any,
-    mailbox_id: int,
+    mailbox_address: str | int,
     member_moniker: str,
     password_type: str,
     requester_moniker: str,
@@ -157,7 +157,7 @@ def delete_shared_mailbox_password(
 
     Args:
         args: bbsengine6 args object with database connection.
-        mailbox_id: ID of the shared mailbox.
+        mailbox_address: Address of the mailbox.
         member_moniker: Member's moniker.
         password_type: 'inbound' or 'outbound'.
         requester_moniker: Who is requesting (for permission check).
@@ -180,13 +180,13 @@ def delete_shared_mailbox_password(
 
     sql = """
         DELETE FROM postoffice.member_mailbox_password
-        WHERE mailbox_id = %s AND member_moniker = %s AND password_type = %s
+        WHERE mailbox_address = %s AND member_moniker = %s AND password_type = %s
     """
-    dat = (mailbox_id, member_moniker, password_type)
+    dat = (mailbox_address, member_moniker, password_type)
 
     try:
         with database.connect(args) as conn:
-            with conn.cursor() as cur:
+            with database.cursor(conn) as cur:
                 cur.execute(sql, dat)
         return True
     except Exception as e:
@@ -195,13 +195,13 @@ def delete_shared_mailbox_password(
 
 
 def list_shared_mailbox_passwords(
-    args: Any, mailbox_id: int, member_moniker: str, requester_moniker: str
+    args: Any, mailbox_address: str | int, member_moniker: str, requester_moniker: str
 ) -> Dict[str, Dict[str, Any]]:
     """List shared mailbox password metadata for a member (not decrypted).
 
     Args:
         args: bbsengine6 args object with database connection.
-        mailbox_id: ID of the shared mailbox.
+        mailbox_address: Address of the mailbox.
         member_moniker: Member's moniker.
         requester_moniker: Who is requesting (for permission check).
 
@@ -220,14 +220,14 @@ def list_shared_mailbox_passwords(
     sql = """
         SELECT password_type, encrypted_password, set_by_moniker, updated_at
         FROM postoffice.member_mailbox_password
-        WHERE mailbox_id = %s AND member_moniker = %s
+        WHERE mailbox_address = %s AND member_moniker = %s
     """
-    dat = (mailbox_id, member_moniker)
+    dat = (mailbox_address, member_moniker)
 
     result = {}
     try:
         with database.connect(args) as conn:
-            with conn.cursor() as cur:
+            with database.cursor(conn) as cur:
                 cur.execute(sql, dat)
                 for row in cur.fetchall():
                     pwd_type = row["password_type"]
@@ -262,12 +262,12 @@ def get_member_mailboxes(args: Any, member_moniker: str) -> List[Dict[str, Any]]
         List of mailbox dictionaries with password info.
     """
     sql = """
-        SELECT DISTINCT mb.id, mb.address, COUNT(mmp.id) as password_count
+        SELECT DISTINCT mb.address, COUNT(mmp.id) as password_count
         FROM postoffice.mailbox mb
         INNER JOIN postoffice.member_mailbox_password mmp
-            ON mb.id = mmp.mailbox_id
+            ON mb.address = mmp.mailbox_address
         WHERE mmp.member_moniker = %s
-        GROUP BY mb.id, mb.address
+        GROUP BY mb.address
         ORDER BY mb.address
     """
     dat = (member_moniker,)
@@ -275,12 +275,11 @@ def get_member_mailboxes(args: Any, member_moniker: str) -> List[Dict[str, Any]]
     result = []
     try:
         with database.connect(args) as conn:
-            with conn.cursor() as cur:
+            with database.cursor(conn) as cur:
                 cur.execute(sql, dat)
                 for row in cur.fetchall():
                     result.append(
                         {
-                            "id": row["id"],
                             "address": row["address"],
                             "password_count": row["password_count"],
                         }

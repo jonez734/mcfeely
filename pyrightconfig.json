@@ -1,0 +1,9 @@
+{
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "off",
+  "reportMissingTypeHints": false,
+  "reportMissingImports": false,
+  "include": ["src"],
+  "exclude": ["**/__pycache__"],
+  "extraPaths": ["../bbsengine6/py/src", "../bbsengine6/py/tests"]
+}

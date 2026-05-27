@@ -11,7 +11,7 @@ import imaplib
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from postoffice import imap_lib, password_auth, password_crypto
+from postoffice import imap_lib
 
 
 class TestIMAPCredentialRetrieval(unittest.TestCase):

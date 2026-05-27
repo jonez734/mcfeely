@@ -9,7 +9,7 @@ from unittest.mock import Mock, MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from postoffice import imap_client, notifyd_client
+from postoffice import imap_client
 
 
 class TestClaimMessage(unittest.TestCase):

@@ -1,3 +1,6 @@
+PROJECT = mistermcfeely
+MEDIA = /run/media/jam/BEA6-BBCE/work/$(PROJECT)/
+
 all:
 
 install-imapd-conf:
@@ -29,3 +32,6 @@ clean:
 	-rm *~
 	$(MAKE) -C src clean
 	$(MAKE) -C sql clean
+
+backup:
+	rsync --recursive --verbose --exclude=.venv . $(MEDIA)
