@@ -3,7 +3,6 @@
 
 import email
 import imaplib
-import hashlib
 import json
 import base64
 from typing import Any, List, Dict, Optional
@@ -11,7 +10,7 @@ from bbsengine6.io import echo
 from bbsengine6.io.inputchoice import inputchoice
 from bbsengine6.io.getch import getch_str as getch
 from bbsengine6.listbox import Listbox, ListboxItem, ListboxResult
-from .. import imap_lib, startup, lib
+from .. import imap_lib, lib, imap_client
 
 
 class MessageInterface:
@@ -23,7 +22,7 @@ class MessageInterface:
         self.is_sysop = getattr(args, "issuperuser", False)
         self.messages: List[Dict[str, Any]] = []
         self.imap: Optional[imaplib.IMAP4_SSL] = None
-        self.db = None
+        self.db: Optional[Any] = None
 
     def run(self) -> int:
         """Main TUI loop. Returns exit code."""
@@ -32,10 +31,12 @@ class MessageInterface:
             return 1
 
         # Get database connection for metadata operations
-        try:
-            self.db = lib.get_db_connection(self.args)
-        except Exception as e:
-            echo(f"Warning: Could not connect to database for metadata: {e}", level="error")
+        self.db = lib.get_db_connection(self.args)
+        if self.db is None:
+            echo(
+                "Warning: Could not connect to database for metadata",
+                level="error",
+            )
             # Continue anyway, just without database metadata support
 
         while True:
@@ -48,7 +49,7 @@ class MessageInterface:
                 "Choose action: ",
                 "nlx",
                 default="l",
-                help="(n)ew message, (l)ist messages, e(x)it"
+                help="(n)ew message, (l)ist messages, e(x)it",
             )
 
             if choice == "N":
@@ -91,13 +92,13 @@ class MessageInterface:
             if self.imap:
                 try:
                     self.imap.logout()
-                except:
+                except Exception:
                     pass
 
     def _connect_imap(self) -> Optional[imaplib.IMAP4_SSL]:
         """Connect to IMAP server for current user."""
         try:
-            creds = imap_lib.get_imap_credentials(self.current_user)
+            creds = imap_lib.get_imap_credentials(self.args, member_moniker=self.current_user)
             if not creds:
                 echo("Could not get IMAP credentials", level="error")
                 return None
@@ -124,12 +125,14 @@ class MessageInterface:
             for uid in sorted(uids):
                 headers = imap_lib.get_message_headers(self.imap, uid)
                 if headers:
-                    self.messages.append({
-                        "uid": uid,
-                        "from": headers.get("from_addr", "Unknown"),
-                        "subject": headers.get("subject", "(no subject)"),
-                        "date": headers.get("date", ""),
-                    })
+                    self.messages.append(
+                        {
+                            "uid": uid,
+                            "from": headers.get("from_addr", "Unknown"),
+                            "subject": headers.get("subject", "(no subject)"),
+                            "date": headers.get("date", ""),
+                        }
+                    )
 
         except Exception as e:
             echo(f"Error fetching messages: {e}", level="error")
@@ -145,7 +148,7 @@ class MessageInterface:
             for msg in self.messages:
                 from_addr = msg["from"][:25].ljust(25)
                 subject = msg["subject"][:50]
-                
+
                 # Get metadata from IMAP flags
                 metadata = self._get_message_metadata_from_flags(msg["uid"])
                 status_indicator = ""
@@ -154,7 +157,7 @@ class MessageInterface:
                         status_indicator = "[C] "
                     if metadata.get("projectid"):
                         status_indicator += f"[P:{metadata['projectid']}] "
-                
+
                 display = f"{status_indicator}{from_addr} {subject}"
                 item = ListboxItem(content=display)
                 items.append(item)
@@ -176,19 +179,19 @@ class MessageInterface:
                         "KEY_DELETE": self._handle_delete_key,
                         "T": self._handle_tag_key,
                         "C": self._handle_claim_key,
-                    }
+                    },
                 )
-                result = lb.run()
+                result = lb.run("Messages: ")
 
-                if result is None or result.operation == "cancelled":
+                if result is None or result.status == "cancelled":
                     # User pressed ESC
                     return
 
-                if result.operation == "selected" and result.item:
+                if result.status == "selected" and result.item:
                     # Get the index of selected item from the listbox
                     # Note: we iterate through items to find matching index
                     selected_index = None
-                    if hasattr(lb, '_selected_index'):
+                    if hasattr(lb, "_selected_index"):
                         selected_index = lb._selected_index
                     else:
                         # Fallback: find by content matching
@@ -196,8 +199,10 @@ class MessageInterface:
                             if item.content == result.item.content:
                                 selected_index = i
                                 break
-                    
-                    if selected_index is not None and 0 <= selected_index < len(self.messages):
+
+                    if selected_index is not None and 0 <= selected_index < len(
+                        self.messages
+                    ):
                         selected_msg = self.messages[selected_index]
                         self._message_detail(selected_msg)
                         # After viewing message, loop continues to redisplay list
@@ -208,17 +213,33 @@ class MessageInterface:
 
     def _handle_delete_key(self) -> Optional[ListboxResult]:
         """Handle DELETE key in message list."""
-        echo("Delete functionality not yet implemented")
+        selected_index = getattr(self, "_selected_index", None)
+        if selected_index is None:
+            return None
+        if 0 <= selected_index < len(self.messages):
+            msg = self.messages[selected_index]
+            self._delete_message(msg["uid"])
+            self._fetch_messages()
         return None
 
     def _handle_tag_key(self) -> Optional[ListboxResult]:
         """Handle 'T' key in message list to tag with project ID."""
-        echo("Tag (project ID) functionality not yet implemented")
+        selected_index = getattr(self, "_selected_index", None)
+        if selected_index is None:
+            return None
+        if 0 <= selected_index < len(self.messages):
+            msg = self.messages[selected_index]
+            self._tag_message(msg["uid"])
         return None
 
     def _handle_claim_key(self) -> Optional[ListboxResult]:
         """Handle 'C' key in message list to claim/unclaim message."""
-        echo("Claim functionality not yet implemented")
+        selected_index = getattr(self, "_selected_index", None)
+        if selected_index is None:
+            return None
+        if 0 <= selected_index < len(self.messages):
+            msg = self.messages[selected_index]
+            self._claim_message(msg["uid"])
         return None
 
     def _message_detail(self, msg: Dict[str, Any]) -> None:
@@ -262,7 +283,7 @@ class MessageInterface:
                 if metadata.get("projectid"):
                     echo(f"  Project ID: {metadata['projectid']}")
                 if metadata.get("claimed"):
-                    echo(f"  Claimed: Yes")
+                    echo("  Claimed: Yes")
                 echo("")
 
             # Handle message actions
@@ -271,21 +292,25 @@ class MessageInterface:
         except Exception as e:
             echo(f"Error displaying message: {e}", level="error")
 
-    def _get_message_body(self, message: email.message.Message) -> str:
+    def _get_message_body(self, message: email.message.Message) -> str:  # type: ignore[name-defined]
         """Extract and return message body text."""
         body = ""
         if message.is_multipart():
             for part in message.walk():
                 if part.get_content_type() == "text/plain":
                     try:
-                        body = part.get_payload(decode=True).decode("utf-8", errors="replace")
+                        body = part.get_payload(decode=True).decode(
+                            "utf-8", errors="replace"
+                        )
                         break
-                    except:
+                    except Exception:
                         pass
         else:
             try:
-                body = message.get_payload(decode=True).decode("utf-8", errors="replace")
-            except:
+                body = message.get_payload(decode=True).decode(
+                    "utf-8", errors="replace"
+                )
+            except Exception:
                 body = message.get_payload()
 
         return body if body else "(no body)"
@@ -333,7 +358,9 @@ class MessageInterface:
         """Tag message with a project ID."""
         echo("")
         try:
-            project_id_str = input("Enter project ID (or press ENTER to cancel): ").strip()
+            project_id_str = input(
+                "Enter project ID (or press ENTER to cancel): "
+            ).strip()
             if not project_id_str:
                 return
 
@@ -353,21 +380,32 @@ class MessageInterface:
 
     def _claim_message(self, uid: int) -> None:
         """Claim or unclaim a message."""
+        mailbox_name = "INBOX"
         try:
             metadata = self._get_message_metadata_from_flags(uid) or {}
-            
+
             if metadata.get("claimed"):
-                # Unclaim
-                metadata["claimed"] = False
-                metadata.pop("claimed_by_hash", None)
-                self._set_message_metadata(uid, metadata)
+                assert self.current_user is not None
+                imap_client.unclaim_message(
+                    self.args,
+                    mailbox_name,
+                    uid,
+                    self.current_user,
+                    imap_conn=self.imap,
+                )
                 echo("Message unclaimed", level="info")
             else:
-                # Claim - store hash of current user login ID
-                claim_hash = hashlib.sha256(self.current_user.encode()).hexdigest()
-                metadata["claimed"] = True
-                metadata["claimed_by_hash"] = claim_hash
-                self._set_message_metadata(uid, metadata)
+                msg = next((m for m in self.messages if m["uid"] == uid), {})
+                assert self.current_user is not None
+                imap_client.claim_message(
+                    self.args,
+                    mailbox_name,
+                    uid,
+                    self.current_user,
+                    message_from=msg.get("from") or "",
+                    message_subject=msg.get("subject") or "",
+                    imap_conn=self.imap,
+                )
                 echo(f"Message claimed by {self.current_user}", level="info")
         except Exception as e:
             echo(f"Error claiming message: {e}", level="error")
@@ -379,17 +417,17 @@ class MessageInterface:
 
         try:
             flags = imap_lib.get_message_flags(self.imap, uid)
-            
+
             # Look for custom metadata flag
             metadata_flag = None
             for flag in flags:
                 if flag.startswith("Metadata_"):
                     metadata_flag = flag
                     break
-            
+
             if not metadata_flag:
                 return None
-            
+
             # Extract base64-encoded JSON from flag
             # Format: Metadata_<base64-encoded-json>
             encoded_data = metadata_flag[9:]  # Skip "Metadata_" prefix
@@ -398,7 +436,7 @@ class MessageInterface:
                 return json.loads(json_data)
             except (ValueError, json.JSONDecodeError):
                 return None
-                
+
         except Exception as e:
             echo(f"Error retrieving metadata from flags: {e}", level="error")
             return None
@@ -413,7 +451,7 @@ class MessageInterface:
             metadata_json = json.dumps(metadata)
             encoded_metadata = base64.b64encode(metadata_json.encode()).decode()
             metadata_flag = f"Metadata_{encoded_metadata}"
-            
+
             # Remove old metadata flag if it exists
             flags = imap_lib.get_message_flags(self.imap, uid)
             for flag in flags:
@@ -421,14 +459,14 @@ class MessageInterface:
                     # Remove old metadata flag
                     self.imap.uid("STORE", str(uid), "-FLAGS", f"({flag})")
                     break
-            
+
             # Add new metadata flag
             self.imap.uid("STORE", str(uid), "+FLAGS", f"({metadata_flag})")
-            
+
             # Also store in database if available
             if self.db:
                 self._store_metadata_to_db(uid, metadata)
-            
+
             return True
         except Exception as e:
             echo(f"Error storing metadata: {e}", level="error")
@@ -442,20 +480,20 @@ class MessageInterface:
         try:
             metadata_json = json.dumps(metadata)
             cur = self.db.cursor()
-            
+
             # Try to update first
             cur.execute(
                 "UPDATE postoffice.__message SET metadata = %s WHERE id = %s",
-                [metadata_json, str(uid)]
+                [metadata_json, str(uid)],
             )
-            
+
             # If no rows were updated, insert
             if cur.rowcount == 0:
                 cur.execute(
                     "INSERT INTO postoffice.__message (id, metadata) VALUES (%s, %s)",
-                    [str(uid), metadata_json]
+                    [str(uid), metadata_json],
                 )
-            
+
             self.db.commit()
             cur.close()
             return True
@@ -464,7 +502,7 @@ class MessageInterface:
             if self.db:
                 try:
                     self.db.rollback()
-                except:
+                except Exception:
                     pass
             return False
 

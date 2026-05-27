@@ -1,7 +1,10 @@
-from . import lib
+from . import lib, startup
 
 
 def init(args, **kw: dict) -> bool:
+    pool = kw.get("pool")
+    if pool and not startup.startup_main(args, pool=pool):
+        return False
     return True
 
 
@@ -14,6 +17,5 @@ def buildargs(args, **kw: dict) -> bool:
 
 
 def main(args, **kw):
-    # util.heading("post office")
-    lib.runmodule("main", **kw)
+    lib.runmodule(args, "main", **kw)
     return True

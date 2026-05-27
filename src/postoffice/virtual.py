@@ -1,3 +1,5 @@
+from typing import Any
+
 from bbsengine6 import io, database, member
 
 from . import lib
@@ -15,11 +17,11 @@ def buildargs(args=None, **kw):
     return lib.buildargs(args)
 
 
-class completeVirtualPattern(object):
-    def __init__(self, args, **kw):
+class completeVirtualPattern:
+    def __init__(self, args: Any, **kw: Any) -> None:
         self.args = args
 
-    def complete(self: object, text: str, state: int):
+    def complete(self, text: str, state: int) -> str | None:
         if self.args.debug is True:
             io.echo("completeVirtualPattern.140: complete called", level="debug")
 

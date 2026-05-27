@@ -138,6 +138,7 @@ class CyrusAdmin:
             echo(f"✓ Account '{moniker}' created")
 
             # Set inbound password
+            assert self.current_user is not None
             if member_password.set_personal_password(
                 self.args, moniker, "inbound", inbound_pwd, self.current_user
             ):
@@ -160,6 +161,7 @@ class CyrusAdmin:
                     echo("Passwords do not match", level="error")
                     return
 
+                assert self.current_user is not None
                 if member_password.set_personal_password(
                     self.args, moniker, "outbound", outbound_pwd, self.current_user
                 ):
@@ -376,6 +378,7 @@ class CyrusAdmin:
                 echo(f"{ptype.capitalize()} passwords do not match", level="error")
                 continue
 
+            assert self.current_user is not None
             if shared_mailbox_password.set_shared_mailbox_password(
                 self.args,
                 mailbox_id,

@@ -119,6 +119,7 @@ class PasswordManager:
             echo("Passwords do not match", level="error")
             return
 
+        assert self.current_user is not None
         if member_password.set_personal_password(
             self.args, member, password_type, password, self.current_user
         ):
@@ -140,6 +141,7 @@ class PasswordManager:
             echo("Invalid member moniker", level="error")
             return
 
+        assert self.current_user is not None
         passwords = member_password.list_personal_passwords(
             self.args, member, self.current_user
         )
@@ -173,6 +175,7 @@ class PasswordManager:
             echo("Cancelled", level="info")
             return
 
+        assert self.current_user is not None
         if member_password.delete_personal_password(
             self.args, member, password_type, self.current_user
         ):
@@ -217,6 +220,7 @@ class PasswordManager:
             echo("Passwords do not match", level="error")
             return
 
+        assert self.current_user is not None
         if shared_mailbox_password.set_shared_mailbox_password(
             self.args, mailbox_id, member, password_type, password, self.current_user
         ):
@@ -241,6 +245,7 @@ class PasswordManager:
             echo("Invalid member moniker", level="error")
             return
 
+        assert self.current_user is not None
         passwords = shared_mailbox_password.list_shared_mailbox_passwords(
             self.args, mailbox_id, member, self.current_user
         )
@@ -290,6 +295,7 @@ class PasswordManager:
             echo("Cancelled", level="info")
             return
 
+        assert self.current_user is not None
         if shared_mailbox_password.delete_shared_mailbox_password(
             self.args, mailbox_id, member, password_type, self.current_user
         ):

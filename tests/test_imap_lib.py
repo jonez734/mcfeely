@@ -95,6 +95,172 @@ class TestConnectCyrus(unittest.TestCase):
             # Should use the port from args
             mock_imap.assert_called_once_with("cyrus.example.com", 993, timeout=10)
 
+    def test_connect_cyrus_with_creds_dict(self):
+        """Test connect_cyrus accepts a pre-fetched creds dict directly."""
+        creds = {
+            "host": "cyrus.example.com",
+            "port": 993,
+            "username": "dictuser",
+            "password": "dictpass",
+        }
+
+        with patch("imaplib.IMAP4_SSL") as mock_imap:
+            mock_instance = MagicMock()
+            mock_imap.return_value = mock_instance
+
+            result = imap_lib.connect_cyrus(creds)
+
+            self.assertIsNotNone(result)
+            mock_imap.assert_called_once_with("cyrus.example.com", 993, timeout=10)
+            mock_instance.login.assert_called_once_with("dictuser", "dictpass")
+
+    def test_connect_cyrus_with_creds_dict_custom_port(self):
+        """Test connect_cyrus uses port from creds dict."""
+        creds = {
+            "host": "cyrus.example.com",
+            "port": 143,
+            "username": "user",
+            "password": "pass",
+        }
+
+        with patch("imaplib.IMAP4_SSL") as mock_imap:
+            mock_instance = MagicMock()
+            mock_imap.return_value = mock_instance
+
+            result = imap_lib.connect_cyrus(creds)
+
+            self.assertIsNotNone(result)
+            mock_imap.assert_called_once_with("cyrus.example.com", 143, timeout=10)
+
+
+class TestGetImapCredentials(unittest.TestCase):
+    """Tests for get_imap_credentials function."""
+
+    def test_get_imap_credentials_direct_args(self):
+        """Test credentials returned from direct args when all present."""
+        mock_args = MagicMock()
+        mock_args.imaphost = "cyrus.example.com"
+        mock_args.imapport = 993
+        mock_args.imapuser = "testuser"
+        mock_args.imappassword = "testpass"
+
+        result = imap_lib.get_imap_credentials(mock_args)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["host"], "cyrus.example.com")
+        self.assertEqual(result["port"], 993)
+        self.assertEqual(result["username"], "testuser")
+        self.assertEqual(result["password"], "testpass")
+
+    def test_get_imap_credentials_missing_host(self):
+        """Test None returned when host is missing."""
+        mock_args = MagicMock(spec=["imapport"])
+        mock_args.imapport = 993
+
+        result = imap_lib.get_imap_credentials(mock_args)
+
+        self.assertIsNone(result)
+
+    def test_get_imap_credentials_missing_username(self):
+        """Test None returned when username is missing."""
+        mock_args = MagicMock()
+        mock_args.imaphost = "cyrus.example.com"
+        mock_args.imapport = 993
+        mock_args.imapuser = None
+        mock_args.imappassword = "testpass"
+
+        result = imap_lib.get_imap_credentials(mock_args)
+
+        self.assertIsNone(result)
+
+    def test_get_imap_credentials_missing_password(self):
+        """Test None returned when password is missing."""
+        mock_args = MagicMock()
+        mock_args.imaphost = "cyrus.example.com"
+        mock_args.imapport = 993
+        mock_args.imapuser = "testuser"
+        mock_args.imappassword = None
+
+        result = imap_lib.get_imap_credentials(mock_args)
+
+        self.assertIsNone(result)
+
+    def test_get_imap_credentials_no_moniker_fallback(self):
+        """Test fallback to password system not attempted without moniker."""
+        mock_args = MagicMock()
+        mock_args.imaphost = "cyrus.example.com"
+        mock_args.imapport = 993
+        mock_args.imapuser = "testuser"
+        mock_args.imappassword = None
+
+        with patch("postoffice.password_auth.get_auth_password") as mock_auth:
+            result = imap_lib.get_imap_credentials(mock_args)
+
+            self.assertIsNone(result)
+            mock_auth.assert_not_called()
+
+    def test_get_imap_credentials_fallback_to_password_system(self):
+        """Test fallback to password system when direct args incomplete."""
+        mock_args = MagicMock()
+        mock_args.imaphost = "cyrus.example.com"
+        mock_args.imapport = 993
+        mock_args.imapuser = "testuser"
+        mock_args.imappassword = None
+        mock_args.debug = False
+
+        with patch("postoffice.password_auth.get_auth_password") as mock_auth:
+            mock_auth.return_value = "fallback_password"
+
+            result = imap_lib.get_imap_credentials(
+                mock_args, member_moniker="testmember"
+            )
+
+            self.assertIsNotNone(result)
+            self.assertEqual(result["password"], "fallback_password")
+            mock_auth.assert_called_once_with(
+                mock_args,
+                mailbox_id=None,
+                member_moniker="testmember",
+                password_type="inbound",
+                requester_moniker="testmember",
+            )
+
+    def test_get_imap_credentials_fallback_no_password(self):
+        """Test None returned when password system also returns None."""
+        mock_args = MagicMock()
+        mock_args.imaphost = "cyrus.example.com"
+        mock_args.imapport = 993
+        mock_args.imapuser = "testuser"
+        mock_args.imappassword = None
+        mock_args.debug = False
+
+        with patch("postoffice.password_auth.get_auth_password") as mock_auth:
+            mock_auth.return_value = None
+
+            result = imap_lib.get_imap_credentials(
+                mock_args, member_moniker="testmember"
+            )
+
+            self.assertIsNone(result)
+
+    def test_get_imap_credentials_fallback_exception_swallowed(self):
+        """Test password system exception is swallowed in non-debug mode."""
+        mock_args = MagicMock()
+        mock_args.imaphost = "cyrus.example.com"
+        mock_args.imapport = 993
+        mock_args.imapuser = "testuser"
+        mock_args.imappassword = None
+        mock_args.debug = False
+
+        with patch("postoffice.password_auth.get_auth_password") as mock_auth:
+            mock_auth.side_effect = Exception("Database error")
+
+            result = imap_lib.get_imap_credentials(
+                mock_args, member_moniker="testmember"
+            )
+
+            self.assertIsNone(result)
+
 
 class TestSelectMailbox(unittest.TestCase):
     """Tests for select_mailbox function."""

@@ -10,6 +10,8 @@ from typing import Optional, Dict, Any
 
 from bbsengine6.io import echo
 
+import binascii
+
 
 def get_encryption_key() -> Optional[bytes]:
     """
@@ -80,7 +82,7 @@ def get_encryption_key() -> Optional[bytes]:
             if getattr(get_encryption_key, "_verbose", False):
                 echo(f"Loaded encryption key from {system_key_file}", level="debug")
             return key_bytes
-        except base64.binascii.Error as e:
+        except binascii.Error as e:
             echo(f"ERROR: {system_key_file} is not valid base64: {e}", level="error")
             return None
         except Exception as e:
@@ -123,7 +125,7 @@ def get_encryption_key() -> Optional[bytes]:
             if getattr(get_encryption_key, "_verbose", False):
                 echo(f"Loaded encryption key from {user_key_file}", level="debug")
             return key_bytes
-        except base64.binascii.Error as e:
+        except binascii.Error as e:
             echo(f"ERROR: {user_key_file} is not valid base64: {e}", level="error")
             return None
         except Exception as e:
@@ -190,7 +192,8 @@ def validate_encryption_key(verbose: bool = False) -> bool:
     Returns:
         True if valid, False otherwise
     """
-    get_encryption_key._verbose = verbose
+    assert callable(get_encryption_key)
+    get_encryption_key.__dict__["_verbose"] = verbose  # type: ignore[attr-defined]
 
     key = get_encryption_key()
 
@@ -268,7 +271,8 @@ def initialize_password_system(verbose: bool = False) -> bool:
             level="debug",
         )
 
-    initialize_password_system._initialized = True
+    assert callable(initialize_password_system)
+    initialize_password_system.__dict__["_initialized"] = True  # type: ignore[attr-defined]
     return True
 
 
@@ -577,6 +581,84 @@ if __name__ == "__main__":
     main()
 
 
+def init(args, **kwargs) -> bool:
+    return True
+
+
+def access(args, op, **kwargs) -> bool:
+    return True
+
+
+def buildargs(args, **kwargs):
+    return None
+
+
+def startup_main(args, **kwargs) -> bool:
+    from bbsengine6 import database, io
+
+    def _work(conn):
+        io.echo("running postoffice startup...")
+
+        # --- schema ---
+        io.echo("{{var:labelcolor}}schema {{var:valuecolor}}postoffice{{var:labelcolor}}: ", end="")
+        if database.schemaexists(args, "postoffice", conn=conn) is False:
+            if database.createschema(args, "postoffice", conn=conn) is False:
+                io.echo("fail", level="error")
+                return False
+        io.echo(" ok ", level="ok")
+
+        # --- schema privs ---
+        for role in ("web", "term", "sysop"):
+            database.manage_schema_priv(args, "grant", "usage", "postoffice", role, conn=conn)
+        database.manage_schema_priv(args, "grant", "create", "postoffice", "sysop", conn=conn)
+
+        # --- classes in dependency order ---
+        classes = (
+            ("postoffice.mailbox", "mailbox.sql"),
+            ("postoffice.shared_mailbox", "shared_mailbox.sql"),
+            ("postoffice.virtual", "virtual.sql"),
+            ("postoffice.__message", "message.sql"),
+            ("postoffice.member_mailbox_password", "member_mailbox_password.sql"),
+            ("postoffice.notification_routing", "notification_routing.sql"),
+            ("postoffice.notification_config", "notification_config.sql"),
+        )
+
+        failcount = 0
+        for cls, sql in classes:
+            io.echo(
+                f"{{var:labelcolor}}class {{var:valuecolor}}{cls}{{var:labelcolor}}: ",
+                end="",
+            )
+            if database.classexists(args, cls, conn=conn) is False:
+                io.echo("import ", end="")
+                if database.importsql(args, sql, conn=conn, package="postoffice") is False:
+                    io.echo("fail", level="error")
+                    failcount += 1
+                else:
+                    io.echo(" ok ", level="ok")
+            else:
+                io.echo("ok", level="ok")
+
+        if failcount > 0:
+            io.echo("postoffice startup failed", level="error")
+            conn.rollback()
+            return False
+
+        io.echo("postoffice startup complete", level="ok")
+        conn.commit()
+        return True
+
+    conn = kwargs.get("conn", None)
+    if conn is None:
+        pool = kwargs.get("pool", None)
+        if pool is None:
+            io.echo("postoffice.startup.startup_main: pool is None", level="error")
+            return False
+        with database.connect(args, pool=pool) as conn:
+            return _work(conn)
+    return _work(conn)
+
+
 __all__ = [
     "get_encryption_key",
     "validate_encryption_key",
@@ -585,4 +667,8 @@ __all__ = [
     "check_database_schema",
     "startup",
     "check_key_setup",
+    "init",
+    "access",
+    "buildargs",
+    "startup_main",
 ]

@@ -66,36 +66,33 @@ def runmodule(args, modulename, **kw):
     return module.runmodule(args, x, **kw)
 
 
-def get_db_connection(args, **kwargs):
+def get_db_connection(args, pool=None, conn=None):
     """
-    Extract or create database connection from kwargs.
+    Get database connection from pool or passthrough explicit connection.
 
-    Implements CONN_POOL_PATTERN: handles both conn and pool parameters.
+    Implements CONN_POOL_PATTERN.
 
     Args:
         args: bbsengine6 args object
-        **kwargs: May contain 'conn' (database connection) or 'pool' (connection pool)
+        pool: Optional connection pool (creates new connection)
+        conn: Optional explicit connection (passthrough, no close needed)
 
     Returns:
-        Tuple of (use_conn, should_close)
-        - use_conn: Database connection object (or None if unavailable)
+        Tuple of (connection, should_close)
+        - connection: Database connection object (or None if unavailable)
         - should_close: Boolean indicating if caller should close the connection
     """
-    conn = kwargs.get("conn")
-    pool = kwargs.get("pool")
+    if conn is not None:
+        return conn, False
 
-    use_conn = conn
-    should_close = False
-
-    if use_conn is None and pool is not None:
+    if pool is not None:
         try:
-            use_conn = database.connect(args, pool=pool)
-            should_close = True
+            return database.connect(args, pool=pool), True
         except Exception as e:
             io.echo(f"lib.get_db_connection: {e}", level="error")
             return None, False
 
-    return use_conn, should_close
+    return None, False
 
 
 def buildargs(args=None, **kw):

@@ -8,7 +8,6 @@ import base64
 import unittest
 import json
 from unittest.mock import Mock, MagicMock, patch
-from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
