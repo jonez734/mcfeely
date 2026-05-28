@@ -4,6 +4,28 @@
 
 This document describes how to implement MCFeely using Cyrus IMAPd as the mail server, leveraging its native ANNOTATE extension for per-message metadata storage.
 
+## Current Setup
+
+See [POSTOFFICE_IMAP_SETUP.md](./POSTOFFICE_IMAP_SETUP.md) for the current working configuration.
+
+## Configuration Files
+
+### Source Location: `etc-postoffice/`
+
+| File | Destination | Purpose |
+|------|-------------|---------|
+| `cyrus.conf` | `/etc/cyrus.conf` | Cyrus master process config |
+| `cyrus.conf` | `/etc/postoffice/cyrus.conf` | Backup/staging copy |
+| `imapd.conf` | `/etc/imapd.conf` | IMAP daemon settings |
+| `imapd.conf` | `/etc/postoffice/imapd.conf` | Backup/staging copy |
+| `imapd.annotations` | `/etc/postoffice/imapd.annotations` | Custom IMAP annotations |
+| `saslauthd.conf` | `/etc/sasl2/saslauthd.conf` | saslauthd config |
+| `saslauthd.sysconfig` | `/etc/sysconfig/saslauthd` | saslauthd startup options |
+| `pam.d-saslauthd` | `/etc/pam.d/saslauthd` | PAM config for saslauthd |
+| `pam.d-imap` | `/etc/pam.d/imap` | PAM config for IMAP auth |
+| `cyrus-imapd.service` | `/usr/lib/systemd/system/cyrus-imapd.service` | systemd unit |
+| `saslauthd.service` | `/usr/lib/systemd/system/saslauthd.service` | saslauthd systemd unit |
+
 ## Prerequisites
 
 - Fedora server (tested on Fedora 38+)
@@ -11,6 +33,16 @@ This document describes how to implement MCFeely using Cyrus IMAPd as the mail s
 - Python 3.9+ for mcfeely components
 
 ## Installation
+
+### Using Makefile (Recommended)
+
+```bash
+cd etc-postoffice
+sudo make install
+sudo systemctl daemon-reload
+sudo systemctl enable --now saslauthd
+sudo systemctl restart cyrus-imapd
+```
 
 ### Install Cyrus IMAPd
 
@@ -147,31 +179,92 @@ systemctl reload postfix
 
 ## Mailbox Setup
 
-### Create admin and user mailboxes
+### Prerequisites
+
+1. User must exist in system:
+   ```bash
+   sudo useradd -m username
+   sudo passwd username
+   ```
+
+2. Services must be running:
+   ```bash
+   sudo systemctl enable --now saslauthd
+   sudo systemctl restart cyrus-imapd
+   ```
+
+### Create mailbox with cyradm
 
 ```bash
-cyradm -u cyrus localhost
+# Connect as admin
+sudo cyradm -u cyrus localhost
 ```
 
 In cyradm shell:
 
 ```bash
-# Create user mailboxes
-cm user/ops@example.com
-cm user/support@example.com
+# Create user mailbox
+cm user.username
 
-# Create shared team mailbox
-cm user/shared/ops@example.com
+# Give user full permissions (lrs = lookup, read, see flags)
+setacl user.username username lrs
 
-# Set ACLs for team members
-# l=lookup, r=read, s=seen, w=write, d=delete, a=admin
-setaclown user/shared/ops@example.com alice@l rs
-setaclown user/shared/ops@example.com bob@l rs
-setaclown user/shared/ops@example.com carol@l rs
-setaclown user/shared/ops@example.com cyrus a
+# Verify ACL
+lam user.username
 
-# Verify ACLs
-lam user/shared/ops@example.com
+# Exit
+exit
+```
+
+### Authentication
+
+Users authenticate to IMAP using their **system password** (same as shell/SSH).
+
+This is because:
+- `sasl_pwcheck_method: saslauthd` in imapd.conf
+- `MECHANISMS = pam` in saslauthd.conf
+- PAM uses `pam_unix.so` which checks `/etc/shadow`
+
+### Test IMAP connection
+
+```bash
+# Test with telnet
+telnet localhost 143
+. login username password
+. list "" *
+. logout
+```
+
+Or connect with any IMAP client:
+- Server: `localhost`
+- Port: `143` (IMAP) or `993` (IMAPS)
+- User: `username`
+- Password: `username's system password`
+
+### Verify SASL authentication
+
+```bash
+# Test saslauthd directly
+testsaslauthd -u username -p 'password' -s imap
+```
+
+### Common cyradm commands
+
+```bash
+# List all mailboxes
+lam
+
+# Create shared mailbox
+cm user/shared/mailboxname
+
+# Give user access to shared mailbox
+setacl user.shared.mailboxname username lrs
+
+# Remove user access
+deleteacl user.shared.mailboxname username
+
+# Delete mailbox
+deleteuser user.username
 ```
 
 ## Sieve Configuration
