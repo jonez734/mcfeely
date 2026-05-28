@@ -18,7 +18,7 @@ PAM_ETCDIR := $(ETCDIR)/pam.d
 CONFIG_FILES := cyrus.conf imapd.conf imapd.annotations
 SASL_FILES := saslauthd.conf
 SYSCONFIG_FILES := saslauthd.sysconfig
-PAM_FILES := pam.d-saslauthd
+PAM_FILES := pam.d-saslauthd pam.d-imap
 SYSTEMD_FILES := cyrus-imapd.service saslauthd.service
 
 .PHONY: all install uninstall symlink check help
@@ -69,6 +69,10 @@ install: $(CONFIG_FILES) $(SASL_FILES) $(SYSCONFIG_FILES) $(PAM_FILES) $(SYSTEMD
 	@install -o root -g root -m 644 pam.d-saslauthd "$(PAM_ETCDIR)/saslauthd"
 	@echo "  -> $(PAM_ETCDIR)/saslauthd"
 	@echo ""
+	@echo "Installing pam.d-imap..."
+	@install -o root -g root -m 644 pam.d-imap "$(PAM_ETCDIR)/imap"
+	@echo "  -> $(PAM_ETCDIR)/imap"
+	@echo ""
 	@echo "Installing cyrus-imapd.service..."
 	@install -o root -g root -m 644 cyrus-imapd.service "$(SYSTEMD)/cyrus-imapd.service"
 	@echo "  -> $(SYSTEMD)/cyrus-imapd.service"
@@ -111,6 +115,8 @@ uninstall:
 	@rm -f $(SASL_SYSCONFIG)/saslauthd
 	@echo "Removing pam.d/saslauthd..."
 	@rm -f $(PAM_ETCDIR)/saslauthd
+	@echo "Removing pam.d/imap..."
+	@rm -f $(PAM_ETCDIR)/imap
 	@echo "Removing systemd units..."
 	@rm -f $(SYSTEMD)/cyrus-imapd.service
 	@rm -f $(SYSTEMD)/saslauthd.service
@@ -146,6 +152,7 @@ check:
 	@echo "  saslauthd.conf     -> $(SASL_ETCDIR)/saslauthd.conf"
 	@echo "  saslauthd.sysconfig-> $(SASL_SYSCONFIG)/saslauthd"
 	@echo "  pam.d-saslauthd    -> $(PAM_ETCDIR)/saslauthd"
+	@echo "  pam.d-imap        -> $(PAM_ETCDIR)/imap"
 	@echo "  cyrus-imapd.service-> $(SYSTEMD)/cyrus-imapd.service"
 	@echo "  saslauthd.service  -> $(SYSTEMD)/saslauthd.service"
 	@echo ""
