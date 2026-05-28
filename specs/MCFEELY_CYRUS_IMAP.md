@@ -225,6 +225,41 @@ This is because:
 - `MECHANISMS = pam` in saslauthd.conf
 - PAM uses `pam_unix.so` which checks `/etc/shadow`
 
+### SSH Key Only Users
+
+If a user accesses the server via SSH key only (no password), PAM auth will fail because there's no password in `/etc/shadow`.
+
+**Solutions:**
+
+1. **Set a password anyway** (recommended):
+   ```bash
+   sudo passwd username
+   ```
+   User can still use SSH keys for shell access, but now has a password for IMAP.
+
+2. **Use separate IMAP passwords via sasldb**:
+   
+   Install and configure sasldb for IMAP-only passwords:
+   ```bash
+   # Change in imapd.conf:
+   sasl_pwcheck_method: auxprop
+   sasl_auxprop_plugin: sasldb
+   
+   # Set IMAP password (doesn't affect system password)
+   sudo saslpasswd2 -c username
+   
+   # Set permissions
+   sudo chown root:mail /etc/sasldb2
+   sudo chmod 640 /etc/sasldb2
+   
+   # Restart Cyrus
+   sudo systemctl restart cyrus-imapd
+   ```
+   
+   This keeps SSH keys for shell and separate IMAP passwords in sasldb.
+
+**Recommended approach:** Set a password even for SSH key users. It doesn't affect SSH key authentication but enables IMAP access.
+
 ### Test IMAP connection
 
 ```bash
