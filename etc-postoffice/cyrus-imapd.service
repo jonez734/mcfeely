@@ -8,7 +8,7 @@ After=cyrus-imapd-init.service
 [Service]
 Type=simple
 EnvironmentFile=/etc/sysconfig/cyrus-imapd
-ExecStart=/usr/libexec/cyrus-imapd/master -C /etc/postoffice/cyrus.conf $CYRUSOPTIONS
+ExecStart=/usr/libexec/cyrus-imapd/master $CYRUSOPTIONS
 ExecReload=/bin/kill -HUP $MAINPID
 PrivateTmp=true
 
