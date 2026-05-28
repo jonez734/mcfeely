@@ -21,7 +21,7 @@ SYSCONFIG_FILES := saslauthd.sysconfig
 PAM_FILES := pam.d-saslauthd
 SYSTEMD_FILES := cyrus-imapd.service saslauthd.service
 
-.PHONY: all install uninstall check help
+.PHONY: all install uninstall symlink check help
 
 all: help
 
@@ -127,6 +127,15 @@ create-system-user:
 	@sudo chown cyrus:mail /var/lib/imap
 	@echo "Done."
 
+symlink:
+	@echo "Creating symlinks to /etc config files..."
+	@sudo ln -sf /etc/cyrus.conf "$(CYRUS_ETCDIR)/cyrus.conf"
+	@sudo ln -sf /etc/imapd.conf "$(CYRUS_ETCDIR)/imapd.conf"
+	@echo "  -> $(CYRUS_ETCDIR)/cyrus.conf -> /etc/cyrus.conf"
+	@echo "  -> $(CYRUS_ETCDIR)/imapd.conf -> /etc/imapd.conf"
+	@echo ""
+	@echo "Symlink complete!"
+
 check:
 	@echo "Cyrus IMAP Configuration - Installation Plan"
 	@echo ""
@@ -141,3 +150,5 @@ check:
 	@echo "  saslauthd.service  -> $(SYSTEMD)/saslauthd.service"
 	@echo ""
 	@echo "Owner: root:mail (640 for config, 644 for sysconfig/pam/service)"
+	@echo ""
+	@echo "Note: Run 'make symlink' after install to create symlinks"
