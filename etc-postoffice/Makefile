@@ -42,6 +42,9 @@ help:
 install: $(CONFIG_FILES) $(SASL_FILES) $(SYSCONFIG_FILES) $(PAM_FILES) $(SYSTEMD_FILES)
 	@echo "Installing Cyrus IMAP configuration files..."
 	@echo ""
+	@echo "Creating directories..."
+	@sudo mkdir -p "$(CYRUS_ETCDIR)" "$(SASL_ETCDIR)" "$(PAM_ETCDIR)" "$(SYSTEMD)"
+	@echo ""
 	@echo "Installing cyrus.conf..."
 	@install -o root -g mail -m 640 cyrus.conf "$(CYRUS_ETCDIR)/cyrus.conf"
 	@echo "  -> $(CYRUS_ETCDIR)/cyrus.conf"
