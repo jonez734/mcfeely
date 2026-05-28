@@ -237,7 +237,7 @@ If a user accesses the server via SSH key only (no password), PAM auth will fail
    ```
    User can still use SSH keys for shell access, but now has a password for IMAP.
 
-2. **Use separate IMAP passwords via sasldb**:
+2. **Use sasldb for separate IMAP passwords**:
    
    Install and configure sasldb for IMAP-only passwords:
    ```bash
@@ -257,6 +257,26 @@ If a user accesses the server via SSH key only (no password), PAM auth will fail
    ```
    
    This keeps SSH keys for shell and separate IMAP passwords in sasldb.
+
+3. **Use postoffice.mailbox_password table** (for SSH key users):
+   
+   The `postoffice.mailbox_password` table already exists in mistermcfeely with structure:
+   ```sql
+   postoffice.mailbox_password (
+       memberid     -- FK to engine.__member
+       address      -- FK to postoffice.mailbox
+       password     -- encrypted password
+       kind         -- 'inbound', 'outbound', or 'imap'
+   )
+   ```
+   
+   For SSH key users, you could:
+   - Add `'imap'` as a password kind
+   - Store IMAP password encrypted in this table
+   - Modify auth flow to check `mailbox_password` instead of `/etc/shadow`
+   - Use existing password management code in mistermcfeely
+   
+   This approach keeps IMAP passwords in sync with the application's password management system.
 
 **Recommended approach:** Set a password even for SSH key users. It doesn't affect SSH key authentication but enables IMAP access.
 
