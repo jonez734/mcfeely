@@ -176,12 +176,17 @@ def remove_user_from_mailbox(
 # p = post (send via LMTP)
 # c = create (sub-mailboxes)
 # d = delete (set \Deleted flag)
+# t = expunge (permanent delete)
+# e = execute (METADATA commands)
 # a = admin (change ACLs)
-# all = all permissions
-# none = remove all permissions
+# k = lookup sharedfolder
+# n = administer sharedfolder
+# x = none (remove all)
 #
 # Common combinations:
 # read_only = "lr"
-# read_write = "lrsd"
-# full = "lrsd"
-# admin = "lrsdwa"
+# read_seen = "lrs"
+# read_delete = "lrsd"
+# editor = "lrsdwtic"
+# owner = "lrsdwa"
+# all_perms = "all"

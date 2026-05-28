@@ -322,6 +322,52 @@ deleteacl user.shared.mailboxname username
 deleteuser user.username
 ```
 
+### ACL Rights Reference
+
+| Right | Name | Description |
+|-------|------|-------------|
+| `l` | lookup | See mailbox in listings, select it |
+| `r` | read | Fetch messages, get metadata |
+| `s` | seen | Set \Seen flag on messages |
+| `w` | write | Set other flags (\Answered, \Flagged, \Draft) |
+| `i` | insert | Add messages to mailbox |
+| `p` | post | Send messages via LMTP to mailbox |
+| `c` | create | Create sub-mailboxes |
+| `d` | delete | Set \Deleted flag (soft delete) |
+| `t` | expunge | EXPUNGE command (permanent delete) |
+| `e` | execute | Execute METADATA commands |
+| `a` | admin | Modify ACLs on mailbox |
+| `k` | lookup sharedfolder | Look up sharedfolder namespace |
+| `n` | administer | Administer sharedfolder |
+| `x` | none | No permissions (removes ACL) |
+
+**Special values:**
+- `all` - All permissions except admin
+- `none` - Remove all permissions for user
+
+**Common combinations:**
+| Rights | Use case |
+|--------|----------|
+| `lr` | Read-only access |
+| `lrs` | Read + mark as seen |
+| `lrsd` | Read + delete (typical user) |
+| `lrsdwtic` | Read + write (editor) |
+| `lrsdp` | Read + delete + post (mailing list) |
+| `lrsdwa` | Full control (owner) |
+| `all` | Everything except admin |
+
+**Examples:**
+```bash
+# Read-only user
+setacl user.help alice lr
+
+# Can read and delete messages
+setacl user.help bob lrsd
+
+# Full access
+setacl user.help charlie lrsdwa
+```
+
 ## Sieve Configuration
 
 See [MCFEELY_SIEVE.md](../MCFEELY_SIEVE.md) for detailed Sieve configuration and claim header insertion strategies.
