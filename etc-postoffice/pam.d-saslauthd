@@ -3,18 +3,15 @@
 # Handles authentication requests from the Cyrus IMAP server
 
 auth        required      pam_env.so
-auth        sufficient    pam_unix.so nullok try_first_pass
-auth        requisite     pam_succeed_if.so uid >= 1000 quiet_success
+auth        required      pam_unix.so nullok try_first_pass
 auth        required      pam_deny.so
 
 account     required      pam_unix.so broken_shadow
-account     sufficient    pam_local_user.so
 account     required      pam_permit.so
 
-password    sufficient    pam_unix.so sha512 nullok try_first_pass use_authtok
+password    required      pam_unix.so sha512 nullok try_first_pass use_authtok
 password    required      pam_deny.so
 
 session     optional      pam_keyinit.so revoke
 session     required      pam_limits.so
-session     [success=1 default=ignore] pam_succeed_if.so service in crond quiet use_uid
 session     required      pam_unix.so
