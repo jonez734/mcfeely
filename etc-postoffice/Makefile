@@ -9,19 +9,21 @@ POSTOFFICE := $(ETCDIR)/postoffice
 SYSTEMD := $(DESTDIR)/usr/lib/systemd/system
 
 # Installation directories
-CYRUS_ETCDIR := $(POSTOFFICE)
+CYRUS_ETCDIR := $(ETCDIR)
+POSTOFFICE := $(ETCDIR)/postoffice
 SASL_ETCDIR := $(ETCDIR)/sasl2
 SASL_SYSCONFIG := $(ETCDIR)/sysconfig
 PAM_ETCDIR := $(ETCDIR)/pam.d
 
 # Configuration files
 CONFIG_FILES := cyrus.conf imapd.conf imapd.annotations
+COPY_TO_ETC := cyrus.conf imapd.conf
 SASL_FILES := saslauthd.conf
 SYSCONFIG_FILES := saslauthd.sysconfig
 PAM_FILES := pam.d-saslauthd pam.d-imap
 SYSTEMD_FILES := cyrus-imapd.service saslauthd.service
 
-.PHONY: all install uninstall symlink check help
+.PHONY: all install uninstall check help
 
 all: help
 
@@ -43,18 +45,26 @@ install: $(CONFIG_FILES) $(SASL_FILES) $(SYSCONFIG_FILES) $(PAM_FILES) $(SYSTEMD
 	@echo "Installing Cyrus IMAP configuration files..."
 	@echo ""
 	@echo "Creating directories..."
-	@sudo mkdir -p "$(CYRUS_ETCDIR)" "$(SASL_ETCDIR)" "$(PAM_ETCDIR)" "$(SYSTEMD)"
+	@sudo mkdir -p "$(ETCDIR)" "$(POSTOFFICE)" "$(SASL_ETCDIR)" "$(PAM_ETCDIR)" "$(SYSTEMD)"
 	@echo ""
-	@echo "Installing cyrus.conf..."
-	@install -o root -g mail -m 640 cyrus.conf "$(CYRUS_ETCDIR)/cyrus.conf"
-	@echo "  -> $(CYRUS_ETCDIR)/cyrus.conf"
+	@echo "Copying cyrus.conf to /etc/..."
+	@install -o root -g mail -m 640 cyrus.conf "$(ETCDIR)/cyrus.conf"
+	@echo "  -> $(ETCDIR)/cyrus.conf"
 	@echo ""
-	@echo "Installing imapd.conf..."
-	@install -o root -g mail -m 640 imapd.conf "$(CYRUS_ETCDIR)/imapd.conf"
-	@echo "  -> $(CYRUS_ETCDIR)/imapd.conf"
+	@echo "Copying imapd.conf to /etc/..."
+	@install -o root -g mail -m 640 imapd.conf "$(ETCDIR)/imapd.conf"
+	@echo "  -> $(ETCDIR)/imapd.conf"
+	@echo ""
+	@echo "Installing cyrus.conf to postoffice..."
+	@install -o root -g mail -m 640 cyrus.conf "$(POSTOFFICE)/cyrus.conf"
+	@echo "  -> $(POSTOFFICE)/cyrus.conf"
+	@echo ""
+	@echo "Installing imapd.conf to postoffice..."
+	@install -o root -g mail -m 640 imapd.conf "$(POSTOFFICE)/imapd.conf"
+	@echo "  -> $(POSTOFFICE)/imapd.conf"
 	@echo ""
 	@echo "Installing imapd.annotations..."
-	@install -o root -g mail -m 640 imapd.annotations "$(CYRUS_ETCDIR)/imapd.annotations"
+	@install -o root -g mail -m 640 imapd.annotations "$(POSTOFFICE)/imapd.annotations"
 	@echo "  -> $(CYRUS_ETCDIR)/imapd.annotations"
 	@echo ""
 	@echo "Installing saslauthd.conf..."
@@ -103,23 +113,27 @@ install: $(CONFIG_FILES) $(SASL_FILES) $(SYSCONFIG_FILES) $(PAM_FILES) $(SYSTEMD
 uninstall:
 	@echo "Removing Cyrus IMAP configuration files..."
 	@echo ""
-	@echo "Removing cyrus.conf..."
-	@rm -f $(CYRUS_ETCDIR)/cyrus.conf
-	@echo "Removing imapd.conf..."
-	@rm -f $(CYRUS_ETCDIR)/imapd.conf
+	@echo "Removing cyrus.conf from /etc/..."
+	@rm -f "$(ETCDIR)/cyrus.conf"
+	@echo "Removing imapd.conf from /etc/..."
+	@rm -f "$(ETCDIR)/imapd.conf"
+	@echo "Removing cyrus.conf from postoffice..."
+	@rm -f "$(POSTOFFICE)/cyrus.conf"
+	@echo "Removing imapd.conf from postoffice..."
+	@rm -f "$(POSTOFFICE)/imapd.conf"
 	@echo "Removing imapd.annotations..."
-	@rm -f $(CYRUS_ETCDIR)/imapd.annotations
+	@rm -f "$(POSTOFFICE)/imapd.annotations"
 	@echo "Removing saslauthd.conf..."
-	@rm -f $(SASL_ETCDIR)/saslauthd.conf
+	@rm -f "$(SASL_ETCDIR)/saslauthd.conf"
 	@echo "Removing saslauthd.sysconfig..."
-	@rm -f $(SASL_SYSCONFIG)/saslauthd
+	@rm -f "$(SASL_SYSCONFIG)/saslauthd"
 	@echo "Removing pam.d/saslauthd..."
-	@rm -f $(PAM_ETCDIR)/saslauthd
+	@rm -f "$(PAM_ETCDIR)/saslauthd"
 	@echo "Removing pam.d/imap..."
-	@rm -f $(PAM_ETCDIR)/imap
+	@rm -f "$(PAM_ETCDIR)/imap"
 	@echo "Removing systemd units..."
-	@rm -f $(SYSTEMD)/cyrus-imapd.service
-	@rm -f $(SYSTEMD)/saslauthd.service
+	@rm -f "$(SYSTEMD)/cyrus-imapd.service"
+	@rm -f "$(SYSTEMD)/saslauthd.service"
 	@echo ""
 	@echo "Uninstall complete!"
 
@@ -133,29 +147,20 @@ create-system-user:
 	@sudo chown cyrus:mail /var/lib/imap
 	@echo "Done."
 
-symlink:
-	@echo "Creating symlinks to /etc config files..."
-	@sudo ln -sf /etc/cyrus.conf "$(CYRUS_ETCDIR)/cyrus.conf"
-	@sudo ln -sf /etc/imapd.conf "$(CYRUS_ETCDIR)/imapd.conf"
-	@echo "  -> $(CYRUS_ETCDIR)/cyrus.conf -> /etc/cyrus.conf"
-	@echo "  -> $(CYRUS_ETCDIR)/imapd.conf -> /etc/imapd.conf"
-	@echo ""
-	@echo "Symlink complete!"
-
 check:
 	@echo "Cyrus IMAP Configuration - Installation Plan"
 	@echo ""
 	@echo "Config files to install:"
-	@echo "  cyrus.conf         -> $(CYRUS_ETCDIR)/cyrus.conf"
-	@echo "  imapd.conf         -> $(CYRUS_ETCDIR)/imapd.conf"
-	@echo "  imapd.annotations  -> $(CYRUS_ETCDIR)/imapd.annotations"
+	@echo "  cyrus.conf         -> $(ETCDIR)/cyrus.conf"
+	@echo "  imapd.conf         -> $(ETCDIR)/imapd.conf"
+	@echo "  cyrus.conf         -> $(POSTOFFICE)/cyrus.conf"
+	@echo "  imapd.conf         -> $(POSTOFFICE)/imapd.conf"
+	@echo "  imapd.annotations  -> $(POSTOFFICE)/imapd.annotations"
 	@echo "  saslauthd.conf     -> $(SASL_ETCDIR)/saslauthd.conf"
 	@echo "  saslauthd.sysconfig-> $(SASL_SYSCONFIG)/saslauthd"
 	@echo "  pam.d-saslauthd    -> $(PAM_ETCDIR)/saslauthd"
-	@echo "  pam.d-imap        -> $(PAM_ETCDIR)/imap"
+	@echo "  pam.d-imap         -> $(PAM_ETCDIR)/imap"
 	@echo "  cyrus-imapd.service-> $(SYSTEMD)/cyrus-imapd.service"
 	@echo "  saslauthd.service  -> $(SYSTEMD)/saslauthd.service"
 	@echo ""
 	@echo "Owner: root:mail (640 for config, 644 for sysconfig/pam/service)"
-	@echo ""
-	@echo "Note: Run 'make symlink' after install to create symlinks"
