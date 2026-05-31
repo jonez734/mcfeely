@@ -1,19 +1,57 @@
 # PAM configuration for saslauthd
 # Location: /etc/pam.d/saslauthd
-# Handles authentication requests from the Cyrus IMAP server
+# Handles authentication requests from the Cyrus IMAP server via saslauthd
 
-auth        required      pam_env.so
-auth        sufficient    pam_unix.so nullok try_first_pass
+###############################################################################
+# New Configuration: PAM Fallback Only
+###############################################################################
+# This configuration provides PAM fallback for users not yet migrated
+# to database authentication. mcfeely-authd handles primary auth.
+
+auth        sufficient    pam_permit.so
 auth        required      pam_deny.so
 
-account     required      pam_unix.so broken_shadow
-account     sufficient    pam_local_user.so
 account     required      pam_permit.so
 
-password    sufficient    pam_unix.so sha512 nullok try_first_pass use_authtok
 password    required      pam_deny.so
 
 session     optional      pam_keyinit.so revoke
 session     required      pam_limits.so
 session     [success=1 default=ignore] pam_succeed_if.so service in crond quiet use_uid
 session     required      pam_unix.so
+
+###############################################################################
+# Previous PAM Configuration (Commented Out - for reference)
+###############################################################################
+# PREVIOUS:
+# auth        required      pam_env.so
+# auth        sufficient    pam_unix.so nullok try_first_pass
+# auth        required      pam_deny.so
+#
+# account     required      pam_unix.so broken_shadow
+# account     sufficient    pam_local_user.so
+# account     required      pam_permit.so
+#
+# password    sufficient    pam_unix.so sha512 nullok try_first_pass use_authtok
+# password    required      pam_deny.so
+#
+# session     optional      pam_keyinit.so revoke
+# session     required      pam_limits.so
+# session     [success=1 default=ignore] pam_succeed_if.so service in crond quiet use_uid
+# session     required      pam_unix.so
+#
+# The old configuration used system passwords via PAM:
+# - Users authenticated with their shell password (/etc/shadow)
+# - No separation between shell and IMAP passwords
+# - SSH key-only users couldn't access IMAP
+#
+# Migration: Users should set IMAP passwords via the postoffice password
+# management system, which stores SHA-512 crypt hashes in
+# postoffice.sasl_password table.
+
+###############################################################################
+# PAM Configuration for IMAP Service
+###############################################################################
+# Note: /etc/pam.d/imap should be identical to this file for consistency.
+# The PAM service name "imap" is used by saslauthd when MECHANISMS=pam
+# (not used with authdaemond mechanism).

@@ -1,6 +1,7 @@
 # member_password.py
 # Personal account password management (inbound/outbound)
 # Stores encrypted passwords in engine.__member table
+# Also stores SHA-512 crypt hashes in postoffice.sasl_password for SASL auth
 
 import warnings
 from typing import Optional, Dict, Any
@@ -11,6 +12,7 @@ from bbsengine6.io import echo
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", DeprecationWarning)
     from . import password_crypto
+    from . import sasl_password
 
 
 def _is_sysop(args: Any) -> bool:
@@ -38,6 +40,7 @@ def set_personal_password(
     password_type: str,
     password: str,
     set_by_moniker: str,
+    set_sasl: bool = True,
 ) -> bool:
     """Set inbound or outbound password for a member's personal account.
 
@@ -47,6 +50,7 @@ def set_personal_password(
         password_type: 'inbound' or 'outbound'.
         password: Plaintext password to store (encrypted).
         set_by_moniker: Moniker of who is setting the password.
+        set_sasl: If True, also set SASL password for IMAP auth (default True).
 
     Returns:
         True if successful, False otherwise.
@@ -87,6 +91,19 @@ def set_personal_password(
                         level="error",
                     )
                     return False
+
+        # Also set SASL password for IMAP authentication if requested
+        # This stores the SHA-512 crypt hash in postoffice.sasl_password
+        if set_sasl:
+            success, error = sasl_password.set_sasl_password_for_sync(
+                args, member_moniker, password, set_by_moniker
+            )
+            if not success:
+                echo(
+                    f"member_password.set_personal_password: SASL password sync failed: {error}",
+                    level="warning",
+                )
+
         return True
     except Exception as e:
         echo(
@@ -145,7 +162,11 @@ def get_personal_password(
 
 
 def delete_personal_password(
-    args: Any, member_moniker: str, password_type: str, requester_moniker: str
+    args: Any,
+    member_moniker: str,
+    password_type: str,
+    requester_moniker: str,
+    delete_sasl: bool = True,
 ) -> bool:
     """Delete personal account password.
 
@@ -154,6 +175,7 @@ def delete_personal_password(
         member_moniker: Target member's moniker.
         password_type: 'inbound' or 'outbound'.
         requester_moniker: Who is requesting (for permission check).
+        delete_sasl: If True, also delete SASL password (default True).
 
     Returns:
         True if successful, False otherwise.
@@ -185,6 +207,11 @@ def delete_personal_password(
                         level="error",
                     )
                     return False
+
+        # Also delete SASL password if requested (user falls back to PAM)
+        if delete_sasl:
+            sasl_password.delete_sasl_password(args, member_moniker)
+
         return True
     except Exception as e:
         echo(
