@@ -3,6 +3,26 @@
 ## Objective
 Convert IMAP authentication from relying on shell account passwords (`/etc/shadow` via PAM) to using a PostgreSQL database lookup, allowing IMAP passwords to be independent of shell passwords.
 
+## Architecture
+
+```
+Inbound (port 25/SMTP):
+  External MTA → Postfix → LMTP → Cyrus IMAP → User reads via IMAP
+
+Outbound (port 587/submission):
+  User → Postfix → saslauthd → mcfeely-authd → PostgreSQL
+
+IMAP (port 143/993):
+  User → Cyrus IMAP → saslauthd → mcfeely-authd → PostgreSQL
+```
+
+**Key settings in etc-postfix/postfix/main.cf:**
+```
+mailbox_transport = lmtp:unix:/run/cyrus/socket/lmtp  # Inbound delivery
+```
+
+Both inbound and outbound use the same `postoffice.sasl_password` table for authentication.
+
 ## Current Architecture
 
 ```
