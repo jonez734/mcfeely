@@ -175,6 +175,33 @@ passwords = sasl_password.list_sasl_passwords(args)
 exists = sasl_password.exists_sasl_password(args, "alice")
 ```
 
+## Email Flow Overview
+
+```
+Inbound (port 25):
+  External MTA → Postfix → LMTP socket → Cyrus IMAP → User reads via IMAP
+
+Outbound (port 587):
+  User → Postfix (submission) → saslauthd → mcfeely-authd → PostgreSQL → Delivered
+
+IMAP Access (port 143/993):
+  User → Cyrus IMAP → saslauthd → mcfeely-authd → PostgreSQL
+```
+
+### Key Postfix Settings
+
+**Inbound delivery to Cyrus (main.cf line 17):**
+```
+mailbox_transport = lmtp:unix:/run/cyrus/socket/lmtp
+```
+
+**SMTP submission for authenticated users (master.cf):**
+```
+submission inet n - n - - smtpd
+  -o smtpd_sasl_auth_enable=yes
+  -o smtpd_recipient_restrictions=permit_sasl_authenticated,reject
+```
+
 ## Postfix SMTP Submission
 
 For outbound email (SMTP submission on port 587), configure Postfix to use saslauthd for SASL authentication. This allows members to send mail using their IMAP password.
