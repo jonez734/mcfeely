@@ -1,8 +1,8 @@
-# Password Systems Summary: SHA-256 + AES-256-GCM
+# Password Systems Summary
 
-## Two-System Architecture
+## Three-System Architecture
 
-The system now uses **two complementary password systems**:
+The system now uses **three complementary password systems**:
 
 ### System 1: SHA-256 Hashing (One-Way)
 **Location**: `bbsengine6.password_hash`
@@ -12,11 +12,18 @@ The system now uses **two complementary password systems**:
 **Cannot**: Decrypt, Get plaintext
 
 ### System 2: AES-256-GCM Encryption (Reversible)
-**Location**: `bbsengine6.util` or `bbsengine6.password`
-**Purpose**: IMAP/SMTP server credentials
+**Location**: `engine.__member` (inbound_password, outbound_password)
+**Purpose**: IMAP/SMTP server credentials (used by postoffice)
 **Algorithm**: AES-256-GCM with random nonce
 **Can**: Encrypt, Decrypt, Get plaintext
 **Cannot**: (safely) do one-way verification
+
+### System 3: SHA-512 Crypt Hashes (SASL Authentication)
+**Location**: `postoffice.sasl_password`
+**Purpose**: IMAP authentication via saslauthd/mcfeely-authd
+**Algorithm**: SHA-512 crypt (compatible with PAM/system passwords)
+**Can**: Verify passwords via crypt.crypt(), authenticate to IMAP
+**Cannot**: Decrypt, Get plaintext (one-way like SHA-256)
 
 ---
 
@@ -122,9 +129,47 @@ CREATE TABLE postoffice.member_mailbox_password (
 );
 ```
 
+### SASL Passwords for IMAP Auth (SHA-512 Crypt)
+
+```sql
+CREATE TABLE postoffice.sasl_password (
+    member_moniker citext PRIMARY KEY REFERENCES engine.__member(moniker),
+    crypt_hash text NOT NULL,  -- SHA-512 crypt hash ($6$<salt>$<hash>)
+    enabled boolean DEFAULT true,
+    datecreated timestamp with time zone DEFAULT now(),
+    dateupdated timestamp with time zone DEFAULT now(),
+    updated_by text
+);
+```
+
+**Example values**:
+- `crypt_hash`: `$6$hMhmq8RKz5FNfVuLh$oY9e7YLKbM7.nIY5...` (SHA-512 crypt format)
+
 ---
 
 ## Security Model
+
+### SHA-512 Crypt Hashing (IMAP Authentication)
+
+```
+Plaintext Password
+        ↓
+    [crypt.mksalt(crypt.METHOD_SHA512)]
+        ↓
+    [SHA-512 + Random Salt]
+        ↓
+    Stored Hash ($6$<salt>$<hash>)
+
+To Verify:
+    Provided Password + Stored Hash → [crypt.crypt(password, hash)]
+    Compare result with stored hash
+```
+
+**Security**:
+- ✅ One-way: Cannot recover plaintext
+- ✅ Salt: Prevents rainbow tables
+- ✅ Standard: Compatible with PAM/system passwords
+- ✅ Used by: saslauthd, PAM, mcfeely-authd
 
 ### SHA-256 Hashing (Member Login)
 
@@ -290,25 +335,31 @@ export PASSWORD_STORAGE=postgresql      # Default
 - ✅ Maximum security important
 
 ### Use AES-256-GCM When:
-- ✅ Storing IMAP server credentials
+- ✅ Storing IMAP server credentials (for postoffice daemon retrieval)
 - ✅ Storing SMTP server credentials
 - ✅ Need to retrieve plaintext password
 - ✅ Authenticating to external servers
+
+### Use SHA-512 Crypt When:
+- ✅ Authenticating to IMAP via saslauthd/mcfeely-authd
+- ✅ Need PAM-compatible password format
+- ✅ One-way verification sufficient
+- ✅ Password must work with system auth (PAM fallback)
 
 ---
 
 ## Comparison
 
-| Feature | SHA-256 Hashing | AES-256-GCM |
-|---------|-----------------|------------|
-| **One-Way** | ✅ Yes | ❌ No |
-| **Can Decrypt** | ❌ No | ✅ Yes |
-| **Salt/Nonce** | ✅ Salt | ✅ Nonce |
-| **Key Storage** | None needed | POSTOFFICE_PASSWORD_KEY |
-| **Speed** | <1ms | <1ms |
-| **Use Case** | Member login | IMAP/SMTP |
-| **Security Model** | Hashing | Encryption |
-| **Recovery** | Impossible | Possible (if key safe) |
+| Feature | SHA-256 Hashing | AES-256-GCM | SHA-512 Crypt |
+|---------|-----------------|-------------|---------------|
+| **One-Way** | ✅ Yes | ❌ No | ✅ Yes |
+| **Can Decrypt** | ❌ No | ✅ Yes | ❌ No |
+| **Salt/Nonce** | ✅ Salt | ✅ Nonce | ✅ Salt |
+| **Key Storage** | None needed | POSTOFFICE_PASSWORD_KEY | None needed |
+| **Speed** | <1ms | <1ms | <1ms |
+| **Use Case** | Member login | IMAP/SMTP daemon | IMAP auth |
+| **Security Model** | Hashing | Encryption | Hashing |
+| **Recovery** | Impossible | Possible (if key safe) | Impossible |
 
 ---
 
