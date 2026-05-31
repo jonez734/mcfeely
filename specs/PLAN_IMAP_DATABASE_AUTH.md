@@ -281,6 +281,21 @@ See commented config in `etc-postoffice/imapd.conf` for direct auxprop approach.
 ### Alternative 2: SQL auxprop
 See commented config in `etc-postoffice/saslauthd.conf` for libsasl2-modules-sql approach.
 
+## Postfix SMTP Configuration
+
+For outbound email (SMTP submission on port 587), configure Postfix to use the same saslauthd/mcfeely-authd chain:
+
+```bash
+# /etc/postfix/main.cf
+smtpd_sasl_auth_enable = yes
+smtpd_sasl_type = cyrus
+smtpd_sasl_path = smtpd
+smtpd_sasl_security_options = noanonymous
+smtpd_tls_security_level = encrypt
+```
+
+Both IMAP and SMTP use the same `postoffice.sasl_password` table for authentication. See `etc-postfix/postfix/main.cf` for the staged configuration.
+
 ## Testing Strategy
 
 1. **Unit Tests** - Test password hashing, verification functions

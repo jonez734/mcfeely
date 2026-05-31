@@ -175,6 +175,66 @@ passwords = sasl_password.list_sasl_passwords(args)
 exists = sasl_password.exists_sasl_password(args, "alice")
 ```
 
+## Postfix SMTP Submission
+
+For outbound email (SMTP submission on port 587), configure Postfix to use saslauthd for SASL authentication. This allows members to send mail using their IMAP password.
+
+### /etc/postfix/main.cf
+
+```bash
+# SASL authentication for SMTP submission
+smtpd_sasl_auth_enable = yes
+smtpd_sasl_type = cyrus
+smtpd_sasl_path = smtpd
+smtpd_sasl_security_options = noanonymous
+smtpd_sasl_local_domain = $myhostname
+
+# TLS required for submission
+smtpd_tls_security_level = encrypt
+smtpd_tls_cert_file = /etc/pki/cyrus/imapd.pem
+smtpd_tls_key_file = /etc/pki/cyrus/imapd.pem
+smtpd_tls_auth_only = yes
+
+# Permit authenticated users to relay
+smtpd_recipient_restrictions = 
+    permit_mynetworks
+    permit_sasl_authenticated
+    reject_unauth_destination
+```
+
+### /etc/postfix/master.cf
+
+Ensure submission service is enabled:
+
+```bash
+submission inet n - n - - smtpd
+  -o syslog_name=postfix/submission
+  -o smtpd_tls_security_level=encrypt
+  -o smtpd_sasl_auth_enable=yes
+  -o smtpd_sasl_security_options=noanonymous
+  -o smtpd_recipient_restrictions=permit_sasl_authenticated,reject
+```
+
+### Testing SMTP Auth
+
+```bash
+# Test with openssl (port 587)
+openssl s_client -connect localhost:587 -starttls smtp
+
+# After STARTTLS, send:
+AUTH LOGIN
+<base64_username>
+<base64_password>
+```
+
+### mcfeely-authd for SMTP
+
+The same `mcfeely-authd` daemon handles both IMAP and SMTP authentication:
+- IMAP: Cyrus IMAP uses saslauthd → mcfeely-authd
+- SMTP: Postfix uses saslauthd → mcfeely-authd
+
+Both use the same `postoffice.sasl_password` table for password lookup.
+
 ## Troubleshooting
 
 ### Socket Connection Failed
