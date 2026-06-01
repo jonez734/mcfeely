@@ -6,20 +6,24 @@
 import sys
 import argparse
 import configparser
+import subprocess
 import termios
 from pathlib import Path
 from typing import Any
 
 from bbsengine6.io import echo
+from bbsengine6.io.echo import echo_traceback
 from bbsengine6.io.inputchoice import inputchoice
 from bbsengine6.io.inputboolean import inputboolean
 from bbsengine6.io import inputstring
 from bbsengine6 import database, member, util
 from . import startup
 from .imap_checker import IMAPChecker
-from .tui.message_interface import MessageInterface
-from .tui.cyrus_admin import CyrusAdmin
-from bbsengine6.notify.tui import run as notify_run
+from .tui.message_interface import run as _message_interface_run
+from .tui.cyrus_admin import run as _cyrus_admin_run
+from .tui.projects import run as projects_run
+from .tui.address_manager import run as address_manager_run
+from bbsengine6.notify.tui import run as _notify_run
 
 
 # ============================================================================
@@ -96,7 +100,7 @@ def check_sysop_flag(args: Any, moniker: str, pool: Any) -> bool:
                 if row is not None and len(row) > 0:
                     return bool(row["value"])
     except Exception:
-        pass
+        echo_traceback("Error checking sysop flag")
     return False
 
 
@@ -122,6 +126,7 @@ Commands:
   startup-generate               Generate new encryption key
   startup-install                Install key to /etc/postoffice/
   startup-init                   Initialize password system
+  sasl-password                  Manage SASL passwords (set/get/delete/disable/enable/list/reset)
 
 Options:
   --verbose, -v                  Show verbose output
@@ -179,8 +184,9 @@ def _load_imap_config() -> tuple:
                 imap_host = config.get("imap", "host", fallback="localhost")
                 imap_port = config.getint("imap", "port", fallback=993)
             return imap_host, imap_port
-        except Exception as e:
-            echo(f"Warning: Could not read system config file: {e}", level="error")
+        except Exception:
+            echo_traceback("Error reading system config")
+        return imap_host, imap_port
 
     # Fall back to user config for development
     user_config_path = Path.home() / ".postoffice"
@@ -191,18 +197,16 @@ def _load_imap_config() -> tuple:
             if config.has_section("imap"):
                 imap_host = config.get("imap", "host", fallback="localhost")
                 imap_port = config.getint("imap", "port", fallback=993)
-        except Exception as e:
-            echo(f"Warning: Could not read user config file: {e}", level="error")
+        except Exception:
+            echo_traceback("Error reading user config")
 
     return imap_host, imap_port
 
 
-def handle_imap_check(args: argparse.Namespace) -> int:
+def handle_imap_check(args: argparse.Namespace) -> bool:
     """Handle imap-check command to verify IMAP server connectivity."""
-    # Load config
     imap_host, imap_port = _load_imap_config()
 
-    # Allow command-line overrides
     if hasattr(args, "imaphost") and args.imaphost:
         imap_host = args.imaphost
     if hasattr(args, "imapport") and args.imapport:
@@ -211,24 +215,171 @@ def handle_imap_check(args: argparse.Namespace) -> int:
     echo(f"Checking IMAP server at {imap_host}:{imap_port}...", level="info")
     echo("")
 
-    # Create checker and run all checks
     try:
         checker = IMAPChecker(imap_host, imap_port, timeout=5, verbose=args.verbose)
         all_pass, results = checker.check_all()
         checker.print_results(all_pass, results)
-        return 0 if all_pass else 1
+        return all_pass
     except ValueError as e:
-        echo(f"Invalid IMAP configuration: {e}", level="error")
-        return 1
-    except Exception as e:
-        echo(f"Error checking IMAP connectivity: {e}", level="error")
-        return 1
+        echo_traceback(f"Invalid IMAP configuration: {e}")
+        return False
+    except Exception:
+        echo_traceback("Error checking IMAP connectivity")
+        return False
 
 
-def handle_startup_check(args: argparse.Namespace) -> int:
+def handle_startup_check(args: argparse.Namespace) -> bool:
     """Handle startup-check command."""
-    success = startup.check_key_setup(verbose=args.verbose)
-    return 0 if success else 1
+    return startup.check_key_setup(verbose=args.verbose)
+
+
+def handle_sasl_password(args: argparse.Namespace) -> int:
+    """Handle sasl-password command for SASL password management."""
+    key = startup.get_encryption_key()
+    if key is None:
+        echo("Error: Encryption key not available", level="error")
+        echo(
+            "Please run 'python -m postoffice startup-check' to diagnose", level="error"
+        )
+        return 1
+
+    pool = None
+    is_sysop = getattr(args, "issuperuser", False)
+    current_user = getattr(args, "loginid", None)
+
+    if current_user is None:
+        try:
+            pool = database.getpool(args)
+            current_user = member.getcurrentmoniker(args, pool=pool)
+        except Exception:
+            echo_traceback("Error getting current user")
+            return 1
+        echo("Error: Could not determine current user", level="error")
+        return 1
+
+    args.loginid = current_user
+    args.issuperuser = is_sysop
+
+    target_moniker = args.target_moniker
+    action = args.sasl_action
+
+    if target_moniker and not is_sysop and target_moniker != current_user:
+        echo(
+            "Error: Only sysops can manage another member's SASL password",
+            level="error",
+        )
+        echo(f"  Your moniker: {current_user}", level="error")
+        echo(f"  Target moniker: {target_moniker}", level="error")
+        return 1
+
+    if action != "list" and not target_moniker:
+        echo("Error: --target-moniker is required for this action", level="error")
+        return 1
+
+    from . import sasl_password
+
+    if action == "set":
+        password = args.password
+        if not password:
+            echo("Error: --password is required for 'set' action", level="error")
+            return 1
+        try:
+            success = sasl_password.set_sasl_password(
+                args, target_moniker, password, current_user
+            )
+            if success:
+                echo(f"OK: SASL password set for {target_moniker}")
+                return 0
+            else:
+                echo(f"Failed to set SASL password for {target_moniker}", level="error")
+                return 1
+        except PermissionError as e:
+            echo(f"Permission denied: {e}", level="error")
+            return 1
+
+    elif action == "get":
+        exists = sasl_password.exists_sasl_password(args, target_moniker)
+        if exists:
+            echo(f"EXISTS: {target_moniker} has a SASL password entry")
+            enabled = sasl_password.get_sasl_password(args, target_moniker) is not None
+            echo(f"  enabled: {enabled}")
+            return 0
+        else:
+            echo(f"NONE: {target_moniker} has no SASL password entry")
+            return 1
+
+    elif action == "delete":
+        try:
+            success = sasl_password.delete_sasl_password(args, target_moniker)
+            if success:
+                echo(f"OK: SASL password deleted for {target_moniker}")
+                return 0
+            else:
+                echo(
+                    f"Failed to delete SASL password for {target_moniker}",
+                    level="error",
+                )
+                return 1
+        except PermissionError as e:
+            echo(f"Permission denied: {e}", level="error")
+            return 1
+
+    elif action == "disable":
+        success = sasl_password.disable_sasl_password(args, target_moniker)
+        if success:
+            echo(f"OK: SASL password disabled for {target_moniker}")
+            return 0
+        else:
+            echo(f"Failed to disable SASL password for {target_moniker}", level="error")
+            return 1
+
+    elif action == "enable":
+        success = sasl_password.enable_sasl_password(args, target_moniker)
+        if success:
+            echo(f"OK: SASL password enabled for {target_moniker}")
+            return 0
+        else:
+            echo(f"Failed to enable SASL password for {target_moniker}", level="error")
+            return 1
+
+    elif action == "list":
+        entries = sasl_password.list_sasl_passwords(args)
+        if not entries:
+            echo("No SASL password entries found")
+            return 0
+        echo(f"{'moniker':<20} {'enabled':<8} {'updated_by':<20} {'dateupdated'}")
+        echo("-" * 80)
+        for entry in entries:
+            dateupdated = entry.get("dateupdated") or "never"
+            echo(
+                f"{entry['member_moniker']:<20} {str(entry['enabled']):<8} "
+                f"{entry['updated_by']:<20} {dateupdated}"
+            )
+        echo(f"\n{len(entries)} entries")
+        return 0
+
+    elif action == "reset":
+        password = args.password
+        if not password:
+            echo("Error: --password is required for 'reset' action", level="error")
+            return 1
+        try:
+            success, error = sasl_password.set_sasl_password_for_sync(
+                args, target_moniker, password, current_user
+            )
+            if success:
+                echo(f"OK: SASL password reset for {target_moniker}")
+                return 0
+            else:
+                echo(f"Failed to reset SASL password: {error}", level="error")
+                return 1
+        except PermissionError as e:
+            echo(f"Permission denied: {e}", level="error")
+            return 1
+
+    else:
+        echo(f"Unknown action: {action}", level="error")
+        return 1
 
 
 def handle_startup_generate(args: argparse.Namespace) -> int:
@@ -305,10 +456,7 @@ def handle_startup_install(args: argparse.Namespace) -> int:
                 capture_output=True,
             )
         except Exception:
-            echo(
-                "Note: Could not set ownership to postoffice:postoffice", level="error"
-            )
-
+            echo_traceback("Error setting ownership")
         echo(
             "✓ Encryption key installed to /etc/postoffice/password.key", level="debug"
         )
@@ -351,11 +499,8 @@ def handle_menu(args: argparse.Namespace) -> int:
             pool = database.getpool(args)
             current_user = member.getcurrentmoniker(args, pool=pool)
         except Exception:
-            current_user = None
-
-    if current_user is None:
-        echo("Error: Could not determine current user", level="error")
-        return False
+            echo_traceback("Error getting current user")
+            return 1
 
     args.loginid = current_user
 
@@ -411,10 +556,9 @@ def handle_menu(args: argparse.Namespace) -> int:
             try:
                 screen.init()
             except termios.error:
-                pass
+                echo_traceback("Terminal error during message interface")
             try:
-                tui = MessageInterface(args)
-                result = tui.run()
+                result = _message_interface_run(args, current_user, pool=pool)
                 if result != 0:
                     return result
             except KeyboardInterrupt:
@@ -422,7 +566,7 @@ def handle_menu(args: argparse.Namespace) -> int:
             except EOFError:
                 echo("{/all}*EOF*")
             except termios.error:
-                pass
+                echo_traceback("Terminal error during message interface")
             finally:
                 from bbsengine6.io import terminal
 
@@ -438,9 +582,9 @@ def handle_menu(args: argparse.Namespace) -> int:
             try:
                 screen.init()
             except termios.error:
-                pass
+                echo_traceback("Terminal error during message interface")
             try:
-                result = notify_run(args, current_user)
+                result = _notify_run(args, current_user)
                 if result != 0:
                     return result
             except KeyboardInterrupt:
@@ -448,7 +592,7 @@ def handle_menu(args: argparse.Namespace) -> int:
             except EOFError:
                 echo("{/all}*EOF*")
             except termios.error:
-                pass
+                echo_traceback("Terminal error during message interface")
             finally:
                 from bbsengine6.io import terminal
 
@@ -467,10 +611,7 @@ def handle_menu(args: argparse.Namespace) -> int:
                 except termios.error:
                     pass
                 try:
-                    admin = CyrusAdmin(args)
-                    result = admin.run()
-                    if result != 0:
-                        return result
+                    result = _cyrus_admin_run(args, current_user, pool=pool)
                 except KeyboardInterrupt:
                     echo("{/all}*INTR*")
                 except EOFError:
@@ -513,8 +654,8 @@ def handle_tui(args: argparse.Namespace) -> int:
         pass
 
     try:
-        tui = MessageInterface(args)
-        return tui.run()
+        result = _message_interface_run(args, args.loginid)
+        return result
     except KeyboardInterrupt:
         echo("{/all}*INTR*")
     except EOFError:
@@ -543,11 +684,8 @@ def handle_notify(args: argparse.Namespace) -> int:
             pool = database.getpool(args)
             current_user = member.getcurrentmoniker(args, pool=pool)
         except Exception:
-            current_user = None
-
-    if current_user is None:
-        echo("Error: Could not determine current user", level="error")
-        return 1
+            echo_traceback("Error getting current user")
+            return 1
 
     args.loginid = current_user
 
@@ -559,7 +697,8 @@ def handle_notify(args: argparse.Namespace) -> int:
         pass
 
     try:
-        return notify_run(args, current_user)
+        result = _notify_run(args, current_user)
+        return result
     except KeyboardInterrupt:
         echo("{/all}*INTR*")
     except EOFError:
@@ -597,9 +736,8 @@ def handle_accounts(args: argparse.Namespace) -> int:
             pool = database.getpool(args)
             current_user = member.getcurrentmoniker(args, pool=pool)
         except Exception:
-            current_user = None
-
-    if current_user is None:
+            echo_traceback("Error getting current user")
+            return False
         echo("Error: Could not determine current user", level="error")
         return False
 
@@ -643,8 +781,7 @@ def handle_accounts(args: argparse.Namespace) -> int:
         pass
 
     try:
-        admin = CyrusAdmin(args)
-        return admin.run()
+        return _cyrus_admin_run(args, current_user, pool=pool)
     except KeyboardInterrupt:
         echo("{/all}*INTR*")
     except EOFError:
@@ -661,6 +798,64 @@ def handle_accounts(args: argparse.Namespace) -> int:
         except termios.error:
             pass
     return 0
+
+
+def handle_projects(args: argparse.Namespace) -> int:
+    """Handle projects command for projects address management."""
+    key = startup.get_encryption_key()
+    if key is None:
+        echo("Error: Encryption key not available", level="error")
+        echo(
+            "Please run 'python -m postoffice startup-check' to diagnose", level="error"
+        )
+        return 1
+
+    pool = None
+    is_sysop = getattr(args, "issuperuser", False)
+    current_user = getattr(args, "loginid", None)
+
+    if current_user is None:
+        try:
+            pool = database.getpool(args)
+            current_user = member.getcurrentmoniker(args, pool=pool)
+        except Exception:
+            echo_traceback("Error getting current user")
+            return 1
+        echo("Error: Could not determine current user", level="error")
+        return 1
+
+    args.loginid = current_user
+    args.issuperuser = is_sysop
+
+    return projects_run(args, current_user, pool=pool)
+
+
+def handle_addresses(args: argparse.Namespace) -> int:
+    """Handle addresses command for generic address management."""
+    key = startup.get_encryption_key()
+    if key is None:
+        echo("Error: Encryption key not available", level="error")
+        echo(
+            "Please run 'python -m postoffice startup-check' to diagnose", level="error"
+        )
+        return 1
+
+    pool = None
+    is_sysop = getattr(args, "issuperuser", False)
+    current_user = getattr(args, "loginid", None)
+
+    if current_user is None:
+        try:
+            pool = database.getpool(args)
+            current_user = member.getcurrentmoniker(args, pool=pool)
+        except Exception:
+            echo_traceback("Error getting current user")
+            return 1
+
+    args.loginid = current_user
+    args.issuperuser = is_sysop
+
+    return address_manager_run(args, current_user, pool=pool)
 
 
 # ============================================================================
@@ -708,8 +903,6 @@ def handle_install_postoffice(args: argparse.Namespace) -> int:
         # Step 1: Create directory
         echo("Step 1/5: Creating directory structure...")
         try:
-            import subprocess
-
             result = subprocess.run(
                 ["sudo", "mkdir", "-p", install_dir],
                 capture_output=True,
@@ -932,6 +1125,8 @@ Commands:
   tui                                Message interface
   notify                             Notification interface
   accounts                           Account management (admin only)
+  addresses                          Address manager (domains + addresses)
+  sasl-password                      Manage SASL passwords (set/get/delete/disable/enable/list/reset)
   imap-check                         Check IMAP server connectivity
   install-postoffice                 Install config files to /etc/postoffice/
   startup-check                      Check encryption key setup
@@ -997,6 +1192,26 @@ Examples:
         default=False,
         help="Run as superuser/administrator (required for accounts command)",
     )
+    parser.add_argument(
+        "--target-moniker",
+        type=str,
+        dest="target_moniker",
+        help="Target member moniker (for sasl-password)",
+    )
+    parser.add_argument(
+        "--sasl-action",
+        type=str,
+        dest="sasl_action",
+        choices=["set", "get", "delete", "disable", "enable", "list", "reset"],
+        help="SASL password action (for sasl-password command)",
+    )
+    parser.add_argument(
+        "--password",
+        "-p",
+        type=str,
+        dest="password",
+        help="Password value (for set/reset actions)",
+    )
 
     defaults = {
         "databasename": "zoid6test",
@@ -1019,12 +1234,15 @@ Examples:
         "tui": handle_tui,
         "notify": handle_notify,
         "accounts": handle_accounts,
+        "addresses": handle_addresses,
+        "projects": handle_projects,
         "imap-check": handle_imap_check,
         "install-postoffice": handle_install_postoffice,
         "startup-check": handle_startup_check,
         "startup-generate": handle_startup_generate,
         "startup-install": handle_startup_install,
         "startup-init": handle_startup_init,
+        "sasl-password": handle_sasl_password,
     }
 
     handler = command_map.get(args.command)
@@ -1034,7 +1252,10 @@ Examples:
         echo(help_postoffice(args))
         return 1
 
-    return handler(args)
+    result = handler(args)
+    if result is True:
+        return 0
+    return 1
 
 
 if __name__ == "__main__":

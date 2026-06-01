@@ -11,8 +11,8 @@ CREATE TABLE postoffice.member_mailbox_password (
     password_type TEXT NOT NULL,
     encrypted_password TEXT NOT NULL,
     set_by_moniker TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    datecreated TIMESTAMPTZ DEFAULT NOW(),
+    dateupdated TIMESTAMPTZ DEFAULT NOW(),
     
     CONSTRAINT fk_mailbox
         FOREIGN KEY (mailbox_address)
@@ -35,6 +35,6 @@ CREATE INDEX idx_member_mailbox_password_moniker
     ON postoffice.member_mailbox_password(member_moniker);
 
 CREATE INDEX idx_member_mailbox_password_created 
-    ON postoffice.member_mailbox_password(created_at DESC);
+    ON postoffice.member_mailbox_password(datecreated DESC);
 
 COMMIT;

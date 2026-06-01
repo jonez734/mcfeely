@@ -18,7 +18,12 @@ IMAP (port 143/993):
 
 **Key settings in etc-postfix/postfix/main.cf:**
 ```
-mailbox_transport = lmtp:unix:/run/cyrus/socket/lmtp  # Inbound delivery
+mailbox_transport = lmtp:inet:localhost:7024  # Inbound delivery via TCP
+```
+
+**Cyrus LMTP listener (etc-postoffice/cyrus.conf):**
+```
+lmtp cmd="lmtpd" listen="localhost:7024" prefork=1
 ```
 
 Both inbound and outbound use the same `postoffice.sasl_password` table for authentication.

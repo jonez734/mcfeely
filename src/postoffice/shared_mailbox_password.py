@@ -68,10 +68,10 @@ def set_shared_mailbox_password(
 
     sql = """
         INSERT INTO postoffice.member_mailbox_password
-        (mailbox_address, member_moniker, password_type, encrypted_password, set_by_moniker, created_at, updated_at)
+        (mailbox_address, member_moniker, password_type, encrypted_password, set_by_moniker, datecreated, dateupdated)
         VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
         ON CONFLICT (mailbox_address, member_moniker, password_type)
-        DO UPDATE SET encrypted_password = %s, set_by_moniker = %s, updated_at = NOW()
+        DO UPDATE SET encrypted_password = %s, set_by_moniker = %s, dateupdated = NOW()
     """
     dat = (
         mailbox_address,
@@ -208,7 +208,7 @@ def list_shared_mailbox_passwords(
     Returns:
         Dictionary with password metadata:
         {
-            'inbound': {'exists': True, 'encrypted_len': 123, 'set_by': 'jam', 'updated_at': '...'},
+            'inbound': {'exists': True, 'encrypted_len': 123, 'set_by': 'jam', 'dateupdated': '...'},
             'outbound': {'exists': False}
         }
     """
@@ -218,7 +218,7 @@ def list_shared_mailbox_passwords(
         return {}
 
     sql = """
-        SELECT password_type, encrypted_password, set_by_moniker, updated_at
+        SELECT password_type, encrypted_password, set_by_moniker, dateupdated
         FROM postoffice.member_mailbox_password
         WHERE mailbox_address = %s AND member_moniker = %s
     """
@@ -235,8 +235,8 @@ def list_shared_mailbox_passwords(
                         "exists": True,
                         "encrypted_len": len(row["encrypted_password"]),
                         "set_by": row["set_by_moniker"],
-                        "updated_at": row["updated_at"].isoformat()
-                        if row["updated_at"]
+                        "dateupdated": row["dateupdated"].isoformat()
+                        if row["dateupdated"]
                         else None,
                     }
 

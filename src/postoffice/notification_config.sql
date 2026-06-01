@@ -9,8 +9,8 @@ CREATE TABLE postoffice.notification_config (
     enable_flag_change_events BOOLEAN DEFAULT FALSE,
     enable_delete_events BOOLEAN DEFAULT FALSE,
     imap_poll_interval_seconds INTEGER DEFAULT 30,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    datecreated TIMESTAMPTZ DEFAULT NOW(),
+    dateupdated TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX idx_notification_config_mailbox 

@@ -116,7 +116,11 @@ class IMAPChecker:
 
             try:
                 # Get the greeting
-                response = imap.welcome.decode("utf-8") if isinstance(imap.welcome, bytes) else imap.welcome
+                response = (
+                    imap.welcome.decode("utf-8")
+                    if isinstance(imap.welcome, bytes)
+                    else imap.welcome
+                )
                 if self.verbose:
                     echo(f"✓ IMAP greeting: {response}", level="debug")
 
@@ -234,7 +238,9 @@ class IMAPChecker:
         if all_pass:
             echo("✓ All checks passed - IMAP server is accessible", level="info")
         else:
-            echo("✗ Some checks failed - please verify IMAP configuration", level="error")
+            echo(
+                "✗ Some checks failed - please verify IMAP configuration", level="error"
+            )
 
         echo("")
 

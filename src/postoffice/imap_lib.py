@@ -126,7 +126,11 @@ def connect_cyrus(
         imap = imaplib.IMAP4_SSL(host, port, timeout=timeout)
         imap.login(username, password)
 
-        debug = getattr(args_or_creds, "debug", False) if not isinstance(args_or_creds, dict) else False
+        debug = (
+            getattr(args_or_creds, "debug", False)
+            if not isinstance(args_or_creds, dict)
+            else False
+        )
         if debug:
             io.echo(
                 f"imap_lib.connect_cyrus: Connected to {host}:{port}",

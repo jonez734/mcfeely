@@ -2,11 +2,12 @@
 # SASL password management for mcfeely-authd daemon
 # Stores SHA-512 crypt hashes for PAM/saslauthd-compatible authentication
 
-import crypt
+from passlib.hash import sha512_crypt
 from typing import Optional, Any
 
 from bbsengine6 import database
 from bbsengine6.io import echo
+from bbsengine6.io.echo import echo_traceback
 
 
 def _is_sysop(args: Any) -> bool:
@@ -27,6 +28,11 @@ def _can_manage_password(
     return requester_moniker == target_moniker
 
 
+def _get_db_pool(args: Any):
+    """Get or create database pool from args."""
+    return database.getpool(args)
+
+
 def generate_crypt_hash(password: str) -> str:
     """Generate SHA-512 crypt hash from plaintext password.
 
@@ -36,7 +42,7 @@ def generate_crypt_hash(password: str) -> str:
     Returns:
         SHA-512 crypt hash string (format: $6$<salt>$<hash>)
     """
-    return crypt.crypt(password, crypt.mksalt(crypt.METHOD_SHA512))
+    return sha512_crypt.hash(password)
 
 
 def verify_crypt_hash(password: str, crypt_hash: str) -> bool:
@@ -52,8 +58,9 @@ def verify_crypt_hash(password: str, crypt_hash: str) -> bool:
     if not password or not crypt_hash:
         return False
     try:
-        return crypt.crypt(password, crypt_hash) == crypt_hash
+        return sha512_crypt.verify(password, crypt_hash)
     except Exception:
+        echo_traceback("sasl_password.verify_sasl_password")
         return False
 
 
@@ -105,7 +112,8 @@ def set_sasl_password(
     dat = (member_moniker, crypt_hash, enabled, updated_by)
 
     try:
-        with database.connect(args) as conn:
+        pool = _get_db_pool(args)
+        with database.connect(args, pool=pool) as conn:
             with database.cursor(conn) as cur:
                 cur.execute(sql, dat)
         return True
@@ -131,7 +139,8 @@ def get_sasl_password(args: Any, member_moniker: str) -> Optional[str]:
     dat = (member_moniker,)
 
     try:
-        with database.connect(args) as conn:
+        pool = _get_db_pool(args)
+        with database.connect(args, pool=pool) as conn:
             with database.cursor(conn) as cur:
                 cur.execute(sql, dat)
                 if cur.rowcount == 0:
@@ -160,7 +169,8 @@ def delete_sasl_password(args: Any, member_moniker: str) -> bool:
     dat = (member_moniker,)
 
     try:
-        with database.connect(args) as conn:
+        pool = _get_db_pool(args)
+        with database.connect(args, pool=pool) as conn:
             with database.cursor(conn) as cur:
                 cur.execute(sql, dat)
         return True
@@ -189,7 +199,8 @@ def disable_sasl_password(args: Any, member_moniker: str) -> bool:
     dat = (member_moniker,)
 
     try:
-        with database.connect(args) as conn:
+        pool = _get_db_pool(args)
+        with database.connect(args, pool=pool) as conn:
             with database.cursor(conn) as cur:
                 cur.execute(sql, dat)
         return True
@@ -216,7 +227,8 @@ def enable_sasl_password(args: Any, member_moniker: str) -> bool:
     dat = (member_moniker,)
 
     try:
-        with database.connect(args) as conn:
+        pool = _get_db_pool(args)
+        with database.connect(args, pool=pool) as conn:
             with database.cursor(conn) as cur:
                 cur.execute(sql, dat)
         return True
@@ -242,7 +254,8 @@ def exists_sasl_password(args: Any, member_moniker: str) -> bool:
     dat = (member_moniker,)
 
     try:
-        with database.connect(args) as conn:
+        pool = _get_db_pool(args)
+        with database.connect(args, pool=pool) as conn:
             with database.cursor(conn) as cur:
                 cur.execute(sql, dat)
                 return cur.rowcount > 0
@@ -268,7 +281,8 @@ def list_sasl_passwords(args: Any) -> list:
 
     result = []
     try:
-        with database.connect(args) as conn:
+        pool = _get_db_pool(args)
+        with database.connect(args, pool=pool) as conn:
             with database.cursor(conn) as cur:
                 cur.execute(sql)
                 for row in cur.fetchall():
@@ -334,7 +348,8 @@ def set_sasl_password_for_sync(
     dat = (member_moniker, crypt_hash, updated_by)
 
     try:
-        with database.connect(args) as conn:
+        pool = _get_db_pool(args)
+        with database.connect(args, pool=pool) as conn:
             with database.cursor(conn) as cur:
                 cur.execute(sql, dat)
         return True, ""
