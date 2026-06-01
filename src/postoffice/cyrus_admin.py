@@ -8,7 +8,13 @@ from typing import Optional
 class CyrusAdmin:
     """Programmatic Cyrus IMAP administration."""
 
-    def __init__(self, host: str = "localhost", port: int = 143, admin_user: str = "cyrus", admin_password: Optional[str] = None):
+    def __init__(
+        self,
+        host: str = "localhost",
+        port: int = 143,
+        admin_user: str = "cyrus",
+        admin_password: Optional[str] = None,
+    ):
         self.host = host
         self.port = port
         self.admin_user = admin_user
@@ -105,7 +111,9 @@ class CyrusAdmin:
             self.set_acl(mailbox, username, user_rights)
         return success
 
-    def create_shared_mailbox(self, name: str, owner: str = "cyrus", owner_rights: str = "lrsd") -> bool:
+    def create_shared_mailbox(
+        self, name: str, owner: str = "cyrus", owner_rights: str = "lrsd"
+    ) -> bool:
         """Create a shared mailbox with admin ACL."""
         mailbox = f"user.{name}"
         success = self.create_mailbox(mailbox)
@@ -113,7 +121,9 @@ class CyrusAdmin:
             self.set_acl(mailbox, owner, owner_rights)
         return success
 
-    def add_user_to_shared_mailbox(self, mailbox: str, user: str, rights: str = "lr") -> bool:
+    def add_user_to_shared_mailbox(
+        self, mailbox: str, user: str, rights: str = "lr"
+    ) -> bool:
         """Add user to shared mailbox with specified rights."""
         return self.set_acl(mailbox, user, rights)
 

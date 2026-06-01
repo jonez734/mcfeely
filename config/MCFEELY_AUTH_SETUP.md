@@ -190,9 +190,14 @@ IMAP Access (port 143/993):
 
 ### Key Postfix Settings
 
-**Inbound delivery to Cyrus (main.cf line 17):**
+**Inbound delivery to Cyrus via TCP (main.cf):**
 ```
-mailbox_transport = lmtp:unix:/run/cyrus/socket/lmtp
+mailbox_transport = lmtp:inet:localhost:7024
+```
+
+**Cyrus LMTP listener (cyrus.conf):**
+```
+lmtp cmd="lmtpd" listen="localhost:7024" prefork=1
 ```
 
 **SMTP submission for authenticated users (master.cf):**

@@ -12,8 +12,8 @@ CREATE TABLE postoffice.notification_routing (
     urgency TEXT DEFAULT 'ROUTINE',        -- ROUTINE, IMPORTANT, URGENT, CRITICAL
     delivery_method TEXT DEFAULT 'engine', -- 'engine' (engine.__notify) or future: 'email', 'chat'
     enabled BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    datecreated TIMESTAMPTZ DEFAULT NOW(),
+    dateupdated TIMESTAMPTZ DEFAULT NOW(),
     FOREIGN KEY (actor_moniker) REFERENCES engine.__member(moniker) ON UPDATE CASCADE ON DELETE SET NULL,
     FOREIGN KEY (recipient_moniker) REFERENCES engine.__member(moniker) ON UPDATE CASCADE ON DELETE CASCADE,
     UNIQUE(mailbox_name, event_type, recipient_moniker)

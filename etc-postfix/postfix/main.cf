@@ -1,0 +1,54 @@
+# main.cf - Postfix MTA configuration for LMTP delivery to Cyrus IMAP
+# Staged configuration - review before deploying to /etc/postfix/
+
+# Network configuration
+myhostname = mail.example.com
+mydomain = example.com
+myorigin = $mydomain
+inet_interfaces = all
+inet_protocols = ipv4
+
+# Domain configuration
+mydestination = $myhostname, localhost.$mydomain, localhost, $mydomain
+local_recipient_maps = proxy:unix:passwd.byname $alias_maps
+relay_domains =
+
+# LMTP delivery to Cyrus IMAP via TCP
+mailbox_transport = lmtp:inet:localhost:7024
+fallback_transport =
+
+# Alternative: LMTP via UNIX socket
+# mailbox_transport = lmtp:unix:/run/cyrus/socket/lmtp
+
+# Virtual alias maps (if using virtual domains)
+virtual_alias_maps = hash:/etc/postfix/virtual
+virtual_alias_domains = $virtual_alias_maps
+
+# Local delivery aliases
+alias_maps = hash:/etc/postfix/aliases
+alias_database = hash:/etc/postfix/aliases
+
+# Message size limits (adjust as needed)
+message_size_limit = 52428800
+mailbox_size_limit = 0
+
+# Queue settings
+queue_directory = /var/spool/postfix
+command_directory = /usr/sbin
+daemon_directory = /usr/libexec/postfix
+
+# Security settings
+smtpd_recipient_restrictions = permit_mynetworks, reject_unauth_destination
+smtpd_relay_restrictions = permit_mynetworks, reject_unauth_destination
+
+# SASL authentication (for SMTP submission)
+smtp_sasl_auth_enable = no
+smtp_sasl_security_options = noanonymous
+
+# TLS settings
+smtp_tls_security_level = may
+smtp_tls_wrappermode = no
+
+# Logging
+maillog_file = /var/log/maillog
+maillog_status = 3

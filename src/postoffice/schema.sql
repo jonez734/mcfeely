@@ -21,8 +21,9 @@ create table if not exists postoffice.mailbox_password (
     password text not null,
     enabled boolean default true,
     kind text not null,  -- 'inbound' or 'outbound'
-    created_at timestamp with time zone default now(),
-    updated_at timestamp with time zone default now(),
+    datecreated timestamp with time zone default now(),
+    updated_by text not null,
+    dateupdated timestamp with time zone default now(),
     constraint fk_postoffice_map_mailbox_moniker 
         foreign key (member_moniker) 
         references engine.__member(moniker) 
@@ -59,6 +60,29 @@ create index if not exists idx_shared_mailbox_datecreated
     on postoffice.shared_mailbox(datecreated desc);
 
 -- ============================================================================
+-- SASL Passwords
+-- ============================================================================
+
+-- SHA-512 crypt hashes for IMAP/SMTP authentication via mcfeely-authd
+-- mcfeely-authd looks up this table to verify user passwords without needing
+-- shell accounts or PAM.
+create table if not exists postoffice.sasl_password (
+    member_moniker citext primary key,
+    crypt_hash text not null,  -- SHA-512 crypt hash ($6$salt$hash)
+    enabled boolean default true,
+    datecreated timestamp with time zone default now(),
+    dateupdated timestamp with time zone default now(),
+    updated_by text not null,
+    constraint fk_sasl_password_member
+        foreign key (member_moniker)
+        references engine.__member(moniker)
+        on update cascade on delete cascade
+);
+
+create index if not exists idx_sasl_password_enabled
+    on postoffice.sasl_password(enabled) where enabled = true;
+
+-- ============================================================================
 -- Permissions
 -- ============================================================================
 
@@ -66,6 +90,7 @@ create index if not exists idx_shared_mailbox_datecreated
 grant all on postoffice.mailbox to postoffice;
 grant all on postoffice.mailbox_password to postoffice;
 grant all on postoffice.shared_mailbox to postoffice;
+grant all on postoffice.sasl_password to postoffice;
 
 -- Grant read access to imapd role
 grant select on postoffice.mailbox to imapd;

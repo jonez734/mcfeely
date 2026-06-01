@@ -20,20 +20,87 @@ notify_module.lib._DEFAULT_DBNAME = "zoid6test"
 
 
 _LOREM_WORDS = [
-    "lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing", "elit",
-    "sed", "do", "eiusmod", "tempor", "incididunt", "ut", "labore", "et", "dolore",
-    "magna", "aliqua", "enim", "ad", "minim", "veniam", "quis", "nostrud",
-    "exercitation", "ullamco", "laboris", "nisi", "aliquip", "ex", "ea", "commodo",
-    "consequat", "duis", "aute", "irure", "in", "reprehenderit", "voluptate",
-    "velit", "esse", "cillum", "fugiat", "nulla", "pariatur", "excepteur", "sint",
-    "occaecat", "cupidatat", "non", "proident", "sunt", "culpa", "qui", "officia",
-    "deserunt", "mollit", "anim", "id", "est", "laborum", "pellentesque", "habitant",
-    "morbi", "tristique", "senectus", "netus", "malesuada", "fames", "turpis", "egestas",
+    "lorem",
+    "ipsum",
+    "dolor",
+    "sit",
+    "amet",
+    "consectetur",
+    "adipiscing",
+    "elit",
+    "sed",
+    "do",
+    "eiusmod",
+    "tempor",
+    "incididunt",
+    "ut",
+    "labore",
+    "et",
+    "dolore",
+    "magna",
+    "aliqua",
+    "enim",
+    "ad",
+    "minim",
+    "veniam",
+    "quis",
+    "nostrud",
+    "exercitation",
+    "ullamco",
+    "laboris",
+    "nisi",
+    "aliquip",
+    "ex",
+    "ea",
+    "commodo",
+    "consequat",
+    "duis",
+    "aute",
+    "irure",
+    "in",
+    "reprehenderit",
+    "voluptate",
+    "velit",
+    "esse",
+    "cillum",
+    "fugiat",
+    "nulla",
+    "pariatur",
+    "excepteur",
+    "sint",
+    "occaecat",
+    "cupidatat",
+    "non",
+    "proident",
+    "sunt",
+    "culpa",
+    "qui",
+    "officia",
+    "deserunt",
+    "mollit",
+    "anim",
+    "id",
+    "est",
+    "laborum",
+    "pellentesque",
+    "habitant",
+    "morbi",
+    "tristique",
+    "senectus",
+    "netus",
+    "malesuada",
+    "fames",
+    "turpis",
+    "egestas",
 ]
 
 
-def _generate_paragraph(min_sentences: int = 3, max_sentences: int = 8,
-                         min_words: int = 8, max_words: int = 20) -> str:
+def _generate_paragraph(
+    min_sentences: int = 3,
+    max_sentences: int = 8,
+    min_words: int = 8,
+    max_words: int = 20,
+) -> str:
     num_sentences = random.randint(min_sentences, max_sentences)
     sentences = []
     for _ in range(num_sentences):
@@ -105,7 +172,12 @@ def _ensure_member(args, pool, moniker: str) -> bool:
             return True
         io.echo(f"member {moniker}: creating...", end="")
         try:
-            result = member.insert(args, {"moniker": moniker, "email": f"{moniker}@localhost.local"}, conn=conn, returnid=False)
+            result = member.insert(
+                args,
+                {"moniker": moniker, "email": f"{moniker}@localhost.local"},
+                conn=conn,
+                returnid=False,
+            )
             if not result:
                 io.echo(" member.insert failed", level="error")
                 conn.rollback()
@@ -152,7 +224,7 @@ def _phase_messages(args, pool) -> list[tuple[int, str]]:
                 conn=conn,
             )
             sent.append((result.id, paragraph))
-            io.echo(f"  sent message {i+1}/{n} (id={result.id})")
+            io.echo(f"  sent message {i + 1}/{n} (id={result.id})")
 
         conn.commit()
         return sent
@@ -161,7 +233,9 @@ def _phase_messages(args, pool) -> list[tuple[int, str]]:
 def _phase_notify_processing(args, pool, sent_ids: list[int]) -> bool:
     io.echo("Phase 4: notify processing test...")
 
-    notifications = notify_module.get_notifications("alice", limit=50, args=args, pool=pool)
+    notifications = notify_module.get_notifications(
+        "alice", limit=50, args=args, pool=pool
+    )
     io.echo(f"  alice has {len(notifications)} notifications")
     if not notifications:
         io.echo("  FAIL: no notifications found for alice", level="error")
@@ -183,7 +257,9 @@ def _phase_notify_processing(args, pool, sent_ids: list[int]) -> bool:
     io.echo(f"  after mark_read, unread count: {unread_after}")
 
     notify_module.expunge(first.id, args=args, pool=pool)
-    notifications_after = notify_module.get_notifications("alice", limit=10, args=args, pool=pool)
+    notifications_after = notify_module.get_notifications(
+        "alice", limit=10, args=args, pool=pool
+    )
     io.echo(f"  after expunge, notifications: {len(notifications_after)}")
     if any(n.id == first.id for n in notifications_after):
         io.echo("  FAIL: expunged notification still present", level="error")
@@ -198,7 +274,10 @@ def _phase_mailboxes(args, pool) -> bool:
 
     with database.connect(args, pool=pool) as conn:
         with database.cursor(conn) as cur:
-            cur.execute("SELECT 1 FROM postoffice.shared_mailbox WHERE name=%s", ("shared/trouble",))
+            cur.execute(
+                "SELECT 1 FROM postoffice.shared_mailbox WHERE name=%s",
+                ("shared/trouble",),
+            )
             if cur.rowcount == 0:
                 cur.execute(
                     """
@@ -222,7 +301,9 @@ def _phase_mailboxes(args, pool) -> bool:
                 row = cur.fetchone()
                 if row:
                     address = row["address"]
-                    io.echo(f"  mailbox {moniker}: exists (address={address})", level="ok")
+                    io.echo(
+                        f"  mailbox {moniker}: exists (address={address})", level="ok"
+                    )
                 else:
                     address = moniker
                     cur.execute(
@@ -232,18 +313,25 @@ def _phase_mailboxes(args, pool) -> bool:
                         """,
                         (address, f"maildir:~{moniker}/Maildir", True),
                     )
-                    io.echo(f"  mailbox {moniker}: created (address={address})", level="ok")
+                    io.echo(
+                        f"  mailbox {moniker}: created (address={address})", level="ok"
+                    )
 
             pw = os.urandom(16).hex()
             set_shared_mailbox_password(args, address, moniker, "inbound", pw, moniker)
             set_shared_mailbox_password(args, address, moniker, "outbound", pw, moniker)
             conn.commit()
-            io.echo(f"  Mailbox \"{moniker}\" (address={address}). IMAP password: {pw}", level="ok")
+            io.echo(
+                f'  Mailbox "{moniker}" (address={address}). IMAP password: {pw}',
+                level="ok",
+            )
 
     return True
 
 
-def buildargs(parentparser: Optional[argparse.ArgumentParser] = None) -> argparse.ArgumentParser:
+def buildargs(
+    parentparser: Optional[argparse.ArgumentParser] = None,
+) -> argparse.ArgumentParser:
     if parentparser is None:
         parentparser = argparse.ArgumentParser(description="postoffice startup test")
     database.buildargs(parentparser, defaults={"databasename": "zoid6test"})
