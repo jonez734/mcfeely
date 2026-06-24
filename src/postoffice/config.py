@@ -8,9 +8,9 @@ from typing import Any, Dict, Optional
 def get_postoffice_config(config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Get postoffice configuration, loading from environment if not provided.
     
-    Environment variables (with prefix POSTOFFICE_ or CASINO_POSTOFFICE_):
-        *_ENABLED - Enable/disable the service
-        *_POLL_INTERVAL - Seconds between mailbox checks
+    Environment variables (with prefix POSTOFFICE_):
+        POSTOFFICE_ENABLED - Enable/disable the service
+        POSTOFFICE_POLL_INTERVAL - Seconds between mailbox checks
     
     Args:
         config: Optional config dict to use instead of loading from env
@@ -55,7 +55,7 @@ def _load_mailboxes_from_env() -> list:
 
 def load_config(
     config_file: Optional[str] = None,
-    env_prefix: str = "CASINO_",
+    env_prefix: str = "POSTOFFICE_",
     **overrides: Any,
 ) -> Dict[str, Any]:
     """Load postoffice configuration.
@@ -66,26 +66,24 @@ def load_config(
     3. Environment variables
     4. Empty defaults (lowest)
     
-    Environment variables use format: CASINO_POSTOFFICE_<KEY>=value
+    Environment variables use format: POSTOFFICE_<KEY>=value
     Results in nested config: {"postoffice": {"key": value, ...}}
     """
     import json
     
-    config: Dict[str, Any] = {"postoffice": {}}
+    config: Dict[str, Any] = {}
     
     if config_file and os.path.exists(config_file):
         with open(config_file) as f:
             file_config = json.load(f)
             config = _merge_config(config, file_config)
     
-    # Add environment-based config (support both CASINO_POSTOFFICE_ and POSTOFFICE_ prefixes)
+    # Add environment-based config
     env_config = _load_from_env(env_prefix)
-    config = _merge_config(config, env_config)
-    
-    # Also check POSTOFFICE_ prefix as fallback
-    if "postoffice" not in config or not config.get("postoffice"):
-        postoffice_env = _load_from_env("POSTOFFICE_")
-        config = _merge_config(config, postoffice_env)
+    if env_config:
+        if "postoffice" not in config:
+            config["postoffice"] = {}
+        config["postoffice"] = _merge_config(config["postoffice"], env_config)
     
     config = _merge_config(config, overrides)
     
@@ -95,8 +93,8 @@ def load_config(
 def _load_from_env(prefix: str) -> Dict[str, Any]:
     """Load configuration from environment variables.
     
-    Variable format: <PREFIX>_<SECTION>_<KEY>=value or <PREFIX><KEY>=value
-    Example: CASINO_POSTOFFICE_ENABLED=true
+    Variable format: <PREFIX><KEY>=value
+    Example: POSTOFFICE_ENABLED=true
     Results in: {"postoffice": {"enabled": true, ...}}
     """
     config: Dict[str, Any] = {}
@@ -104,30 +102,14 @@ def _load_from_env(prefix: str) -> Dict[str, Any]:
         if not key.startswith(prefix):
             continue
         
-        config_key = key[len(prefix):]
+        config_key = key[len(prefix):].lower()
         
-        if "_" in config_key:
-            parts = config_key.split("_", 1)
-            section = parts[0].lower()
-            key_name = parts[1].lower()
-            
-            if section not in config:
-                config[section] = {}
-            
-            if value.lower() in ("true", "false"):
-                config[section][key_name] = value.lower() == "true"
-            elif value.isdigit():
-                config[section][key_name] = int(value)
-            else:
-                config[section][key_name] = value
+        if value.lower() in ("true", "false"):
+            config[config_key] = value.lower() == "true"
+        elif value.isdigit():
+            config[config_key] = int(value)
         else:
-            key_name = config_key.lower()
-            if value.lower() in ("true", "false"):
-                config[key_name] = value.lower() == "true"
-            elif value.isdigit():
-                config[key_name] = int(value)
-            else:
-                config[key_name] = value
+            config[config_key] = value
     
     return config
 
