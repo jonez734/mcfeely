@@ -8,7 +8,7 @@ import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
-sys.path.insert(0, "/home/opencode/data/work/casino/src")
+sys.path.insert(0, "/home/opencode/data/work/mistermcfeely/src")
 
 
 @pytest.mark.integration
