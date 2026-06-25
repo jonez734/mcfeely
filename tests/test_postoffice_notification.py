@@ -1,208 +1,103 @@
 #!/usr/bin/env python3
 # mistermcfeely/tests/test_postoffice_notification.py
-# Tests for notification sending
-# (Moved from casino - depends on casino.services.postoffice)
+# Tests for notification content / formatting.
+# (Now uses postoffice.services.notification from mistermcfeely)
 
 import pytest
 import sys
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 sys.path.insert(0, "/home/opencode/data/work/mistermcfeely/src")
 
 
+def _envelope(from_, subject, body):
+    """Build a real RFC822 envelope for testing."""
+    from email.parser import BytesParser
+    from email.policy import default
+    parser = BytesParser(policy=default)
+    raw = (
+        f"From: {from_}\r\n"
+        f"Subject: {subject}\r\n"
+        "\r\n"
+        f"{body}"
+    ).encode()
+    return parser.parsebytes(raw).as_bytes()
+
+
 @pytest.mark.integration
-class TestNotificationContent(unittest.TestCase):
-    """Test notification content formatting."""
+class TestBuildEmailPayload(unittest.TestCase):
+    """Test notification payload formatting (build_email_payload)."""
 
     def test_notification_includes_sender(self):
-        """Test notification includes sender address."""
-        from postoffice.service import PostofficeService, MailboxConfig
-        from email.parser import BytesParser
-        from email.policy import default
-
-        mb = MailboxConfig(host="imap.test.com", username="user", password="pass")
-        service = PostofficeService(config={"enabled": False, "poll_interval": 30, "mailboxes": []})
-
-        parser = BytesParser(policy=default)
-        raw_msg = b"From: John Doe <john@example.com>\r\nSubject: Hello\r\n\r\nTest message body."
-        msg = parser.parsebytes(raw_msg)
-        envelope = msg.as_bytes()
-
-        with patch("bbsengine6.message_delivery.lib._validate_type_name", return_value=True):
-            with patch("postoffice.service.message_send") as mock_send:
-                service._process_message_envelope(envelope, mb)
-                call_kwargs = mock_send.call_args.kwargs
-                self.assertIn("john@example.com", call_kwargs["template"])
-                self.assertIn("John Doe", call_kwargs["template"])
+        """Notification includes sender address and display name."""
+        from postoffice.services.notification import build_email_payload
+        payload = build_email_payload(_envelope("John Doe <john@example.com>", "Hi", "body"))
+        self.assertIn("john@example.com", payload)
+        self.assertIn("John Doe", payload)
 
     def test_notification_includes_subject(self):
-        """Test notification includes subject."""
-        from postoffice.service import PostofficeService, MailboxConfig
-        from email.parser import BytesParser
-        from email.policy import default
-
-        mb = MailboxConfig(host="imap.test.com", username="user", password="pass")
-        service = PostofficeService(config={"enabled": False, "poll_interval": 30, "mailboxes": []})
-
-        parser = BytesParser(policy=default)
-        raw_msg = b"From: sender@example.com\r\nSubject: Important Message\r\n\r\nBody content here."
-        msg = parser.parsebytes(raw_msg)
-        envelope = msg.as_bytes()
-
-        with patch("bbsengine6.message_delivery.lib._validate_type_name", return_value=True):
-            with patch("postoffice.service.message_send") as mock_send:
-                service._process_message_envelope(envelope, mb)
-                call_kwargs = mock_send.call_args.kwargs
-                self.assertIn("Important Message", call_kwargs["template"])
+        """Notification includes subject."""
+        from postoffice.services.notification import build_email_payload
+        payload = build_email_payload(_envelope("sender@example.com", "Important Message", "body"))
+        self.assertIn("Important Message", payload)
 
     def test_notification_includes_body_preview(self):
-        """Test notification includes body preview."""
-        from postoffice.service import PostofficeService, MailboxConfig
-        from email.parser import BytesParser
-        from email.policy import default
-
-        mb = MailboxConfig(host="imap.test.com", username="user", password="pass")
-        service = PostofficeService(config={"enabled": False, "poll_interval": 30, "mailboxes": []})
-
-        parser = BytesParser(policy=default)
-        raw_msg = b"From: sender@example.com\r\nSubject: Test\r\n\r\nThis is the preview text."
-        msg = parser.parsebytes(raw_msg)
-        envelope = msg.as_bytes()
-
-        with patch("bbsengine6.message_delivery.lib._validate_type_name", return_value=True):
-            with patch("postoffice.service.message_send") as mock_send:
-                service._process_message_envelope(envelope, mb)
-                call_kwargs = mock_send.call_args.kwargs
-                self.assertIn("This is the preview text.", call_kwargs["template"])
+        """Notification includes body preview."""
+        from postoffice.services.notification import build_email_payload
+        payload = build_email_payload(_envelope("a@b.c", "Test", "This is the preview text."))
+        self.assertIn("This is the preview text.", payload)
 
     def test_notification_sender_moniker(self):
-        """Test notification uses postoffice as sender moniker."""
-        from postoffice.service import PostofficeService, MailboxConfig
-        from email.parser import BytesParser
-        from email.policy import default
-
-        mb = MailboxConfig(host="imap.test.com", username="user", password="pass")
-        service = PostofficeService(config={"enabled": False, "poll_interval": 30, "mailboxes": []})
-
-        parser = BytesParser(policy=default)
-        raw_msg = b"From: sender@example.com\r\nSubject: Test\r\n\r\nBody."
-        msg = parser.parsebytes(raw_msg)
-        envelope = msg.as_bytes()
-
-        with patch("bbsengine6.message_delivery.lib._validate_type_name", return_value=True):
-            with patch("postoffice.service.message_send") as mock_send:
-                service._process_message_envelope(envelope, mb)
-                call_kwargs = mock_send.call_args.kwargs
-                self.assertEqual(call_kwargs["sender_moniker"], "postoffice")
+        """notify_new_messages uses postoffice as sender_moniker."""
+        from postoffice.services.notification import notify_new_messages
+        with patch("postoffice.services.notification.message_send") as mock_send:
+            notify_new_messages([_envelope("a@b.c", "Test", "Body.")])
+        call_kwargs = mock_send.call_args.kwargs
+        self.assertEqual(call_kwargs["sender_moniker"], "postoffice")
 
     def test_notification_recipient_is_everyone(self):
-        """Test notification sends to @everyone."""
-        from postoffice.service import PostofficeService, MailboxConfig
-        from email.parser import BytesParser
-        from email.policy import default
-
-        mb = MailboxConfig(host="imap.test.com", username="user", password="pass")
-        service = PostofficeService(config={"enabled": False, "poll_interval": 30, "mailboxes": []})
-
-        parser = BytesParser(policy=default)
-        raw_msg = b"From: sender@example.com\r\nSubject: Test\r\n\r\nBody."
-        msg = parser.parsebytes(raw_msg)
-        envelope = msg.as_bytes()
-
-        with patch("bbsengine6.message_delivery.lib._validate_type_name", return_value=True):
-            with patch("postoffice.service.message_send") as mock_send:
-                service._process_message_envelope(envelope, mb)
-                call_kwargs = mock_send.call_args.kwargs
-                self.assertEqual(call_kwargs["recipients"], ["@everyone"])
+        """notify_new_messages sends to @everyone by default."""
+        from postoffice.services.notification import notify_new_messages
+        with patch("postoffice.services.notification.message_send") as mock_send:
+            notify_new_messages([_envelope("a@b.c", "Test", "Body.")])
+        call_kwargs = mock_send.call_args.kwargs
+        self.assertEqual(call_kwargs["recipients"], ["@everyone"])
 
     def test_notification_message_type(self):
-        """Test notification uses postoffice.email message type."""
-        from postoffice.service import PostofficeService, MailboxConfig
-        from email.parser import BytesParser
-        from email.policy import default
-
-        mb = MailboxConfig(host="imap.test.com", username="user", password="pass")
-        service = PostofficeService(config={"enabled": False, "poll_interval": 30, "mailboxes": []})
-
-        parser = BytesParser(policy=default)
-        raw_msg = b"From: sender@example.com\r\nSubject: Test\r\n\r\nBody."
-        msg = parser.parsebytes(raw_msg)
-        envelope = msg.as_bytes()
-
-        with patch("bbsengine6.message_delivery.lib._validate_type_name", return_value=True):
-            with patch("postoffice.service.message_send") as mock_send:
-                service._process_message_envelope(envelope, mb)
-                call_kwargs = mock_send.call_args.kwargs
-                self.assertEqual(call_kwargs["notification_type"], "postoffice.email")
+        """Notification uses postoffice.email message type."""
+        from postoffice.services.notification import notify_new_messages
+        with patch("postoffice.services.notification.message_send") as mock_send:
+            notify_new_messages([_envelope("a@b.c", "Test", "Body.")])
+        call_kwargs = mock_send.call_args.kwargs
+        self.assertEqual(call_kwargs["notification_type"], "postoffice.email")
 
     def test_notification_format(self):
-        """Test notification format includes all parts."""
-        from postoffice.service import PostofficeService, MailboxConfig
-        from email.parser import BytesParser
-        from email.policy import default
-
-        mb = MailboxConfig(host="imap.test.com", username="user", password="pass")
-        service = PostofficeService(config={"enabled": False, "poll_interval": 30, "mailboxes": []})
-
-        parser = BytesParser(policy=default)
-        raw_msg = b"From: test@sender.com\r\nSubject: Newsletter\r\n\r\nThis is the email content."
-        msg = parser.parsebytes(raw_msg)
-        envelope = msg.as_bytes()
-
-        with patch("bbsengine6.message_delivery.lib._validate_type_name", return_value=True):
-            with patch("postoffice.service.message_send") as mock_send:
-                service._process_message_envelope(envelope, mb)
-                call_kwargs = mock_send.call_args.kwargs
-                content = call_kwargs["template"]
-                self.assertTrue(content.startswith("From:"))
-                self.assertIn("Subject:", content)
-                self.assertIn("This is the email content.", content)
+        """Notification format includes From / Subject / body lines."""
+        from postoffice.services.notification import build_email_payload
+        payload = build_email_payload(
+            _envelope("test@sender.com", "Newsletter", "This is the email content.")
+        )
+        self.assertTrue(payload.startswith("From:"))
+        self.assertIn("Subject:", payload)
+        self.assertIn("This is the email content.", payload)
 
 
 @pytest.mark.integration
 class TestNotificationErrors(unittest.TestCase):
-    """Test notification error handling."""
+    """Test notification graceful handling of missing headers."""
 
     def test_handles_missing_from_header(self):
-        """Test handling of missing From header."""
-        from postoffice.service import PostofficeService, MailboxConfig
-        from email.parser import BytesParser
-        from email.policy import default
-
-        mb = MailboxConfig(host="imap.test.com", username="user", password="pass")
-        service = PostofficeService(config={"enabled": False, "poll_interval": 30, "mailboxes": []})
-
-        parser = BytesParser(policy=default)
-        raw_msg = b"Subject: No From Header\r\n\r\nBody."
-        msg = parser.parsebytes(raw_msg)
-        envelope = msg.as_bytes()
-
-        with patch("bbsengine6.message_delivery.lib._validate_type_name", return_value=True):
-            with patch("postoffice.service.message_send") as mock_send:
-                service._process_message_envelope(envelope, mb)
-                call_kwargs = mock_send.call_args.kwargs
-                self.assertIn("Unknown", call_kwargs["template"])
+        """Missing From header renders as 'Unknown'."""
+        from postoffice.services.notification import build_email_payload
+        payload = build_email_payload(_envelope("", "No From Header", "Body."))
+        self.assertIn("Unknown", payload)
 
     def test_handles_missing_subject(self):
-        """Test handling of missing Subject header."""
-        from postoffice.service import PostofficeService, MailboxConfig
-        from email.parser import BytesParser
-        from email.policy import default
-
-        mb = MailboxConfig(host="imap.test.com", username="user", password="pass")
-        service = PostofficeService(config={"enabled": False, "poll_interval": 30, "mailboxes": []})
-
-        parser = BytesParser(policy=default)
-        raw_msg = b"From: sender@example.com\r\n\r\nBody."
-        msg = parser.parsebytes(raw_msg)
-        envelope = msg.as_bytes()
-
-        with patch("bbsengine6.message_delivery.lib._validate_type_name", return_value=True):
-            with patch("postoffice.service.message_send") as mock_send:
-                service._process_message_envelope(envelope, mb)
-                call_kwargs = mock_send.call_args.kwargs
-                self.assertIn("No Subject", call_kwargs["template"])
+        """Missing Subject header renders as 'No Subject'."""
+        from postoffice.services.notification import build_email_payload
+        payload = build_email_payload(_envelope("sender@example.com", "", "Body."))
+        self.assertIn("No Subject", payload)
 
 
 def run_tests():
@@ -210,7 +105,7 @@ def run_tests():
     loader = unittest.TestLoader()
     suite = unittest.TestSuite()
 
-    suite.addTests(loader.loadTestsFromTestCase(TestNotificationContent))
+    suite.addTests(loader.loadTestsFromTestCase(TestBuildEmailPayload))
     suite.addTests(loader.loadTestsFromTestCase(TestNotificationErrors))
 
     runner = unittest.TextTestRunner(verbosity=2)
