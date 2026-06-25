@@ -1,9 +1,10 @@
 # auth_verify.py
 # Password verification for mcfeely-authd (functional style)
 
-import crypt
 import subprocess
 from typing import Optional, Tuple
+
+from passlib.hash import sha512_crypt
 
 from . import config
 
@@ -59,7 +60,7 @@ def _check_crypt_hash(password: str, crypt_hash: str) -> bool:
         True if password matches, False otherwise
     """
     try:
-        return crypt.crypt(password, crypt_hash) == crypt_hash
+        return sha512_crypt.verify(password, crypt_hash)
     except Exception:
         return False
 
