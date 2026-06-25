@@ -29,7 +29,7 @@ class TestLogPasswordOperation(unittest.TestCase):
 
         self.assertTrue(result)
         mock_log.assert_called_once()
-        
+
         message = mock_log.call_args[0][0]
         self.assertIn("[PASSWORD]", message)
         self.assertIn("SET", message)
@@ -63,7 +63,7 @@ class TestLogPasswordOperation(unittest.TestCase):
         )
 
         self.assertTrue(result)
-        
+
         message = mock_log.call_args[0][0]
         self.assertIn("mailbox_id=42", message)
 
@@ -82,7 +82,7 @@ class TestLogPasswordOperation(unittest.TestCase):
         )
 
         self.assertTrue(result)
-        
+
         message = mock_log.call_args[0][0]
         self.assertIn("reason=password expired", message)
 
@@ -91,7 +91,7 @@ class TestLogPasswordOperation(unittest.TestCase):
         mock_log = Mock()
 
         actions = ["set", "delete", "access", "auth_fail", "update"]
-        
+
         for action in actions:
             mock_log.reset_mock()
             result = audit_log.log_password_operation(
@@ -102,7 +102,7 @@ class TestLogPasswordOperation(unittest.TestCase):
                 performed_by="alice",
                 log_entry_fn=mock_log,
             )
-            
+
             self.assertTrue(result)
             message = mock_log.call_args[0][0]
             self.assertIn(action.upper(), message)
@@ -139,7 +139,7 @@ class TestLogAuthFailure(unittest.TestCase):
         )
 
         self.assertTrue(result)
-        
+
         message = mock_log.call_args[0][0]
         self.assertIn("AUTH_FAIL", message)
         self.assertIn("type=personal", message)
@@ -158,7 +158,7 @@ class TestLogAuthFailure(unittest.TestCase):
         )
 
         self.assertTrue(result)
-        
+
         message = mock_log.call_args[0][0]
         self.assertIn("AUTH_FAIL", message)
         self.assertIn("type=shared_mailbox", message)
@@ -186,7 +186,7 @@ class TestLogAuthFailure(unittest.TestCase):
         )
 
         self.assertTrue(result)
-        
+
         message = mock_log.call_args[0][0]
         self.assertIn("by=system", message)
 
@@ -203,7 +203,7 @@ class TestLogAuthFailure(unittest.TestCase):
         )
 
         message = mock_log.call_args[0][0]
-        
+
         self.assertIn("[PASSWORD]", message)
         self.assertIn("AUTH_FAIL", message)
         self.assertIn("type=shared_mailbox", message)
@@ -232,7 +232,7 @@ class TestAuditLogMessageFormat(unittest.TestCase):
         )
 
         message = mock_log.call_args[0][0]
-        
+
         self.assertIn("[PASSWORD]", message)
         self.assertIn("SET", message)
         self.assertIn("type=personal", message)
@@ -257,8 +257,128 @@ class TestAuditLogMessageFormat(unittest.TestCase):
 
         message = mock_log.call_args[0][0]
         parts = message.split(" | ")
-        
+
         self.assertGreater(len(parts), 1)
+
+
+class TestLogentryIntegration(unittest.TestCase):
+    """Integration tests verifying audit_log works with real bbsengine6.util.logentry().
+
+    These tests confirm that:
+    - Pre-formatted messages from audit_log pass through logentry() unchanged (BC mode)
+    - When logentry() is called with structured kwargs, it produces the new
+      '[module] action key=value free_text' format
+    """
+
+    def _capture_logentry(self, message, **kwargs):
+        """Call real logentry() and capture the formatted output.
+
+        Uses a unique logger name per test so each invocation gets a fresh handler
+        (logentry() only adds a handler if no handler of the same type exists).
+        """
+        import logging
+        import io
+        import uuid
+        from bbsengine6.util import logentry
+
+        buf = io.StringIO()
+        handler = logging.StreamHandler(buf)
+        handler.setFormatter(logging.Formatter('%(message)s'))
+
+        unique_name = f"audit_test_{uuid.uuid4().hex[:8]}"
+        logentry(message, handler=handler, logger_name=unique_name, **kwargs)
+        return buf.getvalue().strip()
+
+    def test_logentry_passes_preformatted_message_through(self):
+        """audit_log builds message, logentry() logs it unchanged (no kwargs)."""
+        mock_log = Mock()
+        audit_log.log_password_operation(
+            action="set",
+            target_type="personal",
+            target_moniker="alice",
+            password_type="inbound",
+            performed_by="alice",
+            log_entry_fn=mock_log,
+        )
+        preformatted = mock_log.call_args[0][0]
+
+        # Now run that preformatted message through real logentry
+        result = self._capture_logentry(preformatted)
+
+        # Real logentry in BC mode (no structured kwargs) just logs the message
+        self.assertEqual(result, preformatted)
+
+    def test_logentry_structured_format_with_module(self):
+        """Verify the new [module] action format produced by logentry()."""
+        result = self._capture_logentry(
+            "password set",
+            module="postoffice",
+            action="set",
+            moniker="alice",
+            password_type="inbound",
+        )
+
+        self.assertIn("[postoffice]", result)
+        self.assertIn("set", result)
+        self.assertIn("moniker=alice", result)
+        self.assertIn("password_type=inbound", result)
+        self.assertIn("password set", result)
+
+    def test_logentry_module_brackets_first(self):
+        """Verify [module] appears first in structured output."""
+        result = self._capture_logentry(
+            "msg", module="postoffice", action="delete", moniker="bob"
+        )
+
+        self.assertTrue(result.startswith("[postoffice]"))
+
+    def test_logentry_action_after_module(self):
+        """Verify action comes immediately after [module]."""
+        result = self._capture_logentry(
+            "msg", module="postoffice", action="delete", moniker="bob"
+        )
+
+        parts = result.split()
+        self.assertEqual(parts[0], "[postoffice]")
+        self.assertEqual(parts[1], "delete")
+
+    def test_logentry_message_at_end(self):
+        """Verify the free-text message appears at the end of structured output."""
+        result = self._capture_logentry(
+            "auth failure occurred",
+            module="postoffice",
+            action="auth_fail",
+            moniker="alice",
+        )
+
+        self.assertTrue(result.endswith("auth failure occurred"))
+
+    def test_logentry_kwargs_pass_through(self):
+        """Verify **kwargs fields appear in structured output."""
+        result = self._capture_logentry(
+            "msg", module="postoffice", action="access", mailbox_id=42, target="shared"
+        )
+
+        self.assertIn("mailbox_id=42", result)
+        self.assertIn("target=shared", result)
+
+    def test_logentry_skips_falsy_kwargs(self):
+        """Verify None/empty kwargs are not in output."""
+        result = self._capture_logentry(
+            "msg", module="postoffice", action="set", moniker="alice", mailbox_id=None
+        )
+
+        self.assertNotIn("mailbox_id=None", result)
+        self.assertNotIn("mailbox_id=", result)
+
+    def test_logentry_skips_empty_module(self):
+        """Verify empty module does not produce empty brackets."""
+        result = self._capture_logentry(
+            "plain", action="set", moniker="alice"
+        )
+
+        self.assertNotIn("[]", result)
+        self.assertIn("plain", result)
 
 
 if __name__ == "__main__":
