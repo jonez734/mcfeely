@@ -42,7 +42,7 @@ def generate_crypt_hash(password: str) -> str:
     Returns:
         SHA-512 crypt hash string (format: $6$<salt>$<hash>)
     """
-    return sha512_crypt.hash(password)
+    return sha512_crypt.using(rounds=5000).hash(password)
 
 
 def verify_crypt_hash(password: str, crypt_hash: str) -> bool:

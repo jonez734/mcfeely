@@ -11,11 +11,6 @@ from typing import Optional
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-import warnings
-warnings.filterwarnings("ignore", message="'crypt' is deprecated", category=DeprecationWarning)
-
-import crypt
-
 from postoffice import sasl_password, member_password
 
 
@@ -58,6 +53,30 @@ class MockConnection:
 
     def commit(self):
         pass
+
+
+class _Base(unittest.TestCase):
+    """Shared setUp/tearDown that prevents real DB pool creation under Mock args."""
+
+    def _make_args(self):
+        a = Mock()
+        a.issuperuser = False
+        a.debug = False
+        return a
+
+    def setUp(self):
+        self.key = base64.b64encode(os.urandom(32)).decode()
+        os.environ["POSTOFFICE_PASSWORD_KEY"] = self.key
+        self.args = self._make_args()
+        self._getpool_patch = patch(
+            "bbsengine6.database.getpool", return_value=Mock()
+        )
+        self._getpool_patch.start()
+
+    def tearDown(self):
+        self._getpool_patch.stop()
+        if "POSTOFFICE_PASSWORD_KEY" in os.environ:
+            del os.environ["POSTOFFICE_PASSWORD_KEY"]
 
 
 class TestSaslPasswordCryptHash(unittest.TestCase):
@@ -118,18 +137,8 @@ class TestSaslPasswordCryptHash(unittest.TestCase):
         self.assertFalse(result)
 
 
-class TestSaslPasswordDatabaseOperations(unittest.TestCase):
+class TestSaslPasswordDatabaseOperations(_Base):
     """Test SASL password database operations with mocked connection."""
-
-    def setUp(self):
-        self.key = base64.b64encode(os.urandom(32)).decode()
-        os.environ["POSTOFFICE_PASSWORD_KEY"] = self.key
-        self.args = Mock()
-        self.args.issuperuser = False
-
-    def tearDown(self):
-        if "POSTOFFICE_PASSWORD_KEY" in os.environ:
-            del os.environ["POSTOFFICE_PASSWORD_KEY"]
 
     @patch("bbsengine6.database.connect")
     def test_set_sasl_password_success(self, mock_connect):
@@ -264,18 +273,8 @@ class TestSaslPasswordDatabaseOperations(unittest.TestCase):
         self.assertEqual(error, "")
 
 
-class TestMemberPasswordIntegration(unittest.TestCase):
+class TestMemberPasswordIntegration(_Base):
     """Test member_password integration with SASL password sync."""
-
-    def setUp(self):
-        self.key = base64.b64encode(os.urandom(32)).decode()
-        os.environ["POSTOFFICE_PASSWORD_KEY"] = self.key
-        self.args = Mock()
-        self.args.issuperuser = False
-
-    def tearDown(self):
-        if "POSTOFFICE_PASSWORD_KEY" in os.environ:
-            del os.environ["POSTOFFICE_PASSWORD_KEY"]
 
     @patch("postoffice.sasl_password.set_sasl_password_for_sync")
     @patch("bbsengine6.database.connect")
@@ -382,19 +381,8 @@ class TestMemberPasswordIntegration(unittest.TestCase):
         mock_delete.assert_not_called()
 
 
-class TestImapAuthenticationFlow(unittest.TestCase):
+class TestImapAuthenticationFlow(_Base):
     """Test full IMAP authentication flow."""
-
-    def setUp(self):
-        self.key = base64.b64encode(os.urandom(32)).decode()
-        os.environ["POSTOFFICE_PASSWORD_KEY"] = self.key
-        self.args = Mock()
-        self.args.issuperuser = False
-        self.args.debug = False
-
-    def tearDown(self):
-        if "POSTOFFICE_PASSWORD_KEY" in os.environ:
-            del os.environ["POSTOFFICE_PASSWORD_KEY"]
 
     @patch("postoffice.sasl_password.get_sasl_password")
     @patch("postoffice.sasl_password.set_sasl_password_for_sync")
@@ -452,18 +440,8 @@ class TestImapAuthenticationFlow(unittest.TestCase):
         self.assertTrue(result)
 
 
-class TestSharedMailboxAuth(unittest.TestCase):
+class TestSharedMailboxAuth(_Base):
     """Test shared mailbox authentication."""
-
-    def setUp(self):
-        self.key = base64.b64encode(os.urandom(32)).decode()
-        os.environ["POSTOFFICE_PASSWORD_KEY"] = self.key
-        self.args = Mock()
-        self.args.issuperuser = False
-
-    def tearDown(self):
-        if "POSTOFFICE_PASSWORD_KEY" in os.environ:
-            del os.environ["POSTOFFICE_PASSWORD_KEY"]
 
     def test_user_can_have_independent_imap_password(self):
         """Test that IMAP password is independent of shell password."""
@@ -493,18 +471,8 @@ class TestSharedMailboxAuth(unittest.TestCase):
         self.assertGreater(len(hash_val), 20)
 
 
-class TestPasswordFallback(unittest.TestCase):
+class TestPasswordFallback(_Base):
     """Test PAM fallback for unmigrated users."""
-
-    def setUp(self):
-        self.key = base64.b64encode(os.urandom(32)).decode()
-        os.environ["POSTOFFICE_PASSWORD_KEY"] = self.key
-        self.args = Mock()
-        self.args.issuperuser = False
-
-    def tearDown(self):
-        if "POSTOFFICE_PASSWORD_KEY" in os.environ:
-            del os.environ["POSTOFFICE_PASSWORD_KEY"]
 
     @patch("bbsengine6.database.connect")
     def test_user_without_sasl_password_triggers_pam_fallback(self, mock_connect):
@@ -548,19 +516,13 @@ class TestPasswordFallback(unittest.TestCase):
         self.assertTrue(result)
 
 
-class TestEndToEndImapFlow(unittest.TestCase):
+class TestEndToEndImapFlow(_Base):
     """End-to-end tests for IMAP authentication flow."""
 
-    def setUp(self):
-        self.key = base64.b64encode(os.urandom(32)).decode()
-        os.environ["POSTOFFICE_PASSWORD_KEY"] = self.key
-        self.args = Mock()
-        self.args.issuperuser = True
-        self.args.debug = False
-
-    def tearDown(self):
-        if "POSTOFFICE_PASSWORD_KEY" in os.environ:
-            del os.environ["POSTOFFICE_PASSWORD_KEY"]
+    def _make_args(self):
+        a = super()._make_args()
+        a.issuperuser = True
+        return a
 
     def test_password_storage_format(self):
         """Test that stored password format works for auth."""
