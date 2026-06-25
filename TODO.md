@@ -4,6 +4,34 @@
 
 - [ ] See `bed/TODO.md` "Bearer token" — adopt `bed.api.auth.AuthService` for BED-mode authentication and reconnect. Replaces per-game `auth` implementations. Mistermcfeely benefits strongly: token-bounded IMAP-style sessions, mail-client reconnection without re-entering the IMAP password. Postoffice (which lives in this repo) gets the same win.
 
+## BED `Sink` integration with `bbsengine6.io` (cross-project)
+
+- [ ] See `bbsengine6/TODO.md` "`bbsengine6.io` sink infrastructure
+  for thin-client BED conversion" (Phases 0–5) — the
+  `bbsengine6.io.sink.Sink` protocol, `set_io_sink` /
+  `reset_io_sink` contextvar API, `bbsengine6.io.echo_render` and
+  `mci.parse` / `mci.render` public functions, and the
+  `MessageRouter` / `MessageRouterMixin` in
+  `bbsengine6/net/router.py`.
+- [ ] See `bed/TODO.md` "BED `Sink` integration with
+  `bbsengine6.io`" — the `BEDSink` (per-connection adapter in
+  `bed/sinks/bed_sink.py`) and the `on_connect_hook` installation
+  point on the `WebSocketServer`. Postoffice's `key_f2`
+  session-level new-messages query is the "new mail" indicator
+  (see `bed/TODO.md` "`key_f2` — session-level new-messages
+  query" for the per-game adoption).
+- [ ] **No code change required for the postoffice `MessageRouter`
+  in v1.** Postoffice can opt into `MessageRouterMixin` later (a
+  one-line change to its class declaration:
+  `class MessageRouter(MessageRouterMixin):`) to gain the session
+  API. v1 ships without the mixin; the BED sink infrastructure
+  works against the bare `postoffice.api.handler.MessageRouter`.
+- [ ] **Backward compat**: door mode (no `BEDSink` installed) uses
+  the default `DefaultSink` behavior, which is the current
+  `bbsengine6.io` behavior byte-for-byte. The
+  `bbsengine6/tests/test_io_backward_compat.py` suite passes for
+  the mistermcfeely door-mode pytest corpus.
+
 ## Tests
 
 - [x] Fix test_postoffice_background_task.py - wrong sys.path and non-existent casino.services.postoffice module imports
