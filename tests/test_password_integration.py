@@ -328,13 +328,13 @@ class TestSharedMailboxPasswordIntegration(unittest.TestCase):
                 "password_type": "inbound",
                 "encrypted_password": "encrypted_data_here",
                 "set_by_moniker": "alice",
-                "updated_at": now,
+                "dateupdated": now,
             },
             {
                 "password_type": "outbound",
                 "encrypted_password": "encrypted_data_here",
                 "set_by_moniker": "bob",
-                "updated_at": now,
+                "dateupdated": now,
             },
         ]
         mock_cursor_class.return_value.__enter__ = Mock(return_value=mock_cursor)
@@ -476,7 +476,9 @@ class TestPasswordAuthIntegration(unittest.TestCase):
 
     @patch("postoffice.shared_mailbox_password.get_shared_mailbox_password")
     @patch("postoffice.password_auth._get_shared_mailbox_default_password")
-    def test_get_auth_password_with_logging(self, mock_get_default, mock_get_per_member):
+    def test_get_auth_password_with_logging(
+        self, mock_get_default, mock_get_per_member
+    ):
         """Test logging function is called on auth failure."""
         mock_get_per_member.return_value = None
         mock_get_default.return_value = None
@@ -494,6 +496,104 @@ class TestPasswordAuthIntegration(unittest.TestCase):
         self.assertIsNone(password)
         mock_log.assert_called_once()
         self.assertIn("Auth failed", mock_log.call_args[0][0])
+
+
+class TestLogentryIntegration(unittest.TestCase):
+    """Integration tests for get_auth_password with real bbsengine6.util.logentry().
+
+    Verifies that when password_auth.get_auth_password() receives a real
+    logentry() function (the canonical Phase 5 logger), auth failures are
+    captured with the new structured format.
+    """
+
+    def setUp(self):
+        self.key = base64.b64encode(os.urandom(32)).decode()
+        os.environ["POSTOFFICE_PASSWORD_KEY"] = self.key
+        self.args = Mock()
+        self.args.issuperuser = False
+        self.mock_conn = MockConnection()
+
+    def tearDown(self):
+        if "POSTOFFICE_PASSWORD_KEY" in os.environ:
+            del os.environ["POSTOFFICE_PASSWORD_KEY"]
+
+    def _make_bound_logentry(self):
+        """Create a partial-wrapped logentry that writes to a fresh StringIO.
+
+        Returns (bound_logentry_fn, buf). The logentry function uses a unique
+        logger name so each test gets a fresh handler.
+        """
+        import logging
+        import io
+        import uuid
+        from functools import partial
+        from bbsengine6 import util as bbsutil
+
+        buf = io.StringIO()
+        handler = logging.StreamHandler(buf)
+        handler.setFormatter(logging.Formatter('%(message)s'))
+        name = f"pwauth_test_{uuid.uuid4().hex[:8]}"
+        logger = logging.getLogger(name)
+        logger.addHandler(handler)
+        logger.setLevel(logging.DEBUG)
+
+        return partial(bbsutil.logentry, logger_name=name), buf
+
+    @patch("postoffice.shared_mailbox_password.get_shared_mailbox_password")
+    @patch("postoffice.password_auth._get_shared_mailbox_default_password")
+    def test_auth_failure_message_reaches_logentry(self, mock_get_default, mock_get_per_member):
+        """Auth failure message body reaches real logentry() and is captured."""
+        mock_get_per_member.return_value = None
+        mock_get_default.return_value = None
+        bound_logentry, buf = self._make_bound_logentry()
+
+        password = password_auth.get_auth_password(
+            self.args,
+            mailbox_id=1,
+            member_moniker="alice",
+            password_type="inbound",
+            requester_moniker="alice",
+            log_entry_fn=bound_logentry,
+        )
+
+        self.assertIsNone(password)
+        output = buf.getvalue()
+        self.assertIn("Auth failed", output)
+        self.assertIn("alice", output)
+        self.assertIn("inbound", output)
+
+    def test_logentry_with_module_kwarg_produces_structured_format(self):
+        """Verify structured [module] format works for password operations."""
+        bound_logentry, buf = self._make_bound_logentry()
+
+        # Call with structured kwargs - the new Phase 5 format
+        bound_logentry(
+            "auth failed",
+            module="postoffice",
+            action="auth_fail",
+            moniker="alice",
+            password_type="inbound",
+        )
+
+        output = buf.getvalue().strip()
+        self.assertIn("[postoffice]", output)
+        self.assertIn("auth_fail", output)
+        self.assertIn("moniker=alice", output)
+        self.assertIn("password_type=inbound", output)
+        self.assertIn("auth failed", output)
+
+    def test_logentry_kwargs_ordering(self):
+        """Verify [module] comes first, action second, message last (rsplit)."""
+        bound_logentry, buf = self._make_bound_logentry()
+        bound_logentry(
+            "trailing message",
+            module="postoffice",
+            action="set",
+        )
+
+        output = buf.getvalue().strip()
+        self.assertTrue(output.startswith("[postoffice] set"))
+        self.assertTrue(output.endswith("trailing message"))
 
 
 class TestPasswordEncryptionIntegration(unittest.TestCase):

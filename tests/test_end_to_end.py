@@ -91,7 +91,7 @@ class TestEndToEndClaimFlow(unittest.TestCase):
         self.key = base64.b64encode(os.urandom(32)).decode()
         os.environ["POSTOFFICE_PASSWORD_KEY"] = self.key
         os.environ["MCFEELY_OBFUSCATE_SECRET"] = "test_obfuscate_secret"
-        
+
         self.args = Mock()
         self.args.debug = True
         self.args.imaphost = "mail.example.com"
@@ -234,7 +234,7 @@ class TestEndToEndFlagObfuscation(unittest.TestCase):
         self.key = base64.b64encode(os.urandom(32)).decode()
         os.environ["POSTOFFICE_PASSWORD_KEY"] = self.key
         os.environ["MCFEELY_OBFUSCATE_SECRET"] = "consistent_secret"
-        
+
         self.args = Mock()
         self.args.debug = False
 
@@ -249,7 +249,7 @@ class TestEndToEndFlagObfuscation(unittest.TestCase):
         secret = os.environ.get("MCFEELY_OBFUSCATE_SECRET")
 
         flag_from_notify = notifyd_client.format_claim_flag(moniker, secret)
-        
+
         flag_from_imap_client = notifyd_client.format_claim_flag(moniker, secret)
 
         self.assertEqual(flag_from_notify, flag_from_imap_client)
@@ -262,14 +262,14 @@ class TestEndToEndFlagObfuscation(unittest.TestCase):
         flag = notifyd_client.format_claim_flag(moniker, secret)
 
         self.assertTrue(flag.startswith("ClaimedBy_"))
-        hex_part = flag[len("ClaimedBy_"):]
+        hex_part = flag[len("ClaimedBy_") :]
         self.assertEqual(len(hex_part), 8)
         self.assertTrue(all(c in "0123456789abcdef" for c in hex_part))
 
     def test_obfuscation_different_secrets_different_flags(self):
         """Test that different secrets produce different flags."""
         moniker = "alice"
-        
+
         flag1 = notifyd_client.format_claim_flag(moniker, "secret1")
         flag2 = notifyd_client.format_claim_flag(moniker, "secret2")
 
@@ -281,10 +281,12 @@ class TestEndToEndFlagObfuscation(unittest.TestCase):
         secret = "verify_secret"
 
         flag = notifyd_client.format_claim_flag(moniker, secret)
-        
+
         self.assertTrue(notifyd_client.verify_claim_flag(flag, moniker, secret))
         self.assertFalse(notifyd_client.verify_claim_flag(flag, "bob", secret))
-        self.assertFalse(notifyd_client.verify_claim_flag(flag, moniker, "wrong_secret"))
+        self.assertFalse(
+            notifyd_client.verify_claim_flag(flag, moniker, "wrong_secret")
+        )
 
 
 class TestEndToEndPasswordFlow(unittest.TestCase):
@@ -293,7 +295,7 @@ class TestEndToEndPasswordFlow(unittest.TestCase):
     def setUp(self):
         self.key = base64.b64encode(os.urandom(32)).decode()
         os.environ["POSTOFFICE_PASSWORD_KEY"] = self.key
-        
+
         self.args = Mock()
         self.args.issuperuser = False
 
@@ -304,7 +306,7 @@ class TestEndToEndPasswordFlow(unittest.TestCase):
     def test_encrypt_decrypt_roundtrip(self):
         """Test password encryption and decryption roundtrip."""
         plaintext = "MySecretPassword123!"
-        
+
         encrypted = password_crypto.encrypt_password(plaintext)
         decrypted = password_crypto.decrypt_password(encrypted)
 
@@ -313,9 +315,9 @@ class TestEndToEndPasswordFlow(unittest.TestCase):
     def test_encrypt_produces_different_ciphertexts(self):
         """Test that each encryption produces unique ciphertext."""
         plaintext = "SamePassword"
-        
+
         ciphertexts = [password_crypto.encrypt_password(plaintext) for _ in range(5)]
-        
+
         self.assertEqual(len(set(ciphertexts)), 5)
 
     @patch("bbsengine6.database.connect")
@@ -358,7 +360,7 @@ class TestEndToEndPasswordFlow(unittest.TestCase):
         """Test password validation with various inputs."""
         self.assertTrue(password_auth.validate_password("inbound", "valid"))
         self.assertTrue(password_auth.validate_password("outbound", "valid"))
-        
+
         self.assertFalse(password_auth.validate_password("inbound", ""))
         self.assertFalse(password_auth.validate_password("outbound", None))
         self.assertFalse(password_auth.validate_password("invalid", "pass"))
@@ -394,7 +396,7 @@ class TestEndToEndIMAPMonitoring(unittest.TestCase):
         """Test getting UIDs and flags from mailbox."""
         mock_imap = MagicMock()
         mock_imap_class.return_value = mock_imap
-        
+
         mock_imap.uid.side_effect = [
             ("OK", [b"1 2 3 4 5"]),
             ("OK", [b"1 (FLAGS (\\Seen))"]),
@@ -424,7 +426,7 @@ class TestEndToEndIMAPMonitoring(unittest.TestCase):
         stored = {"\\Seen"}
 
         added, removed = imap_lib.detect_flag_changes(current, stored)
-        
+
         self.assertEqual(added, {"\\Flagged", "ClaimedBy_alice"})
         self.assertEqual(removed, set())
 
@@ -439,7 +441,11 @@ class TestEndToEndNotificationRouting(unittest.TestCase):
     def test_render_all_event_types(self):
         """Test rendering messages for all event types."""
         test_cases = [
-            ("message-new", None, {"from": "test@example.com", "subject": "Help", "message_uid": 1}),
+            (
+                "message-new",
+                None,
+                {"from": "test@example.com", "subject": "Help", "message_uid": 1},
+            ),
             ("message-claimed", "alice", {"message_uid": 123}),
             ("message-unclaimed", "bob", {"message_uid": 456}),
             ("message-flagged", "charlie", {"flag_name": "\\Seen", "added": True}),
@@ -462,8 +468,12 @@ class TestEndToEndNotificationRouting(unittest.TestCase):
     def test_render_special_characters(self):
         """Test rendering with special characters."""
         rendered = notifyd_client.render_event_message(
-            "message-new", None, 
-            {"from": "te+st@example.com", "subject": "Re: <URGENT> Test (urgent) & stuff"}
+            "message-new",
+            None,
+            {
+                "from": "te+st@example.com",
+                "subject": "Re: <URGENT> Test (urgent) & stuff",
+            },
         )
         self.assertIsNotNone(rendered)
         self.assertIsInstance(rendered, str)
@@ -483,8 +493,13 @@ class TestEndToEndEventTypes(unittest.TestCase):
         ]
 
         for event_type in expected_types:
-            self.assertTrue(hasattr(events.EventType, event_type.replace("-", "_").upper()))
-            self.assertEqual(getattr(events.EventType, event_type.replace("-", "_").upper()).value, event_type)
+            self.assertTrue(
+                hasattr(events.EventType, event_type.replace("-", "_").upper())
+            )
+            self.assertEqual(
+                getattr(events.EventType, event_type.replace("-", "_").upper()).value,
+                event_type,
+            )
 
     def test_event_types_are_strings(self):
         """Test event types are string enums."""
@@ -541,6 +556,147 @@ class TestEndToEndAuditLogging(unittest.TestCase):
         )
 
         self.assertTrue(result)
+
+
+class TestEndToEndLogentryIntegration(unittest.TestCase):
+    """End-to-end integration tests for audit_log + password_auth + real bbsengine6.util.logentry().
+
+    Verifies that the full logging pipeline (audit_log -> logentry) produces the
+    expected structured output and that the new Phase 5 format works in real flows.
+    """
+
+    def _make_bound_logentry(self):
+        """Create a logentry partial bound to a unique StringIO capture."""
+        import logging
+        import io
+        import uuid
+        from functools import partial
+        from bbsengine6 import util as bbsutil
+
+        buf = io.StringIO()
+        handler = logging.StreamHandler(buf)
+        handler.setFormatter(logging.Formatter('%(message)s'))
+        name = f"e2e_logentry_{uuid.uuid4().hex[:8]}"
+        logger = logging.getLogger(name)
+        logger.addHandler(handler)
+        logger.setLevel(logging.DEBUG)
+        return partial(bbsutil.logentry, logger_name=name), buf
+
+    def test_audit_log_through_real_logentry(self):
+        """Full pipeline: audit_log.log_password_operation -> real logentry() -> captured."""
+        bound_logentry, buf = self._make_bound_logentry()
+
+        result = audit_log.log_password_operation(
+            action="set",
+            target_type="personal",
+            target_moniker="alice",
+            password_type="inbound",
+            performed_by="alice",
+            log_entry_fn=bound_logentry,
+        )
+
+        self.assertTrue(result)
+        output = buf.getvalue()
+        self.assertIn("[PASSWORD] SET", output)
+        self.assertIn("type=personal", output)
+        self.assertIn("member=alice", output)
+        self.assertIn("pwd_type=inbound", output)
+        self.assertIn("by=alice", output)
+
+    def test_auth_failure_through_real_logentry(self):
+        """Full pipeline: audit_log.log_auth_failure -> real logentry() -> captured."""
+        bound_logentry, buf = self._make_bound_logentry()
+
+        result = audit_log.log_auth_failure(
+            member_moniker="bob",
+            password_type="outbound",
+            reason="invalid password",
+            mailbox_id=42,
+            log_entry_fn=bound_logentry,
+        )
+
+        self.assertTrue(result)
+        output = buf.getvalue()
+        self.assertIn("[PASSWORD] AUTH_FAIL", output)
+        self.assertIn("type=shared_mailbox", output)
+        self.assertIn("member=bob", output)
+        self.assertIn("mailbox_id=42", output)
+        self.assertIn("reason=invalid password", output)
+
+    def test_audit_log_with_structured_kwargs_produces_module_format(self):
+        """When callers use the new structured kwargs, output is the [module] format."""
+        bound_logentry, buf = self._make_bound_logentry()
+
+        # Direct call to logentry with structured kwargs (Phase 5 format)
+        bound_logentry(
+            "auth failure occurred",
+            module="postoffice",
+            action="auth_fail",
+            moniker="alice",
+            password_type="inbound",
+        )
+
+        output = buf.getvalue().strip()
+        self.assertIn("[postoffice]", output)
+        self.assertIn("auth_fail", output)
+        self.assertIn("moniker=alice", output)
+        self.assertIn("password_type=inbound", output)
+        self.assertIn("auth failure occurred", output)
+
+    def test_password_auth_failure_pipeline(self):
+        """password_auth.get_auth_password -> audit_log.log_auth_failure -> real logentry."""
+        from functools import partial
+        from unittest.mock import patch
+
+        from postoffice import password_auth
+
+        # Set up env
+        import os, base64
+        key = base64.b64encode(os.urandom(32)).decode()
+        os.environ["POSTOFFICE_PASSWORD_KEY"] = key
+
+        try:
+            bound_logentry, buf = self._make_bound_logentry()
+            args = Mock()
+            args.issuperuser = False
+
+            with patch("postoffice.shared_mailbox_password.get_shared_mailbox_password", return_value=None), \
+                 patch("postoffice.password_auth._get_shared_mailbox_default_password", return_value=None):
+                password = password_auth.get_auth_password(
+                    args,
+                    mailbox_id=1,
+                    member_moniker="alice",
+                    password_type="inbound",
+                    requester_moniker="alice",
+                    log_entry_fn=bound_logentry,
+                )
+
+            self.assertIsNone(password)
+            output = buf.getvalue()
+            self.assertIn("Auth failed", output)
+            self.assertIn("alice", output)
+            self.assertIn("mailbox 1", output)
+        finally:
+            del os.environ["POSTOFFICE_PASSWORD_KEY"]
+
+    def test_logentry_no_structured_kwargs_logs_message_unchanged(self):
+        """BC mode: logentry with no kwargs just logs the message as-is."""
+        bound_logentry, buf = self._make_bound_logentry()
+
+        bound_logentry("plain message without any structure")
+
+        self.assertEqual(buf.getvalue().strip(), "plain message without any structure")
+
+    def test_logentry_with_only_action(self):
+        """When only action is given, no [module] prefix appears."""
+        bound_logentry, buf = self._make_bound_logentry()
+
+        bound_logentry("test", action="set")
+
+        output = buf.getvalue().strip()
+        self.assertIn("set", output)
+        self.assertIn("test", output)
+        self.assertNotIn("[]", output)
 
 
 class TestEndToEndCredentialRetrieval(unittest.TestCase):
@@ -682,7 +838,7 @@ class TestEndToEndConnectionPooling(unittest.TestCase):
         from postoffice import lib
 
         explicit_conn = Mock()
-        
+
         use_conn, should_close = lib.get_db_connection(self.args, conn=explicit_conn)
 
         self.assertIs(use_conn, explicit_conn)
@@ -696,7 +852,7 @@ class TestEndToEndConnectionPooling(unittest.TestCase):
         mock_conn = Mock()
         mock_pool = Mock()
         mock_connect.return_value = mock_conn
-        
+
         use_conn, should_close = lib.get_db_connection(self.args, pool=mock_pool)
 
         self.assertIs(use_conn, mock_conn)
@@ -749,8 +905,16 @@ class TestEndToEndEventPayloadValidation(unittest.TestCase):
 
         test_data = {
             "message-new": {"mailbox_name": "test", "message_uid": 1},
-            "message-claimed": {"mailbox_name": "test", "message_uid": 1, "actor_moniker": "alice"},
-            "message-unclaimed": {"mailbox_name": "test", "message_uid": 1, "actor_moniker": "alice"},
+            "message-claimed": {
+                "mailbox_name": "test",
+                "message_uid": 1,
+                "actor_moniker": "alice",
+            },
+            "message-unclaimed": {
+                "mailbox_name": "test",
+                "message_uid": 1,
+                "actor_moniker": "alice",
+            },
             "message-flagged": {"mailbox_name": "test", "message_uid": 1},
             "message-deleted": {"mailbox_name": "test", "message_uid": 1},
         }
