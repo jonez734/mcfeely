@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # mistermcfeely/tests/test_postoffice_config.py
 # Tests for postoffice configuration loading
-# (Moved from casino - depends on casino.config and casino.services.postoffice)
+# (Now uses postoffice.services from mistermcfeely)
 
 import json
 import os
@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-sys.path.insert(0, "/home/opencode/data/work/casino/src")
+sys.path.insert(0, "/home/opencode/data/work/mistermcfeely/src")
 
 
 class TestPostofficeConfig(unittest.TestCase):
@@ -168,36 +168,36 @@ class TestPostofficeConfig(unittest.TestCase):
 
 
 class TestPostofficeServiceConfig(unittest.TestCase):
-    """Test that PostofficeService uses config correctly."""
+    """Test that MailboxPoller uses config correctly."""
 
     def test_service_disabled_by_default(self):
-        """Test service is disabled when enabled=false in config."""
-        from postoffice.service import PostofficeService
+        """Test poller is disabled when enabled=false in config."""
+        from postoffice.services import MailboxPoller
 
-        service = PostofficeService(config={"enabled": False, "poll_interval": 30, "mailboxes": []})
-        self.assertFalse(service.is_enabled)
-        self.assertEqual(service.poll_interval, 30)
+        poller = MailboxPoller(config={"enabled": False, "poll_interval": 30, "mailboxes": []})
+        self.assertFalse(poller.is_enabled)
+        self.assertEqual(poller.poll_interval, 30)
 
     def test_service_enabled_when_configured(self):
-        """Test service is enabled when enabled=true in config."""
-        from postoffice.service import PostofficeService
+        """Test poller is enabled when enabled=true in config."""
+        from postoffice.services import MailboxPoller
 
-        service = PostofficeService(config={"enabled": True, "poll_interval": 60, "mailboxes": []})
-        self.assertTrue(service.is_enabled)
-        self.assertEqual(service.poll_interval, 60)
+        poller = MailboxPoller(config={"enabled": True, "poll_interval": 60, "mailboxes": []})
+        self.assertTrue(poller.is_enabled)
+        self.assertEqual(poller.poll_interval, 60)
 
     def test_mailboxes_loaded_from_config(self):
-        """Test mailboxes are loaded from config into service."""
-        from postoffice.service import PostofficeService, MailboxConfig
+        """Test mailboxes are loaded from config into poller."""
+        from postoffice.services import MailboxPoller, MailboxConfig
 
         mailboxes = [
             {"host": "imap.test.com", "username": "user", "password": "pass", "use_ssl": True}
         ]
-        service = PostofficeService(config={"enabled": True, "poll_interval": 30, "mailboxes": mailboxes})
+        poller = MailboxPoller(config={"enabled": True, "poll_interval": 30, "mailboxes": mailboxes})
 
-        self.assertEqual(len(service._mailboxes), 1)
-        self.assertIsInstance(service._mailboxes[0], MailboxConfig)
-        self.assertEqual(service._mailboxes[0].host, "imap.test.com")
+        self.assertEqual(len(poller.mailboxes), 1)
+        self.assertIsInstance(poller.mailboxes[0], MailboxConfig)
+        self.assertEqual(poller.mailboxes[0].host, "imap.test.com")
 
 
 def run_tests():
