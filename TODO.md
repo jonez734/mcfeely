@@ -1,5 +1,9 @@
 # TODO
 
+## BED bearer token
+
+- [ ] See `bed/TODO.md` "Bearer token" — adopt `bed.api.auth.AuthService` for BED-mode authentication and reconnect. Replaces per-game `auth` implementations. Mistermcfeely benefits strongly: token-bounded IMAP-style sessions, mail-client reconnection without re-entering the IMAP password. Postoffice (which lives in this repo) gets the same win.
+
 ## Tests
 
 - [x] Fix test_postoffice_background_task.py - wrong sys.path and non-existent casino.services.postoffice module imports
@@ -7,6 +11,12 @@
   - [x] test_audit_log.py - TestLogentryIntegration (8 tests)
   - [x] test_password_integration.py - TestLogentryIntegration (3 tests)
   - [x] test_end_to_end.py - TestEndToEndLogentryIntegration (6 tests)
+- [x] Make test_email_auth_integration.py pass cleanly (31 passed, 0 warnings, 0 shutdown errors)
+  - [x] Pin `generate_crypt_hash` to rounds=5000 in `src/postoffice/sasl_password.py` so passlib emits the classic 4-part `$6$<salt>$<hash>` format the tests assert on
+  - [x] Refactor `tests/test_email_auth_integration.py` to share setUp/tearDown via a `_Base` class that patches `bbsengine6.database.getpool`, eliminating the `psycopg.pool` "invalid connection option" warnings and `PythonFinalizationError` tracebacks from a real `ConnectionPool` racing interpreter finalization
+  - [x] Replace deprecated stdlib `crypt` usage in `src/mcfeely_authd/auth_verify.py` with `passlib.hash.sha512_crypt.verify` and drop the now-unused `import crypt` (and its `filterwarnings` shim) from the test file
+  - Runtime dropped from ~5.7s to 0.18s
+  - Committed as `09b027e`
 
 ## Restructure
 
