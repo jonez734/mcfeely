@@ -131,6 +131,15 @@ artificial.
 
 ## Cross-project: casino ↔ postoffice coupling
 
+> **Cross-reference (unrelated to postoffice):** the casino's
+> "Rework: route per-hand money through the bank" plan
+> (see `casino/TODO.md`) affects the bank account model in
+> `bbsengine6.bank` and the `bank.__account` schema.
+> mistermcfeely's postoffice service does not write to
+> `engine.__member.credits` and is unaffected at the API
+> level, but the bank account model changes will propagate
+> through the bank package (`bbsengine6/TODO.md` Phase 7).
+
 `casino/src/casino/api/handler.py:1281` hard-imports
 `postoffice.service.get_postoffice_service` so the casino BED
 `MessageRouter` can register a `check_mail` service that asks the
