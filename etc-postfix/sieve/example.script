@@ -1,0 +1,10 @@
+# example.script - Sample user Sieve script
+# Copy to /var/lib/imap/sieve/user@domain/user.script
+
+require ["fileinto"];
+
+# Example: Move mailing list to folder
+# if header :contains "list-id" "<dev-list>" {
+#     fileinto "INBOX.Lists.Dev";
+#     stop;
+# }

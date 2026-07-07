@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mistermcfeely"
+dynamic = ["version"]
+description = "Mister McFeely's Post Office - email management for BBS"
+requires-python = ">=3.9"
+dependencies = [
+    "bbsengine6",
+    "cryptography>=41.0.0",
+]
+
+[tool.setuptools]
+packages = ["postoffice"]
+
+[tool.setuptools.package-dir]
+"postoffice" = "src/postoffice"
+
+[tool.setuptools.dynamic]
+version = { attr = "postoffice._version.__version__" }
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: tests that require external services (e.g., IMAP server)",
+]

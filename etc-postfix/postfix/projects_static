@@ -1,0 +1,12 @@
+# projects_static - Static fallback for projects.zoidtechnologies.com addresses
+# STAGED CONFIGURATION - review before deploying to /etc/postfix/
+#
+# Format: address destination
+# Example:
+#   webmaster@projects.zoidtechnologies.com  admin@zoidtechnologies.com
+#   listname@projects.zoidtechnologies.com    listname@mailman.zoidtechnologies.com
+#
+# To enable: uncomment entries and add to main.cf:
+#   virtual_alias_maps = hash:/etc/postfix/projects_static
+#
+# After editing: postmap /etc/postfix/projects_static && postfix reload
