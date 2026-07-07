@@ -1,0 +1,250 @@
+# postfix/master.cf - Postfix master.cf for LMTP transport to Cyrus
+# Staged configuration - review before deploying to /etc/postfix/
+
+# Postfix master process configuration file
+# This file contains services that Postfix can run
+
+# ==========================================================================
+# service type  private?  unpriv?  chroot?  command
+# ==========================================================================
+
+# Standard SMTP service - receives mail from external sources
+smtp      inet  n       -       n       -       -       smtpd
+
+# Submission port (port 587) for authenticated mail submission
+submission inet n       -       n       -       -       smtpd
+  -o smtpd_enforce_tls=yes
+  -o smtpd_sasl_auth_enable=yes
+  -o smtpd_recipient_restrictions=permit_sasl_authenticated,reject
+
+# SMTPS (port 465) - older submission method
+smtps     inet  n       -       n       -       -       smtpd
+  -o smtpd_tls_wrappermode=yes
+  -o smtpd_sasl_auth_enable=yes
+  -o smtpd_recipient_restrictions=permit_sasl_authenticated,reject
+
+# Local delivery via LMTP to Cyrus
+# Using UNIX socket
+lmtp      unix  -       n       n       -       -       lmtp
+  -o fallback_notify_classes=
+
+# LMTP via TCP (alternative to UNIX socket)
+# lmtp      inet  n       -       n       -       -       lmtp
+
+# Maildrop local delivery (fallback if cyrus unavailable)
+drop      unix  n       -       n       -       -       drop
+  -o virtual_alias_maps=
+  -o local_recipient_maps=
+  -o relay_domains=
+
+# Cleanup service
+cleanup   unix  n       -       n       -       0       cleanup
+
+# Rewrite service
+rewrite   unix  n       -       n       -       -       trivial-rewrite
+
+# Local delivery
+local     unix  n       n       n       -       local
+  -o mail_spool_directory=/var/mail
+
+# Virtual delivery (for virtual domains)
+virtual   unix  n       -       n       -       virtual
+
+# Pipe to external command (for procmail, etc.)
+procmail  unix  n       n       n       -       0       procmail
+
+# QMQP (very old protocol, not commonly used)
+qmqp     inet  n       -       n       -       -       qmqpd
+
+# Loopback interface
+127.0.0.1      localhost      n       n       n       -       0       smtp
+  -o smtp_bind_address=127.0.0.1
+  -o smtp_bind_address2=
+  -o smtp_helo_name=$myhostname
+  -o smtp_hostname=$myhostname
+  -o receive_override_options=no_address_mapped
+
+# Pickup from maildrop
+pickup    fifo  n       n       n       60      pickup
+  -o content_filter=
+  -o receive_override_options=no_header_body_checks
+
+# Trivial rewrite
+trivial-rewrite unix n - - - trivialrewrite
+
+# Header cleanup
+cleanup unix n - - - cleanup
+
+# bounces
+bounce    unix  n       -       n       -       0       bounce
+
+# defer
+defer     unix  n       -       n       -       0       bounce
+
+# trace
+trace     unix  n       -       n       -       0       bounce
+
+# verify
+verify    unix  n       -       n       -       1       verify
+
+# flush
+flush     unix  n       -       n       1000?    0       flush
+
+# proxymap
+proxymap  unix  n       -       n       -       -       proxymap
+
+# proxywrite
+proxywrite unix n       -       n       -       1       proxymap
+
+# smtp
+smtp      unix  -       -       n       -       -       smtp
+
+# relay
+relay     unix  -       -       n       -       -       smtp
+
+# showq (show queues)
+showq     unix  n       -       n       -       -       showq
+
+# error
+error     unix  n       -       n       -       -       error
+
+# retry
+retry     unix  n       -       n       -       -       error
+
+# discard
+discard   unix  n       -       n       -       -       discard
+
+# lmtp local delivery
+local     unix  -       n       n       -       -       lmtp
+
+# anvil
+anvil     unix  -       -       n       -       1       anvil
+
+# scache
+scache    unix  -       -       n       -       1       scache
+
+# postlogd (Postfix >= 3.8)
+postlogd  unix  n       -       n       -       1       postlogd
+
+# trivial-rewrite
+rewrite   unix  -       -       -       -       trivial-rewrite
+
+# qmqpd (very rarely used)
+qmqp      unix  -       -       n       -       -       qmqpd
+
+# tlsmgr (TLS session cache)
+tlsmgr    unix  -       -       n       1000?    60      tlsmgr
+
+# tlsmgr (alternative path)
+tlsmgr    unix  -       -       n       1000?    60      tlsmgr -l
+
+# tlsmgr (another variant)
+tlsmgr    unix  -       -       n       -       1       tlsmgr
+
+# dnsblog (DNS blacklist verification)
+dnsblog   unix  -       -       n       -       0       dnsblog
+
+# tlsproxy (TLS proxying)
+tlsproxy  unix  -       -       n       -       -       tlsproxy
+
+# postscreen services
+smtp      unix  -       -       n       -       1       postscreen
+  -o smtp_send_early_talk=yes
+
+tlsmgr    unix  -       -       n       -       1000?   25      tlsmgr
+
+dnsblog   unix  -       -       n       -       0       dnsblog
+
+tlsproxy  unix  -       -       n       -       0       tlsproxy
+
+# postscreen variants
+postscreen unix  -       n       n       -       0       postscreen
+  -o smtp_age_selector=no
+  -o smtp_connect_selector=no
+
+postscreen unix  -       n       n       -       0       postscreen
+
+postscreen unix  -       n       n       -       1       postscreen
+  -o postscreen_cache_map=proxy:btree:/var/lib/postfix/postscreen_cache
+
+postscreen unix  -       n       n       -       -       postscreen
+  -o postscreen_upstream_proxy_command=
+
+# Policy delegation
+policyd-spf unix -       n       n       -       0       spawn
+  user=postfix argv=/usr/libexec/postfix/policyd-spf
+
+# greylisting (if using postgrey)
+postgrey  unix  -       n       n       -       -       spawn
+  user=postgrey argv=/usr/bin/postgrey
+  --inet=127.0.0.1:10023
+
+# amavis content filter
+smtp      inet  n       -       n       -       -       smtpd
+  -o content_filter=amavis:[127.0.0.1]:10024
+
+amavis    unix  -       -       n       -       2       smtp
+  -o smtp_data_done_timeout=120s
+  -o smtp_send_xforward_command=yes
+  -o content_filter=
+
+127.0.0.1:10025 inet n  -       n       -       -       smtpd
+  -o content_filter=
+  -o local_recipient_maps=
+  -o relay_recipient_maps=
+  -o smtpd_restriction_classes=
+  -o smtpd_delay_reject=no
+  -o smtpd_client_restrictions=
+  -o smtpd_helo_restrictions=
+  -o smtpd_sender_restrictions=
+  -o smtpd_recipient_restrictions=permit_mynetworks,reject
+  -o smtpd_relay_restrictions=permit_mynetworks,reject
+  -o mynetworks=127.0.0.0/8
+  -o smtpd_tls_security_level=encrypt
+  -o receive_override_options=no_unknown_recipient_checks,no_header_body_checks
+
+# ClamAV milter (if using)
+smtp      unix  -       -       n       -       -       smtpd
+  -o content_filter=clamav:127.0.0.1:10026
+
+clamav    unix  -       -       n       -       -       smtp
+  -o smtp_send_xforward_command=yes
+
+127.0.0.1:10027 inet n  -       n       -       -       smtpd
+  -o content_filter=
+  -o local_recipient_maps=
+  -o smtpd_restriction_classes=
+  -o smtpd_recipient_restrictions=permit_mynetworks,reject
+  -o mynetworks=127.0.0.0/8
+  -o receive_override_options=no_unknown_recipient_checks
+
+# uucp transport (legacy)
+uucp      unix  n       n       n       -       n       uucp
+  -o uucp_program_path=/usr/libexec/uucp/uux
+  -o uucp_directory=/var/spool/uucp
+  -o mail_spool_directory=/var/spool/uucppublic
+
+# Old style-external delivery
+ifmail    unix  n       n       n       -       -       ifmail
+
+# BSMTP (batch SMTP)
+bsmtp     unix  n       n       n       -       -       bsmtp
+  -o bsmtp_program=/usr/libexec/bsmtp/bsmtp
+  -o bsmtp_timeouts=3
+  -o bsmtp_newline_lookaround=3
+
+# scalemail (scalable email)
+scalemail  unix  -       n       n       -       2       smtp
+  -o smtp_data_done_timeout=200s
+  -o smtp_extra_recipient_limit=100
+
+# mailman integration (if using Mailman)
+mailman   unix  -       n       n       -       -       mailman
+  -o mail_spool_directory=/var/lib/mailman/data
+  -o virtual_alias_maps=hash:/var/lib/mailman/data/postfix_lmtp
+  -o alias_maps=hash:/etc/aliases
+  -o relay_domains=hash:/var/lib/mailman/data/postfix_domains
+
+# ========================================================================
+# End of master.cf
+# ========================================================================

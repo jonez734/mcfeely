@@ -1,0 +1,13 @@
+# projects_pgsql.cf - PostgreSQL lookup for projects.zoidtechnologies.com addresses
+# Primary source for virtual alias mappings
+# Postfix queries this file to resolve project addresses to destinations
+
+dbname = zoid6
+user = postfix
+password = CHANGEME
+host = 127.0.0.1
+port = 5432
+
+# Query: resolve address to destination
+# Returns destination if address exists and is enabled
+query = SELECT destination FROM mistermcfeely.project WHERE address = '%s' AND enabled = true

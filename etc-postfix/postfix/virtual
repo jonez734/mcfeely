@@ -1,0 +1,15 @@
+# postfix/virtual - Virtual alias mappings for Postfix
+# Staged configuration - review before deploying to /etc/postfix/
+#
+# Format: alias@domain destination@domain
+# After editing, run: postmap /etc/postfix/virtual
+
+# Example virtual aliases
+# user@example.com    actualuser
+# catchall@example.com    admin@example.com
+
+# To enable catchall for a domain:
+# @example.com        defaultuser
+
+# To forward all mail for a domain to external address:
+# @olddomain.com      newuser@newdomain.com

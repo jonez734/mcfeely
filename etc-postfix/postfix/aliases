@@ -1,0 +1,17 @@
+# postfix/aliases - Local alias database for Postfix
+# Staged configuration - review before deploying to /etc/aliases
+#
+# Format: alias: destination
+# After editing, run: newaliases or postalias /etc/aliases
+
+# Root mail to admin user
+root: admin
+
+# Standard aliases
+postmaster: root
+abuse: root
+spam: /dev/null
+
+# BBS-related aliases (example)
+bbs: bbsuser
+bbs-admin: admin
