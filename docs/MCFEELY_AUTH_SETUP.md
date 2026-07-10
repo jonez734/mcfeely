@@ -16,7 +16,7 @@ IMAP Client → Cyrus IMAP → saslauthd → mcfeely-authd → PostgreSQL (sasl_
 ## Prerequisites
 
 - Python 3.9+
-- PostgreSQL client library (`psycopg2`)
+- PostgreSQL client library (`psycopg` v3)
 - Cyrus SASL (`cyrus-sasl` and `cyrus-saslauthd`)
 - PostgreSQL server with `zoid6test` database
 
@@ -26,7 +26,7 @@ IMAP Client → Cyrus IMAP → saslauthd → mcfeely-authd → PostgreSQL (sasl_
 
 ```bash
 # Python packages
-pip install psycopg2-binary
+pip install psycopg[binary]
 
 # Cyrus SASL
 dnf install cyrus-sasl cyrus-sasl-saslauthd  # Fedora/RHEL
