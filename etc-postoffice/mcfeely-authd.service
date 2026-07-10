@@ -2,9 +2,8 @@
 # Systemd unit for mcfeely-authd SASL authentication daemon
 # Installs: sudo cp this file to /etc/systemd/system/
 # Prereq: postoffice user must exist. Create with:
-#   sudo useradd -r -d /var/run/mcfeely-authd -s /sbin/nologin postoffice
-#   sudo mkdir -p /var/run/mcfeely-authd /var/log/mcfeely-authd.log
-#   sudo chown postoffice:postoffice /var/run/mcfeely-authd /var/log/mcfeely-authd.log
+#   sudo useradd -r -d /var/lib/postoffice -s /sbin/nologin postoffice
+# Or use systemd-sysusers: sudo systemd-sysusers postoffice.sysusers
 
 [Unit]
 Description=mcfeely-authd SASL authentication daemon for mistermcfeely
@@ -13,13 +12,21 @@ After=network.target postgresql.service
 Wants=postgresql.service
 
 [Service]
-Type=forking
+Type=simple
 User=postoffice
 Group=postoffice
-ExecStart=/home/opencode/.venv/bin/python -m mcfeely_authd --config /etc/mcfeely-authd.conf
-PIDFile=/var/run/mcfeely-authd/mcfeely-authd.pid
+WorkingDirectory=/var/lib/postoffice
+
+ExecStart=/var/lib/postoffice/venv/bin/mcfeely-authd --foreground --config /etc/mcfeely-authd.conf
+
+ExecReload=/bin/kill -HUP $MAINPID
+
 Restart=on-failure
 RestartSec=5s
+
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30s
 
 RuntimeDirectory=mcfeely-authd
 RuntimeDirectoryMode=0755
@@ -28,6 +35,7 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=mcfeely-authd
 
+NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true

@@ -12,11 +12,15 @@ dependencies = [
     "cryptography>=41.0.0",
 ]
 
+[project.scripts]
+mcfeely-authd = "mcfeely_authd.mcfeely_authd:main"
+
 [tool.setuptools]
-packages = ["postoffice"]
+packages = ["postoffice", "mcfeely_authd"]
 
 [tool.setuptools.package-dir]
 "postoffice" = "src/postoffice"
+"mcfeely_authd" = "src/mcfeely_authd"
 
 [tool.setuptools.dynamic]
 version = { attr = "postoffice._version.__version__" }

@@ -1,0 +1,3 @@
+# Type Name ID GECOS              Home              Shell
+u     postoffice -  "Postoffice SASL Auth Daemon" /var/lib/postoffice -
+g     postoffice -  -

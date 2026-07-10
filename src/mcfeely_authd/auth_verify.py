@@ -22,13 +22,13 @@ def _get_crypt_hash(username: str, cfg: config.Config) -> Optional[str]:
     db_args = cfg.get_database_args()
 
     try:
-        import psycopg2
+        import psycopg
     except ImportError:
         return None
 
     conn = None
     try:
-        conn = psycopg2.connect(**db_args)
+        conn = psycopg.connect(**db_args)
         cur = conn.cursor()
 
         cur.execute(
@@ -171,13 +171,13 @@ def get_user_info(username: str, cfg: config.Config) -> Optional[dict]:
     db_args = cfg.get_database_args()
 
     try:
-        import psycopg2
+        import psycopg
     except ImportError:
         return None
 
     conn = None
     try:
-        conn = psycopg2.connect(**db_args)
+        conn = psycopg.connect(**db_args)
         cur = conn.cursor()
 
         cur.execute(
