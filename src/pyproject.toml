@@ -40,13 +40,14 @@ dev = [
 [project.scripts]
 postoffice = "postoffice.__main__:main"
 mistermcfeely-password-tui = "postoffice.password.__init__:main"
+mcfeely-authd = "mcfeely_authd.mcfeely_authd:main"
 
 [project.urls]
 Homepage = "https://repo.zoidtechnologies.com/postoffice/"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["postoffice*"]
+include = ["postoffice*", "mcfeely_authd*"]
 
 [tool.setuptools.dynamic]
 version = { attr = "postoffice._version.__version__" }
