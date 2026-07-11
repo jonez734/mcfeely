@@ -17,8 +17,10 @@ IMAP Client → Cyrus IMAP → saslauthd → mcfeely-authd → PostgreSQL (sasl_
 
 - Python 3.9+
 - PostgreSQL client library (`psycopg` v3)
+- `passlib` (SHA-512 password hashing)
 - Cyrus SASL (`cyrus-sasl` and `cyrus-saslauthd`)
 - PostgreSQL server with `zoid6test` database
+- SELinux tools (`policycoreutils-python-utils`) on Fedora/RHEL
 
 ## Installation
 
@@ -26,11 +28,14 @@ IMAP Client → Cyrus IMAP → saslauthd → mcfeely-authd → PostgreSQL (sasl_
 
 ```bash
 # Python packages
-pip install psycopg[binary]
+pip install psycopg[binary] passlib
 
 # Cyrus SASL
 dnf install cyrus-sasl cyrus-sasl-saslauthd  # Fedora/RHEL
 apt install sasl2-bin                          # Debian/Ubuntu
+
+# SELinux tools (Fedora/RHEL only)
+dnf install policycoreutils-python-utils
 ```
 
 ### 2. Create Database Schema
@@ -42,22 +47,59 @@ psql -d zoid6test -f /path/to/mistermcfeely/sql/sasl_password.sql
 
 ### 3. Install mcfeely-authd
 
+Use the Makefile targets (requires sudo):
+
 ```bash
-# Copy daemon to system location
-sudo cp src/mcfeely_authd/mcfeely_authd.py /usr/local/bin/mcfeely-authd
-sudo chmod +x /usr/local/bin/mcfeely-authd
+# Create postoffice user/group
+make install-sysusers
 
-# Create socket directory
-sudo mkdir -p /var/run/mcfeely-authd
-sudo chown postoffice:postoffice /var/run/mcfeely-authd
+# Create runtime directories
+make install-tmpfiles
 
-# Create log directory
-sudo mkdir -p /var/log/mcfeely-authd
-sudo chown postoffice:postoffice /var/log/mcfeely-authd
+# Create venv and install mistermcfeely wheel
+make install-venv
+
+# Install systemd unit
+make install-systemd
+
+# Install config files
+make install-etc
+
+# Or run everything at once:
+make install
+```
+
+Or run the full install manually:
+
+```bash
+# Create venv and install
+sudo -u postoffice python3.12 -m venv /var/lib/postoffice/venv
+sudo -u postoffice /var/lib/postoffice/venv/bin/pip install mistermcfeely
+
+# SELinux: relabel venv binaries so systemd can execute them
+sudo semanage fcontext -a -t bin_t "/var/lib/postoffice/venv/bin(/.*)?"
+sudo restorecon -R /var/lib/postoffice/venv/bin/
 
 # Copy configuration
 sudo cp etc-postoffice/mcfeely-authd.conf /etc/mcfeely-authd.conf
 ```
+
+#### SELinux
+
+On systems with SELinux enforcing (Fedora, RHEL, CentOS), the venv binaries
+under `/var/lib/postoffice/venv/bin/` get labeled `var_lib_t` by default.
+systemd cannot execute scripts with this context — it causes a 203/EXEC error.
+
+`make install-venv` adds a `semanage` rule and runs `restorecon` automatically
+when available. If you install manually, run:
+
+```bash
+sudo semanage fcontext -a -t bin_t "/var/lib/postoffice/venv/bin(/.*)?"
+sudo restorecon -R /var/lib/postoffice/venv/bin/
+```
+
+Without `semanage`, `restorecon` will restore the default `var_lib_t` label
+and the 203 error will persist.
 
 ### 4. Configure saslauthd
 
@@ -84,26 +126,10 @@ sudo /usr/local/bin/mcfeely-authd --foreground
 
 ### 6. Create systemd Service (optional)
 
-Create `/etc/systemd/system/mcfeely-authd.service`:
-
-```ini
-[Unit]
-Description=mcfeely-authd SASL Authentication Daemon
-After=network.target postgresql.service
-
-[Service]
-Type=simple
-User=postoffice
-Group=postoffice
-ExecStart=/usr/local/bin/mcfeely-authd
-Restart=on-failure
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
+Install with `make install-systemd` or manually:
 
 ```bash
+sudo cp etc-postoffice/mcfeely-authd.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable mcfeely-authd
 sudo systemctl start mcfeely-authd
@@ -269,6 +295,23 @@ Both use the same `postoffice.sasl_password` table for password lookup.
 
 ## Troubleshooting
 
+### SELinux: 203/EXEC or 226/NAMESPACE Errors
+
+On SELinux-enforcing systems, the venv must be relabeled after install.
+A bare `restorecon` won't work — it restores the default `var_lib_t` label
+for `/var/lib/*`. You need `semanage` first:
+
+```bash
+sudo semanage fcontext -a -t bin_t "/var/lib/postoffice/venv/bin(/.*)?"
+sudo restorecon -R /var/lib/postoffice/venv/bin/
+```
+
+To check for SELinux denials:
+
+```bash
+ausearch -m avc --recent | grep mcfeely
+```
+
 ### Socket Connection Failed
 
 Check that mcfeely-authd is running:
@@ -325,6 +368,8 @@ testsaslauthd -s imap -u alice -p shell_password
 - Socket permissions restrict access to saslauthd
 - Passwords are stored as SHA-512 crypt hashes (not reversible)
 - PAM fallback allows shell password access during migration
+- SELinux: venv binaries must be labeled `bin_t` (via `semanage` + `restorecon`) for systemd execution
+- Note: systemd sandboxing directives (`ProtectSystem`, `ProtectHome`, `PrivateTmp`) are omitted due to namespace compatibility issues with the SELinux configuration
 
 ## Environment: zoid6test
 

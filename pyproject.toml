@@ -10,6 +10,7 @@ requires-python = ">=3.9"
 dependencies = [
     "bbsengine6",
     "cryptography>=41.0.0",
+    "passlib>=1.7.4",
 ]
 
 [project.scripts]

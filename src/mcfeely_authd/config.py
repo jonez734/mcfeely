@@ -35,7 +35,7 @@ class Config:
         if not config_file:
             config_file = os.environ.get(
                 "MCFEELY_AUTHD_CONFIG",
-                "/etc/mcfeely-authd.conf",
+                "/etc/postoffice/mcfeely-authd.conf",
             )
 
         if not os.path.exists(config_file):
