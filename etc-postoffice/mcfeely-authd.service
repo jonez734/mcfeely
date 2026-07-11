@@ -1,6 +1,6 @@
 # mcfeely-authd.service
 # Systemd unit for mcfeely-authd SASL authentication daemon
-# Installs: sudo cp this file to /etc/systemd/system/
+# Installs: sudo cp this file to /usr/lib/systemd/system/
 # Prereq: postoffice user must exist. Create with:
 #   sudo useradd -r -d /var/lib/postoffice -s /sbin/nologin postoffice
 # Or use systemd-sysusers: sudo systemd-sysusers postoffice.sysusers
@@ -17,7 +17,7 @@ User=postoffice
 Group=postoffice
 WorkingDirectory=/var/lib/postoffice
 
-ExecStart=/var/lib/postoffice/venv/bin/mcfeely-authd --foreground --config /etc/mcfeely-authd.conf
+ExecStart=/var/lib/postoffice/venv/bin/mcfeely-authd --foreground --config /etc/postoffice/mcfeely-authd.conf
 
 ExecReload=/bin/kill -HUP $MAINPID
 
@@ -34,13 +34,6 @@ RuntimeDirectoryMode=0755
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=mcfeely-authd
-
-NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-PrivateTmp=true
-
-ReadWritePaths=/var/log/mcfeely-authd.log
 
 [Install]
 WantedBy=multi-user.target

@@ -9,7 +9,7 @@ PYTHON ?= python3.12
 .PHONY: install uninstall
 .PHONY: install-sysusers uninstall-sysusers
 .PHONY: install-tmpfiles uninstall-tmpfiles
-.PHONY: install-venv uninstall-venv
+.PHONY: install-venv uninstall-venv restorecon
 .PHONY: install-systemd uninstall-systemd
 .PHONY: install-etc uninstall-etc
 
@@ -31,7 +31,8 @@ help:
 	@echo "  uninstall-tmpfiles Remove tmpfiles.d/postoffice.conf"
 	@echo "  install-venv       Create venv and install mistermcfeely wheel at /var/lib/postoffice/venv"
 	@echo "  uninstall-venv     Remove /var/lib/postoffice/venv"
-	@echo "  install-systemd    Copy mcfeely-authd.service to /etc/systemd/system/ and daemon-reload"
+	@echo "  restorecon         Relabel venv binaries for SELinux (Fedora/RHEL)"
+	@echo "  install-systemd    Copy mcfeely-authd.service to /usr/lib/systemd/system/ and daemon-reload"
 	@echo "  uninstall-systemd  Stop, disable, and remove the mcfeely-authd.service unit"
 	@echo "  install-etc        Install mcfeely-authd.conf and saslauthd config files"
 	@echo "  uninstall-etc      Remove installed config files"
@@ -87,14 +88,23 @@ install-venv:
 	$(PYTHON) -m build --no-isolation --wheel --outdir $(WHEEL_DIR) $(CURDIR)
 	sudo -u postoffice $(VENV_DIR)/bin/pip install $(WHEEL_DIR)/*.whl
 	rm -rf $(WHEEL_DIR)
+	@command -v semanage >/dev/null 2>&1 && \
+		sudo semanage fcontext -a -t bin_t "$(VENV_DIR)/bin(/.*)?" 2>/dev/null || true
+	@command -v restorecon >/dev/null 2>&1 && sudo restorecon -R $(VENV_DIR)/bin/ || true
 	@echo "Installed $(PROJECT) into $(VENV_DIR)"
 
 uninstall-venv:
 	-rm -rf $(VENV_DIR)
 	@echo "Removed $(VENV_DIR)"
 
+restorecon:
+	@command -v semanage >/dev/null 2>&1 && \
+		sudo semanage fcontext -a -t bin_t "$(VENV_DIR)/bin(/.*)?" 2>/dev/null || true
+	sudo restorecon -R $(VENV_DIR)/bin/
+	@echo "Relabeled $(VENV_DIR)/bin/ for SELinux"
+
 UNIT_SRC = etc-postoffice/mcfeely-authd.service
-UNIT_DST = /etc/systemd/system/mcfeely-authd.service
+UNIT_DST = /usr/lib/systemd/system/mcfeely-authd.service
 
 install-systemd:
 	install -m 0644 $(UNIT_SRC) $(UNIT_DST)
@@ -108,19 +118,22 @@ uninstall-systemd:
 	-systemctl daemon-reload
 	@echo "Removed $(UNIT_DST)"
 
-MCFEELY_ETCDIR = /etc
+MCFEELY_ETCDIR = /etc/postoffice
+FACTORY_DIR = usr/share/factory/etc/postoffice
 SASL_ETCDIR = /etc/sasl2
 SASL_SYSCONFIG = /etc/sysconfig
 PAM_ETCDIR = /etc/pam.d
 
 install-etc:
-	install -m 0640 etc-postoffice/mcfeely-authd.conf $(MCFEELY_ETCDIR)/mcfeely-authd.conf
+	install -d $(MCFEELY_ETCDIR)
+	install -m 0640 $(FACTORY_DIR)/mcfeely-authd.conf $(MCFEELY_ETCDIR)/mcfeely-authd.conf
+	@echo "Installed $(MCFEELY_ETCDIR)/mcfeely-authd.conf from factory defaults"
 	install -m 0640 etc-postoffice/saslauthd.conf $(SASL_ETCDIR)/saslauthd.conf
 	[ -f /etc/debian_version ] && \
 		install -m 0644 etc-postoffice/saslauthd.sysconfig /etc/default/saslauthd || \
 		install -m 0644 etc-postoffice/saslauthd.sysconfig $(SASL_SYSCONFIG)/saslauthd
 	install -m 0644 etc-postoffice/pam.d-saslauthd $(PAM_ETCDIR)/saslauthd
-	@echo "Installed mcfeely-authd config and saslauthd support files"
+	@echo "Installed saslauthd support files"
 
 uninstall-etc:
 	-rm -f $(MCFEELY_ETCDIR)/mcfeely-authd.conf
