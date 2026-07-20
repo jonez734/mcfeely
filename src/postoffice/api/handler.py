@@ -17,29 +17,7 @@ from bbsengine6.net import (
 from postoffice.services import MailboxPoller, get_service, check_mail
 
 
-class SessionManager:
-    """Manages WebSocket sessions and authentication state."""
-
-    def __init__(self):
-        self._sessions: Dict[int, Dict[str, Any]] = {}
-
-    def register_session(self, session_id: int, moniker: str, is_sysop: bool = False) -> None:
-        self._sessions[session_id] = {"moniker": moniker, "is_sysop": is_sysop}
-
-    def unregister_session(self, session_id: int) -> None:
-        if session_id in self._sessions:
-            del self._sessions[session_id]
-
-    def get_session(self, session_id: int) -> Optional[Dict[str, Any]]:
-        return self._sessions.get(session_id)
-
-    def get_moniker(self, session_id: int) -> Optional[str]:
-        session = self._sessions.get(session_id)
-        return session.get("moniker") if session else None
-
-    def get_is_sysop(self, session_id: int) -> bool:
-        session = self._sessions.get(session_id)
-        return session.get("is_sysop", False) if session else False
+from bbsengine6.session import SessionManager
 
 
 class BaseService:
