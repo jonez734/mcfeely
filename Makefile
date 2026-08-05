@@ -6,12 +6,14 @@ VERSION = $(shell date +%Y%m%d%H%M)
 PYTHON ?= python3.12
 
 .PHONY: all help clean backup version
-.PHONY: install uninstall
+.PHONY: install uninstall deploy
 .PHONY: install-sysusers uninstall-sysusers
 .PHONY: install-tmpfiles uninstall-tmpfiles
 .PHONY: install-venv uninstall-venv restorecon
 .PHONY: install-systemd uninstall-systemd
 .PHONY: install-etc uninstall-etc
+
+deploy: install
 
 all: help
 
@@ -21,6 +23,7 @@ help:
 	@echo "Targets:"
 	@echo "  install            Full install: sysusers + tmpfiles + venv + systemd + etc"
 	@echo "  uninstall          Full uninstall"
+	@echo "  deploy             Full install (alias for install)"
 	@echo "  version            Stamp src/postoffice/_version.py with date + git hash"
 	@echo "  clean              Remove build artifacts"
 	@echo "  backup             Rsync project to $(MEDIA)"
