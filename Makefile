@@ -50,24 +50,24 @@ SYSUSERS_SRC = etc-postoffice/postoffice.sysusers
 SYSUSERS_DST = /usr/lib/sysusers.d/postoffice.conf
 
 install-sysusers:
-	install -m 0644 $(SYSUSERS_SRC) $(SYSUSERS_DST)
-	systemd-sysusers
+	sudo rsync --chmod=0644 $(SYSUSERS_SRC) $(SYSUSERS_DST)
+	sudo systemd-sysusers
 	@echo "Created postoffice user and group via $(SYSUSERS_DST)"
 
 uninstall-sysusers:
-	-rm -f $(SYSUSERS_DST)
+	-sudo rm -f $(SYSUSERS_DST)
 	@echo "Removed $(SYSUSERS_DST)"
 
 TMPFILES_SRC = etc-postoffice/postoffice.tmpfiles
 TMPFILES_DST = /usr/lib/tmpfiles.d/postoffice.conf
 
 install-tmpfiles: install-sysusers
-	install -m 0644 $(TMPFILES_SRC) $(TMPFILES_DST)
-	systemd-tmpfiles --create
+	sudo rsync --chmod=0644 $(TMPFILES_SRC) $(TMPFILES_DST)
+	sudo systemd-tmpfiles --create
 	@echo "Created directories via $(TMPFILES_DST)"
 
 uninstall-tmpfiles:
-	-rm -f $(TMPFILES_DST)
+	-sudo rm -f $(TMPFILES_DST)
 	@echo "Removed $(TMPFILES_DST)"
 
 VENV_DIR = /var/lib/postoffice/venv
@@ -80,15 +80,14 @@ install-venv:
 	@command -v sudo >/dev/null 2>&1 || { echo "Error: sudo required"; exit 1; }
 	@sudo -u postoffice test -d "$(VENV_DIR)" || sudo -u postoffice $(PYTHON) -m venv "$(VENV_DIR)"
 	sudo -u postoffice $(VENV_DIR)/bin/pip install --upgrade pip
-	$(PYTHON) -m ensurepip --upgrade >/dev/null 2>&1 || true
-	$(PYTHON) -m pip install --quiet --user build setuptools wheel
+	sudo -u postoffice $(VENV_DIR)/bin/pip install --quiet build setuptools wheel
 	mkdir -p $(WHEEL_DIR)
 	rm -f $(WHEEL_DIR)/*.whl
 	$(MAKE) -C $(BBSENGINE_DIR) version
-	$(PYTHON) -m build --no-isolation --wheel --outdir $(WHEEL_DIR) $(GETDATE_DIR)
-	$(PYTHON) -m build --no-isolation --wheel --outdir $(WHEEL_DIR) $(BBSENGINE_DIR)
+	$(VENV_DIR)/bin/python -m build --no-isolation --wheel --outdir $(WHEEL_DIR) $(GETDATE_DIR)
+	$(VENV_DIR)/bin/python -m build --no-isolation --wheel --outdir $(WHEEL_DIR) $(BBSENGINE_DIR)
 	$(MAKE) version
-	$(PYTHON) -m build --no-isolation --wheel --outdir $(WHEEL_DIR) $(CURDIR)
+	$(VENV_DIR)/bin/python -m build --no-isolation --wheel --outdir $(WHEEL_DIR) $(CURDIR)
 	sudo -u postoffice $(VENV_DIR)/bin/pip install $(WHEEL_DIR)/*.whl
 	rm -rf $(WHEEL_DIR)
 	@command -v semanage >/dev/null 2>&1 && \
@@ -110,15 +109,15 @@ UNIT_SRC = etc-postoffice/mcfeely-authd.service
 UNIT_DST = /usr/lib/systemd/system/mcfeely-authd.service
 
 install-systemd:
-	install -m 0644 $(UNIT_SRC) $(UNIT_DST)
-	systemctl daemon-reload
+	sudo rsync --chmod=0644 $(UNIT_SRC) $(UNIT_DST)
+	sudo systemctl daemon-reload
 	@echo "Installed $(UNIT_DST)"
 
 uninstall-systemd:
-	-systemctl stop mcfeely-authd 2>/dev/null
-	-systemctl disable mcfeely-authd 2>/dev/null
-	-rm -f $(UNIT_DST)
-	-systemctl daemon-reload
+	-sudo systemctl stop mcfeely-authd 2>/dev/null
+	-sudo systemctl disable mcfeely-authd 2>/dev/null
+	-sudo rm -f $(UNIT_DST)
+	-sudo systemctl daemon-reload
 	@echo "Removed $(UNIT_DST)"
 
 MCFEELY_ETCDIR = /etc/postoffice
@@ -128,23 +127,23 @@ SASL_SYSCONFIG = /etc/sysconfig
 PAM_ETCDIR = /etc/pam.d
 
 install-etc:
-	install -d $(MCFEELY_ETCDIR)
-	install -m 0640 $(FACTORY_DIR)/mcfeely-authd.conf $(MCFEELY_ETCDIR)/mcfeely-authd.conf
+	sudo install -d $(MCFEELY_ETCDIR)
+	sudo rsync --chmod=0640 $(FACTORY_DIR)/mcfeely-authd.conf $(MCFEELY_ETCDIR)/mcfeely-authd.conf
 	@echo "Installed $(MCFEELY_ETCDIR)/mcfeely-authd.conf from factory defaults"
-	install -m 0640 etc-postoffice/saslauthd.conf $(SASL_ETCDIR)/saslauthd.conf
+	sudo rsync --chmod=0640 etc-postoffice/saslauthd.conf $(SASL_ETCDIR)/saslauthd.conf
 	[ -f /etc/debian_version ] && \
-		install -m 0644 etc-postoffice/saslauthd.sysconfig /etc/default/saslauthd || \
-		install -m 0644 etc-postoffice/saslauthd.sysconfig $(SASL_SYSCONFIG)/saslauthd
-	install -m 0644 etc-postoffice/pam.d-saslauthd $(PAM_ETCDIR)/saslauthd
+		sudo rsync --chmod=0644 etc-postoffice/saslauthd.sysconfig /etc/default/saslauthd || \
+		sudo rsync --chmod=0644 etc-postoffice/saslauthd.sysconfig $(SASL_SYSCONFIG)/saslauthd
+	sudo rsync --chmod=0644 etc-postoffice/pam.d-saslauthd $(PAM_ETCDIR)/saslauthd
 	@echo "Installed saslauthd support files"
 
 uninstall-etc:
-	-rm -f $(MCFEELY_ETCDIR)/mcfeely-authd.conf
-	-rm -f $(SASL_ETCDIR)/saslauthd.conf
+	-sudo rm -f $(MCFEELY_ETCDIR)/mcfeely-authd.conf
+	-sudo rm -f $(SASL_ETCDIR)/saslauthd.conf
 	[ -f /etc/debian_version ] && \
-		rm -f /etc/default/saslauthd || \
-		rm -f $(SASL_SYSCONFIG)/saslauthd
-	-rm -f $(PAM_ETCDIR)/saslauthd
+		sudo rm -f /etc/default/saslauthd || \
+		sudo rm -f $(SASL_SYSCONFIG)/saslauthd
+	-sudo rm -f $(PAM_ETCDIR)/saslauthd
 	@echo "Removed mcfeely-authd and saslauthd config files"
 
 install: install-sysusers install-tmpfiles install-venv install-systemd install-etc
