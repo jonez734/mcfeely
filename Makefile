@@ -32,10 +32,10 @@ help:
 	@echo "  uninstall-sysusers Remove sysusers.d/postoffice.conf"
 	@echo "  install-tmpfiles   Create /var/lib/postoffice and /var/run/mcfeely-authd via systemd-tmpfiles"
 	@echo "  uninstall-tmpfiles Remove tmpfiles.d/postoffice.conf"
-	@echo "  install-venv       Create venv and install mistermcfeely wheel at /var/lib/postoffice/venv"
-	@echo "  uninstall-venv     Remove /var/lib/postoffice/venv"
+	@echo "  install-venv       Install mistermcfeely wheel into shared venv at $(VENV_DIR)"
+	@echo "  uninstall-venv     Remove $(VENV_DIR)"
 	@echo "  restorecon         Relabel venv binaries for SELinux (Fedora/RHEL)"
-	@echo "  install-systemd    Copy mcfeely-authd.service to /usr/lib/systemd/system/ and daemon-reload"
+	@echo "  install-systemd    Install mcfeely-authd.service (@VENV_DIR@ templated) and daemon-reload"
 	@echo "  uninstall-systemd  Stop, disable, and remove the mcfeely-authd.service unit"
 	@echo "  install-etc        Install mcfeely-authd.conf and saslauthd config files"
 	@echo "  uninstall-etc      Remove installed config files"
@@ -70,7 +70,9 @@ uninstall-tmpfiles:
 	-sudo rm -f $(TMPFILES_DST)
 	@echo "Removed $(TMPFILES_DST)"
 
-VENV_DIR = /var/lib/postoffice/venv
+VENV_DIR ?= /var/lib/zoid6/venv
+VENV_OWNER ?= zoid6
+VENV_GROUP ?= zoid6
 
 WHEEL_DIR = /tmp/$(PROJECT)-$$
 BBSENGINE_DIR = $(CURDIR)/../bbsengine6/py
@@ -78,9 +80,9 @@ GETDATE_DIR = $(CURDIR)/../getdate_next
 
 install-venv:
 	@command -v sudo >/dev/null 2>&1 || { echo "Error: sudo required"; exit 1; }
-	@sudo -u postoffice test -d "$(VENV_DIR)" || sudo -u postoffice $(PYTHON) -m venv "$(VENV_DIR)"
-	sudo -u postoffice $(VENV_DIR)/bin/pip install --upgrade pip
-	sudo -u postoffice $(VENV_DIR)/bin/pip install --quiet build setuptools wheel
+	@sudo -u $(VENV_OWNER) test -d "$(VENV_DIR)" || sudo -u $(VENV_OWNER) $(PYTHON) -m venv "$(VENV_DIR)"
+	sudo -u $(VENV_OWNER) $(VENV_DIR)/bin/pip install --upgrade pip
+	sudo -u $(VENV_OWNER) $(VENV_DIR)/bin/pip install --quiet build setuptools wheel
 	mkdir -p $(WHEEL_DIR)
 	rm -f $(WHEEL_DIR)/*.whl
 	$(MAKE) -C $(BBSENGINE_DIR) version
@@ -88,7 +90,7 @@ install-venv:
 	$(VENV_DIR)/bin/python -m build --no-isolation --wheel --outdir $(WHEEL_DIR) $(BBSENGINE_DIR)
 	$(MAKE) version
 	$(VENV_DIR)/bin/python -m build --no-isolation --wheel --outdir $(WHEEL_DIR) $(CURDIR)
-	sudo -u postoffice $(VENV_DIR)/bin/pip install $(WHEEL_DIR)/*.whl
+	sudo -u $(VENV_OWNER) $(VENV_DIR)/bin/pip install $(WHEEL_DIR)/*.whl
 	rm -rf $(WHEEL_DIR)
 	@command -v semanage >/dev/null 2>&1 && \
 		sudo semanage fcontext -a -t bin_t "$(VENV_DIR)/bin(/.*)?" 2>/dev/null || true
@@ -109,7 +111,9 @@ UNIT_SRC = etc-postoffice/mcfeely-authd.service
 UNIT_DST = /usr/lib/systemd/system/mcfeely-authd.service
 
 install-systemd:
-	sudo rsync --chmod=0644 $(UNIT_SRC) $(UNIT_DST)
+	sed 's|@VENV_DIR@|$(VENV_DIR)|g' $(UNIT_SRC) | sudo tee $(UNIT_DST) > /dev/null
+	sudo chmod 0644 $(UNIT_DST)
+	sudo chown root:root $(UNIT_DST)
 	sudo systemctl daemon-reload
 	@echo "Installed $(UNIT_DST)"
 
