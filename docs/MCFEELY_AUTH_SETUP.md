@@ -72,30 +72,30 @@ make install
 Or run the full install manually:
 
 ```bash
-# Create venv and install
-sudo -u postoffice python3.12 -m venv /var/lib/postoffice/venv
-sudo -u postoffice /var/lib/postoffice/venv/bin/pip install mistermcfeely
+# Create the shared venv (anchor) and populate it
+cd /path/to/zoid6/src && sudo make install-sysusers install-tmpfiles install-venv
+deploytool postoffice bed zoid6
 
-# SELinux: relabel venv binaries so systemd can execute them
-sudo semanage fcontext -a -t bin_t "/var/lib/postoffice/venv/bin(/.*)?"
-sudo restorecon -R /var/lib/postoffice/venv/bin/
+# SELinux: relabel shared venv binaries so systemd can execute them
+sudo semanage fcontext -a -t bin_t "/var/lib/zoid6/venv/bin(/.*)?"
+sudo restorecon -R /var/lib/zoid6/venv/bin/
 
 # Copy configuration
-sudo cp etc-postoffice/mcfeely-authd.conf /etc/mcfeely-authd.conf
+sudo cp etc-postoffice/mcfeely-authd.conf /etc/postoffice/mcfeely-authd.conf
 ```
 
 #### SELinux
 
 On systems with SELinux enforcing (Fedora, RHEL, CentOS), the venv binaries
-under `/var/lib/postoffice/venv/bin/` get labeled `var_lib_t` by default.
+under `/var/lib/zoid6/venv/bin/` get labeled `var_lib_t` by default.
 systemd cannot execute scripts with this context — it causes a 203/EXEC error.
 
 `make install-venv` adds a `semanage` rule and runs `restorecon` automatically
 when available. If you install manually, run:
 
 ```bash
-sudo semanage fcontext -a -t bin_t "/var/lib/postoffice/venv/bin(/.*)?"
-sudo restorecon -R /var/lib/postoffice/venv/bin/
+sudo semanage fcontext -a -t bin_t "/var/lib/zoid6/venv/bin(/.*)?"
+sudo restorecon -R /var/lib/zoid6/venv/bin/
 ```
 
 Without `semanage`, `restorecon` will restore the default `var_lib_t` label
@@ -302,8 +302,8 @@ A bare `restorecon` won't work — it restores the default `var_lib_t` label
 for `/var/lib/*`. You need `semanage` first:
 
 ```bash
-sudo semanage fcontext -a -t bin_t "/var/lib/postoffice/venv/bin(/.*)?"
-sudo restorecon -R /var/lib/postoffice/venv/bin/
+sudo semanage fcontext -a -t bin_t "/var/lib/zoid6/venv/bin(/.*)?"
+sudo restorecon -R /var/lib/zoid6/venv/bin/
 ```
 
 To check for SELinux denials:
