@@ -77,7 +77,6 @@ VENV_SHARED ?= /var/lib/zoid6/venv
 
 WHEEL_DIR = /tmp/$(PROJECT)-$$
 BBSENGINE_DIR = $(CURDIR)/../bbsengine6/py
-GETDATE_DIR = $(CURDIR)/../getdate_next
 
 install-venv:
 	@command -v sudo >/dev/null 2>&1 || { echo "Error: sudo required"; exit 1; }
@@ -87,11 +86,18 @@ install-venv:
 	mkdir -p $(WHEEL_DIR)
 	rm -f $(WHEEL_DIR)/*.whl
 	$(MAKE) -C $(BBSENGINE_DIR) version
-	$(VENV_DIR)/bin/python -m build --no-isolation --wheel --outdir $(WHEEL_DIR) $(GETDATE_DIR)
 	$(VENV_DIR)/bin/python -m build --no-isolation --wheel --outdir $(WHEEL_DIR) $(BBSENGINE_DIR)
 	$(MAKE) version
 	$(VENV_DIR)/bin/python -m build --no-isolation --wheel --outdir $(WHEEL_DIR) $(CURDIR)
 	sudo -u $(VENV_OWNER) $(VENV_DIR)/bin/pip install $(WHEEL_DIR)/*.whl
+	# TODO(verify-install): this `sudo -u <owner> pip install` of
+	# $(WHEEL_DIR)/*.whl installs BOTH bbsengine6 (line 89) and
+	# mistermcfeely/postoffice (line 91) wheels. The verify step has
+	# to be re-sudoed to inspect the owner venv, or accept silent
+	# no-ops here. Compare against `pip show bbsengine6` AND
+	# `pip show mistermcfeely` (project name from $(PROJECT) above).
+	# See zoidoffice/src/Makefile's VERIFY_INSTALL variable for the
+	# operator-side reference.
 	rm -rf $(WHEEL_DIR)
 	@command -v semanage >/dev/null 2>&1 && \
 		sudo semanage fcontext -a -t bin_t "$(VENV_DIR)/bin(/.*)?" 2>/dev/null || true
