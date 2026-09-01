@@ -5,6 +5,14 @@ VERSION = $(shell date +%Y%m%d%H%M)
 
 PYTHON ?= python3.12
 
+# DEPLOY_UPGRADE is set by `deploytool --upgrade` (default true) and
+# unset by `--no-upgrade`. When "1", every `pip install` in this
+# Makefile (except `pip install --upgrade pip`, which always upgrades
+# pip itself — stale pip breaks everything downstream) passes
+# `--upgrade`. Empty = prior no-op-if-version-matches behavior.
+DEPLOY_UPGRADE ?=
+PIP_UPGRADE_FLAG := $(if $(filter 1,$(DEPLOY_UPGRADE)),--upgrade,)
+
 .PHONY: all help clean backup version
 .PHONY: install uninstall deploy
 .PHONY: install-sysusers uninstall-sysusers
@@ -82,22 +90,14 @@ install-venv:
 	@command -v sudo >/dev/null 2>&1 || { echo "Error: sudo required"; exit 1; }
 	@sudo -u $(VENV_OWNER) test -d "$(VENV_DIR)" || sudo -u $(VENV_OWNER) $(PYTHON) -m venv "$(VENV_DIR)"
 	sudo -u $(VENV_OWNER) $(VENV_DIR)/bin/pip install --upgrade pip
-	sudo -u $(VENV_OWNER) $(VENV_DIR)/bin/pip install --quiet build setuptools wheel
+	sudo -u $(VENV_OWNER) $(VENV_DIR)/bin/pip install $(PIP_UPGRADE_FLAG) --quiet build setuptools wheel
 	mkdir -p $(WHEEL_DIR)
 	rm -f $(WHEEL_DIR)/*.whl
 	$(MAKE) -C $(BBSENGINE_DIR) version
 	$(VENV_DIR)/bin/python -m build --no-isolation --wheel --outdir $(WHEEL_DIR) $(BBSENGINE_DIR)
 	$(MAKE) version
 	$(VENV_DIR)/bin/python -m build --no-isolation --wheel --outdir $(WHEEL_DIR) $(CURDIR)
-	sudo -u $(VENV_OWNER) $(VENV_DIR)/bin/pip install $(WHEEL_DIR)/*.whl
-	# TODO(verify-install): this `sudo -u <owner> pip install` of
-	# $(WHEEL_DIR)/*.whl installs BOTH bbsengine6 (line 89) and
-	# mistermcfeely/postoffice (line 91) wheels. The verify step has
-	# to be re-sudoed to inspect the owner venv, or accept silent
-	# no-ops here. Compare against `pip show bbsengine6` AND
-	# `pip show mistermcfeely` (project name from $(PROJECT) above).
-	# See zoidoffice/src/Makefile's VERIFY_INSTALL variable for the
-	# operator-side reference.
+	sudo -u $(VENV_OWNER) $(VENV_DIR)/bin/pip install $(PIP_UPGRADE_FLAG) $(WHEEL_DIR)/*.whl
 	rm -rf $(WHEEL_DIR)
 	@command -v semanage >/dev/null 2>&1 && \
 		sudo semanage fcontext -a -t bin_t "$(VENV_DIR)/bin(/.*)?" 2>/dev/null || true
