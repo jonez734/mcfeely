@@ -12,7 +12,6 @@ from unittest.mock import Mock, MagicMock, patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from postoffice import (
-    imap_client,
     imap_lib,
     message_client,
     member_password,
@@ -21,6 +20,7 @@ from postoffice import (
     password_crypto,
     audit_log,
 )
+from postoffice.services import postoffice_client
 
 
 class MockCursor:
@@ -117,7 +117,7 @@ class TestEndToEndClaimFlow(unittest.TestCase):
         mock_args = Mock()
         mock_args.debug = True
 
-        result = imap_client.claim_message(
+        result = postoffice_client.claim_message(
             self.args,
             mailbox_name="shared/support@example.com",
             message_uid=423,
@@ -149,7 +149,7 @@ class TestEndToEndClaimFlow(unittest.TestCase):
 
         mock_conn = MockConnection()
 
-        result = imap_client.unclaim_message(
+        result = postoffice_client.unclaim_message(
             self.args,
             mailbox_name="shared/support@example.com",
             message_uid=423,
@@ -168,7 +168,7 @@ class TestEndToEndClaimFlow(unittest.TestCase):
         mock_fire_event.return_value = True
         mock_conn = MockConnection()
 
-        result = imap_client.fire_new_message_event(
+        result = postoffice_client.fire_new_message_event(
             self.args,
             mailbox_name="shared/support@example.com",
             message_uid=1024,
@@ -191,7 +191,7 @@ class TestEndToEndClaimFlow(unittest.TestCase):
         mock_fire_event.return_value = True
         mock_conn = MockConnection()
 
-        result = imap_client.fire_flag_changed_event(
+        result = postoffice_client.fire_flag_changed_event(
             self.args,
             mailbox_name="shared/support@example.com",
             message_uid=423,
@@ -213,7 +213,7 @@ class TestEndToEndClaimFlow(unittest.TestCase):
         mock_fire_event.return_value = True
         mock_conn = MockConnection()
 
-        result = imap_client.fire_message_deleted_event(
+        result = postoffice_client.fire_message_deleted_event(
             self.args,
             mailbox_name="shared/support@example.com",
             message_uid=423,
@@ -243,15 +243,15 @@ class TestEndToEndFlagObfuscation(unittest.TestCase):
                 del os.environ[key]
 
     def test_obfuscation_consistency_across_modules(self):
-        """Test that flag obfuscation is consistent across imap_client and message_client."""
+        """Test that flag obfuscation is consistent across postoffice_client and message_client."""
         moniker = "alice"
         secret = os.environ.get("MCFEELY_OBFUSCATE_SECRET")
 
         flag_from_notify = message_client.format_claim_flag(moniker, secret)
 
-        flag_from_imap_client = message_client.format_claim_flag(moniker, secret)
+        flag_from_postoffice_client = message_client.format_claim_flag(moniker, secret)
 
-        self.assertEqual(flag_from_notify, flag_from_imap_client)
+        self.assertEqual(flag_from_notify, flag_from_postoffice_client)
 
     def test_obfuscation_produces_valid_flag(self):
         """Test obfuscation produces valid flag format."""

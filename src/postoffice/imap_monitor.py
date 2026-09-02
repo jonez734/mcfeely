@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from bbsengine6 import database, io
 
 from . import imap_lib
-from . import imap_client
+from .services import postoffice_client
 
 
 @dataclass
@@ -247,7 +247,7 @@ class IMAPMonitor:
 
         1. Fetch message headers (Message-ID, From, Subject, Date)
         2. Store message state in mailbox_states
-        3. Fire message-new event via imap_client.fire_new_message_event()
+        3. Fire message-new event via postoffice_client.fire_new_message_event()
         """
         try:
             # Fetch message headers and flags
@@ -275,7 +275,7 @@ class IMAPMonitor:
                 state.messages[uid] = message_state
 
             # Fire notification event
-            imap_client.fire_new_message_event(
+            postoffice_client.fire_new_message_event(
                 self.args,
                 mailbox_name,
                 uid,
@@ -323,7 +323,7 @@ class IMAPMonitor:
 
             # Fire events for each flag change
             for flag in added_flags:
-                imap_client.fire_flag_changed_event(
+                postoffice_client.fire_flag_changed_event(
                     self.args,
                     mailbox_name,
                     uid,
@@ -333,7 +333,7 @@ class IMAPMonitor:
                 )
 
             for flag in removed_flags:
-                imap_client.fire_flag_changed_event(
+                postoffice_client.fire_flag_changed_event(
                     self.args,
                     mailbox_name,
                     uid,
@@ -362,7 +362,7 @@ class IMAPMonitor:
         """Handle message deletion."""
         try:
             # Fire message-deleted event
-            imap_client.fire_message_deleted_event(
+            postoffice_client.fire_message_deleted_event(
                 self.args,
                 mailbox_name,
                 uid,

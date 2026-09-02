@@ -19,39 +19,39 @@ class TestIMAPCountUnseen(unittest.TestCase):
     def test_count_unseen_with_ssl(self):
         """Test count_unseen with SSL connection."""
         from postoffice.services import MailboxConfig
-        from postoffice.services.imap_client import count_unseen
+        from postoffice.services.postoffice_client import count_unseen
 
         mb = MailboxConfig(host="imap.test.com", username="user", password="pass", use_ssl=True)
 
         mock_conn = MagicMock()
         mock_conn.search.return_value = ("OK", [b"1 2 3"])
 
-        with patch("postoffice.services.imap_client.connect", return_value=mock_conn):
+        with patch("postoffice.services.postoffice_client.connect", return_value=mock_conn):
             count = count_unseen(mb)
         self.assertEqual(count, 3)
 
     def test_count_unseen_without_ssl(self):
         """Test count_unseen without SSL connection."""
         from postoffice.services import MailboxConfig
-        from postoffice.services.imap_client import count_unseen
+        from postoffice.services.postoffice_client import count_unseen
 
         mb = MailboxConfig(host="imap.test.com", username="user", password="pass", use_ssl=False, port=143)
 
         mock_conn = MagicMock()
         mock_conn.search.return_value = ("OK", [b""])
 
-        with patch("postoffice.services.imap_client.connect", return_value=mock_conn):
+        with patch("postoffice.services.postoffice_client.connect", return_value=mock_conn):
             count = count_unseen(mb)
         self.assertEqual(count, 0)
 
     def test_count_unseen_handles_connection_error(self):
         """Test count_unseen handles connection error."""
         from postoffice.services import MailboxConfig
-        from postoffice.services.imap_client import count_unseen
+        from postoffice.services.postoffice_client import count_unseen
 
         mb = MailboxConfig(host="invalid.test.com", username="user", password="pass")
 
-        with patch("postoffice.services.imap_client.connect", side_effect=Exception("Connection refused")):
+        with patch("postoffice.services.postoffice_client.connect", side_effect=Exception("Connection refused")):
             count = count_unseen(mb)
         self.assertEqual(count, 0)
 
@@ -62,7 +62,7 @@ class TestFetchEnvelopes(unittest.TestCase):
 
     def test_fetch_envelopes_returns_envelopes_and_ids(self):
         """Test fetch_envelopes returns (envelopes, message_ids) tuple."""
-        from postoffice.services.imap_client import fetch_envelopes
+        from postoffice.services.postoffice_client import fetch_envelopes
 
         mock_conn = MagicMock()
         mock_conn.search.return_value = ("OK", [b"1 2 3 4 5"])
@@ -77,7 +77,7 @@ class TestFetchEnvelopes(unittest.TestCase):
 
     def test_fetch_envelopes_limits_to_n(self):
         """Test fetch_envelopes limits to N messages."""
-        from postoffice.services.imap_client import fetch_envelopes
+        from postoffice.services.postoffice_client import fetch_envelopes
 
         mock_conn = MagicMock()
         mock_conn.search.return_value = ("OK", [b"1 2 3 4 5 6 7 8 9 10"])
@@ -89,7 +89,7 @@ class TestFetchEnvelopes(unittest.TestCase):
 
     def test_fetch_envelopes_handles_no_messages(self):
         """Test fetch_envelopes with no UNSEEN messages."""
-        from postoffice.services.imap_client import fetch_envelopes
+        from postoffice.services.postoffice_client import fetch_envelopes
 
         mock_conn = MagicMock()
         mock_conn.search.return_value = ("OK", [b""])
@@ -103,7 +103,7 @@ class TestFetchEnvelopes(unittest.TestCase):
         to the message_ids list, so the poller can't STORE a flag on
         something we never actually retrieved).
         """
-        from postoffice.services.imap_client import fetch_envelopes
+        from postoffice.services.postoffice_client import fetch_envelopes
 
         mock_conn = MagicMock()
         mock_conn.search.return_value = ("OK", [b"1 2"])
@@ -123,7 +123,7 @@ class TestExtractPreview(unittest.TestCase):
 
     def test_extract_preview_basic(self):
         """Test basic envelope preview extraction."""
-        from postoffice.services.imap_client import extract_preview
+        from postoffice.services.postoffice_client import extract_preview
         from email.parser import BytesParser
         from email.policy import default
 
@@ -144,7 +144,7 @@ class TestExtractPreview(unittest.TestCase):
 
     def test_extract_preview_multipart(self):
         """Test preview extraction with multipart message."""
-        from postoffice.services.imap_client import extract_preview
+        from postoffice.services.postoffice_client import extract_preview
         from email.parser import BytesParser
         from email.policy import default
 
@@ -175,7 +175,7 @@ class TestExtractPreview(unittest.TestCase):
 
     def test_extract_preview_body_limit(self):
         """Test body preview is limited."""
-        from postoffice.services.imap_client import extract_preview
+        from postoffice.services.postoffice_client import extract_preview
         from email.parser import BytesParser
         from email.policy import default
 

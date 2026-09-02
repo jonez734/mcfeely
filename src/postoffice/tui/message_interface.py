@@ -10,7 +10,8 @@ from bbsengine6.io import echo
 from bbsengine6.io.inputchoice import inputchoice
 from bbsengine6.io.getch import getch_str as getch
 from bbsengine6.listbox import Listbox, ListboxItem, ListboxResult
-from .. import imap_lib, lib, imap_client
+from .. import imap_lib, lib
+from ..services import postoffice_client
 
 
 class MessageInterface:
@@ -386,7 +387,7 @@ class MessageInterface:
 
             if metadata.get("claimed"):
                 assert self.current_user is not None
-                imap_client.unclaim_message(
+                postoffice_client.unclaim_message(
                     self.args,
                     mailbox_name,
                     uid,
@@ -397,7 +398,7 @@ class MessageInterface:
             else:
                 msg = next((m for m in self.messages if m["uid"] == uid), {})
                 assert self.current_user is not None
-                imap_client.claim_message(
+                postoffice_client.claim_message(
                     self.args,
                     mailbox_name,
                     uid,

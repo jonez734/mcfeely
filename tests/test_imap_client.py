@@ -1,6 +1,7 @@
-# test_imap_client.py
-# Comprehensive tests for imap_client module
-# Tests message claiming, unclaiming, and event firing
+# test_postoffice_client.py
+# Comprehensive tests for the postoffice_client module (formerly the
+# top-level postoffice.imap_client). Tests message claiming, unclaiming,
+# and event firing.
 
 import os
 import sys
@@ -9,7 +10,7 @@ from unittest.mock import Mock, MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from postoffice import imap_client
+from postoffice.services import postoffice_client
 
 
 class TestClaimMessage(unittest.TestCase):
@@ -32,7 +33,7 @@ class TestClaimMessage(unittest.TestCase):
         mock_imap = MagicMock()
         mock_conn = MagicMock()
 
-        result = imap_client.claim_message(
+        result = postoffice_client.claim_message(
             self.args,
             mailbox_name="shared/support",
             message_uid=123,
@@ -52,7 +53,7 @@ class TestClaimMessage(unittest.TestCase):
         mock_imap = MagicMock()
         mock_conn = MagicMock()
 
-        result = imap_client.claim_message(
+        result = postoffice_client.claim_message(
             self.args,
             mailbox_name="shared/support",
             message_uid=456,
@@ -78,7 +79,7 @@ class TestClaimMessage(unittest.TestCase):
         mock_fire_event.return_value = True
         mock_conn = MagicMock()
 
-        result = imap_client.claim_message(
+        result = postoffice_client.claim_message(
             self.args,
             mailbox_name="shared/support",
             message_uid=789,
@@ -96,7 +97,7 @@ class TestClaimMessage(unittest.TestCase):
         mock_imap = MagicMock()
         mock_conn = MagicMock()
 
-        result = imap_client.claim_message(
+        result = postoffice_client.claim_message(
             self.args,
             mailbox_name="shared/support",
             message_uid=123,
@@ -116,7 +117,7 @@ class TestClaimMessage(unittest.TestCase):
         mock_imap.store.side_effect = Exception("IMAP error")
         mock_conn = MagicMock()
 
-        result = imap_client.claim_message(
+        result = postoffice_client.claim_message(
             self.args,
             mailbox_name="shared/support",
             message_uid=123,
@@ -134,7 +135,7 @@ class TestClaimMessage(unittest.TestCase):
         mock_imap = MagicMock()
         mock_conn = MagicMock()
 
-        imap_client.claim_message(
+        postoffice_client.claim_message(
             self.args,
             mailbox_name="shared/support@example.com",
             message_uid=423,
@@ -156,7 +157,7 @@ class TestClaimMessage(unittest.TestCase):
         with patch("postoffice.message_client.fire_event") as mock_fire:
             mock_fire.return_value = True
 
-            result = imap_client.claim_message(
+            result = postoffice_client.claim_message(
                 self.args,
                 mailbox_name="shared/support",
                 message_uid=123,
@@ -188,7 +189,7 @@ class TestUnclaimMessage(unittest.TestCase):
         mock_imap = MagicMock()
         mock_conn = MagicMock()
 
-        result = imap_client.unclaim_message(
+        result = postoffice_client.unclaim_message(
             self.args,
             mailbox_name="shared/support",
             message_uid=123,
@@ -209,7 +210,7 @@ class TestUnclaimMessage(unittest.TestCase):
         mock_fire_event.return_value = True
         mock_conn = MagicMock()
 
-        result = imap_client.unclaim_message(
+        result = postoffice_client.unclaim_message(
             self.args,
             mailbox_name="shared/support",
             message_uid=456,
@@ -227,7 +228,7 @@ class TestUnclaimMessage(unittest.TestCase):
         mock_imap = MagicMock()
         mock_conn = MagicMock()
 
-        imap_client.unclaim_message(
+        postoffice_client.unclaim_message(
             self.args,
             mailbox_name="shared/support",
             message_uid=789,
@@ -250,7 +251,7 @@ class TestUnclaimMessage(unittest.TestCase):
         with patch("postoffice.message_client.fire_event") as mock_fire:
             mock_fire.return_value = True
 
-            result = imap_client.unclaim_message(
+            result = postoffice_client.unclaim_message(
                 self.args,
                 mailbox_name="shared/support",
                 message_uid=123,
@@ -275,7 +276,7 @@ class TestFireNewMessageEvent(unittest.TestCase):
         mock_fire_event.return_value = True
         mock_conn = MagicMock()
 
-        result = imap_client.fire_new_message_event(
+        result = postoffice_client.fire_new_message_event(
             self.args,
             mailbox_name="shared/support",
             message_uid=1024,
@@ -298,7 +299,7 @@ class TestFireNewMessageEvent(unittest.TestCase):
         """Test firing event without connection."""
         mock_fire_event.return_value = True
 
-        result = imap_client.fire_new_message_event(
+        result = postoffice_client.fire_new_message_event(
             self.args,
             mailbox_name="shared/support",
             message_uid=1024,
@@ -314,7 +315,7 @@ class TestFireNewMessageEvent(unittest.TestCase):
         required_params = ["mailbox_name", "message_uid", "message_id", "message_from", "message_subject"]
         
         import inspect
-        sig = inspect.signature(imap_client.fire_new_message_event)
+        sig = inspect.signature(postoffice_client.fire_new_message_event)
         params = list(sig.parameters.keys())
         
         for param in required_params:
@@ -334,7 +335,7 @@ class TestFireFlagChangedEvent(unittest.TestCase):
         mock_fire_event.return_value = True
         mock_conn = MagicMock()
 
-        result = imap_client.fire_flag_changed_event(
+        result = postoffice_client.fire_flag_changed_event(
             self.args,
             mailbox_name="shared/support",
             message_uid=123,
@@ -357,7 +358,7 @@ class TestFireFlagChangedEvent(unittest.TestCase):
         mock_fire_event.return_value = True
         mock_conn = MagicMock()
 
-        result = imap_client.fire_flag_changed_event(
+        result = postoffice_client.fire_flag_changed_event(
             self.args,
             mailbox_name="shared/support",
             message_uid=456,
@@ -379,7 +380,7 @@ class TestFireFlagChangedEvent(unittest.TestCase):
         mock_fire_event.return_value = True
         mock_conn = MagicMock()
 
-        result = imap_client.fire_flag_changed_event(
+        result = postoffice_client.fire_flag_changed_event(
             self.args,
             mailbox_name="shared/support",
             message_uid=789,
@@ -396,7 +397,7 @@ class TestFireFlagChangedEvent(unittest.TestCase):
         mock_fire_event.return_value = True
         mock_conn = MagicMock()
 
-        result = imap_client.fire_flag_changed_event(
+        result = postoffice_client.fire_flag_changed_event(
             self.args,
             mailbox_name="shared/support",
             message_uid=123,
@@ -422,7 +423,7 @@ class TestFireMessageDeletedEvent(unittest.TestCase):
         mock_fire_event.return_value = True
         mock_conn = MagicMock()
 
-        result = imap_client.fire_message_deleted_event(
+        result = postoffice_client.fire_message_deleted_event(
             self.args,
             mailbox_name="shared/support",
             message_uid=999,
@@ -441,7 +442,7 @@ class TestFireMessageDeletedEvent(unittest.TestCase):
         """Test firing deleted event without connection."""
         mock_fire_event.return_value = True
 
-        result = imap_client.fire_message_deleted_event(
+        result = postoffice_client.fire_message_deleted_event(
             self.args,
             mailbox_name="shared/support",
             message_uid=123,
@@ -468,7 +469,7 @@ class TestFlagObfuscationIntegration(unittest.TestCase):
         with patch("postoffice.message_client.fire_event") as mock_fire:
             mock_fire.return_value = True
 
-            imap_client.claim_message(
+            postoffice_client.claim_message(
                 self.args,
                 mailbox_name="shared/support",
                 message_uid=123,
@@ -491,7 +492,7 @@ class TestFlagObfuscationIntegration(unittest.TestCase):
         with patch("postoffice.message_client.fire_event") as mock_fire:
             mock_fire.return_value = True
 
-            imap_client.unclaim_message(
+            postoffice_client.unclaim_message(
                 self.args,
                 mailbox_name="shared/support",
                 message_uid=123,
@@ -514,7 +515,7 @@ class TestFlagObfuscationIntegration(unittest.TestCase):
         with patch("postoffice.message_client.fire_event") as mock_fire:
             mock_fire.return_value = True
 
-            imap_client.claim_message(
+            postoffice_client.claim_message(
                 self.args,
                 mailbox_name="shared/support",
                 message_uid=123,
@@ -529,7 +530,7 @@ class TestFlagObfuscationIntegration(unittest.TestCase):
 
 
 class TestExceptionHandling(unittest.TestCase):
-    """Tests for exception handling in imap_client functions."""
+    """Tests for exception handling in postoffice_client functions."""
 
     def setUp(self):
         self.args = Mock()
@@ -542,7 +543,7 @@ class TestExceptionHandling(unittest.TestCase):
         mock_imap = MagicMock()
         mock_conn = MagicMock()
 
-        result = imap_client.claim_message(
+        result = postoffice_client.claim_message(
             self.args,
             mailbox_name="shared/support",
             message_uid=123,
@@ -560,7 +561,7 @@ class TestExceptionHandling(unittest.TestCase):
         mock_imap = MagicMock()
         mock_conn = MagicMock()
 
-        result = imap_client.unclaim_message(
+        result = postoffice_client.unclaim_message(
             self.args,
             mailbox_name="shared/support",
             message_uid=123,
@@ -578,7 +579,7 @@ class TestExceptionHandling(unittest.TestCase):
         with patch("postoffice.message_client.fire_event") as mock_fire:
             mock_fire.side_effect = Exception("Event fire failed")
 
-            result = imap_client.fire_new_message_event(
+            result = postoffice_client.fire_new_message_event(
                 self.args,
                 mailbox_name="shared/support",
                 message_uid=123,
@@ -592,7 +593,7 @@ class TestExceptionHandling(unittest.TestCase):
 
 
 class TestDebugLogging(unittest.TestCase):
-    """Tests for debug logging in imap_client functions."""
+    """Tests for debug logging in postoffice_client functions."""
 
     def setUp(self):
         self.args = Mock()
@@ -612,7 +613,7 @@ class TestDebugLogging(unittest.TestCase):
         mock_conn = MagicMock()
 
         with patch("bbsengine6.io.echo") as mock_echo:
-            imap_client.claim_message(
+            postoffice_client.claim_message(
                 self.args,
                 mailbox_name="shared/support",
                 message_uid=123,
@@ -632,7 +633,7 @@ class TestDebugLogging(unittest.TestCase):
         mock_conn = MagicMock()
 
         with patch("bbsengine6.io.echo") as mock_echo:
-            imap_client.unclaim_message(
+            postoffice_client.unclaim_message(
                 self.args,
                 mailbox_name="shared/support",
                 message_uid=123,

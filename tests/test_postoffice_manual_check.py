@@ -92,16 +92,16 @@ class TestCheckMail(unittest.IsolatedAsyncioTestCase):
 
 @pytest.mark.integration
 class TestCountUnseen(unittest.TestCase):
-    """Test imap_client.count_unseen directly."""
+    """Test postoffice_client.count_unseen directly."""
 
     def test_count_unseen_returns_zero_on_error(self):
         """Test count_unseen returns 0 on connection error."""
         from postoffice.services import MailboxConfig
-        from postoffice.services.imap_client import count_unseen
+        from postoffice.services.postoffice_client import count_unseen
 
         mb = MailboxConfig(host="invalid.test.com", username="user", password="pass")
         with patch(
-            "postoffice.services.imap_client.connect",
+            "postoffice.services.postoffice_client.connect",
             side_effect=Exception("Connection refused"),
         ):
             count = count_unseen(mb)
@@ -110,24 +110,24 @@ class TestCountUnseen(unittest.TestCase):
     def test_count_unseen_parses_unseen(self):
         """Test count_unseen correctly counts unseen messages."""
         from postoffice.services import MailboxConfig
-        from postoffice.services.imap_client import count_unseen
+        from postoffice.services.postoffice_client import count_unseen
 
         mb = MailboxConfig(host="mail.test.com", username="user", password="pass")
         mock_conn = MagicMock()
         mock_conn.search.return_value = ("OK", [b"1 2 3 4 5"])
-        with patch("postoffice.services.imap_client.connect", return_value=mock_conn):
+        with patch("postoffice.services.postoffice_client.connect", return_value=mock_conn):
             count = count_unseen(mb)
         self.assertEqual(count, 5)
 
     def test_count_unseen_no_unseen(self):
         """Test count_unseen with no unseen messages."""
         from postoffice.services import MailboxConfig
-        from postoffice.services.imap_client import count_unseen
+        from postoffice.services.postoffice_client import count_unseen
 
         mb = MailboxConfig(host="mail.test.com", username="user", password="pass")
         mock_conn = MagicMock()
         mock_conn.search.return_value = ("OK", [b""])
-        with patch("postoffice.services.imap_client.connect", return_value=mock_conn):
+        with patch("postoffice.services.postoffice_client.connect", return_value=mock_conn):
             count = count_unseen(mb)
         self.assertEqual(count, 0)
 

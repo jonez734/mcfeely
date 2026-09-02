@@ -1071,9 +1071,9 @@ class TestLoadMailboxes(unittest.TestCase):
 class TestServicesImapClient(unittest.TestCase):
     """Test IMAP client wrapper module functions."""
 
-    @patch("postoffice.services.imap_client.imaplib")
+    @patch("postoffice.services.postoffice_client.imaplib")
     def test_connect_success(self, mock_imaplib):
-        from postoffice.services.imap_client import connect
+        from postoffice.services.postoffice_client import connect
         from postoffice.services import MailboxConfig
 
         mb = MailboxConfig(host="imap.test.com", username="user", password="pass")
@@ -1083,9 +1083,9 @@ class TestServicesImapClient(unittest.TestCase):
         result = connect(mb)
         self.assertIsNotNone(result)
 
-    @patch("postoffice.services.imap_client.imaplib")
+    @patch("postoffice.services.postoffice_client.imaplib")
     def test_connect_no_ssl(self, mock_imaplib):
-        from postoffice.services.imap_client import connect
+        from postoffice.services.postoffice_client import connect
         from postoffice.services import MailboxConfig
 
         mb = MailboxConfig(host="imap.test.com", username="user", password="pass", use_ssl=False)
@@ -1095,9 +1095,9 @@ class TestServicesImapClient(unittest.TestCase):
         result = connect(mb)
         mock_imaplib.IMAP4.assert_called_once_with("imap.test.com", 143)
 
-    @patch("postoffice.services.imap_client.imaplib")
+    @patch("postoffice.services.postoffice_client.imaplib")
     def test_fetch_envelopes(self, mock_imaplib):
-        from postoffice.services.imap_client import fetch_envelopes
+        from postoffice.services.postoffice_client import fetch_envelopes
 
         mock_conn = MagicMock()
         mock_conn.search.return_value = ("OK", [b"1 2 3"])
@@ -1106,9 +1106,9 @@ class TestServicesImapClient(unittest.TestCase):
         result = fetch_envelopes(mock_conn, limit=3)
         self.assertEqual(len(result), 3)
 
-    @patch("postoffice.services.imap_client.imaplib")
+    @patch("postoffice.services.postoffice_client.imaplib")
     def test_fetch_envelopes_empty_mailbox(self, mock_imaplib):
-        from postoffice.services.imap_client import fetch_envelopes
+        from postoffice.services.postoffice_client import fetch_envelopes
 
         mock_conn = MagicMock()
         mock_conn.search.return_value = ("OK", [b""])
@@ -1116,9 +1116,9 @@ class TestServicesImapClient(unittest.TestCase):
         result = fetch_envelopes(mock_conn)
         self.assertEqual(result, [])
 
-    @patch("postoffice.services.imap_client.imaplib")
+    @patch("postoffice.services.postoffice_client.imaplib")
     def test_fetch_envelopes_search_fail(self, mock_imaplib):
-        from postoffice.services.imap_client import fetch_envelopes
+        from postoffice.services.postoffice_client import fetch_envelopes
 
         mock_conn = MagicMock()
         mock_conn.search.return_value = ("NO", [b"Search failed"])

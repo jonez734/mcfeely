@@ -1,5 +1,5 @@
 # test_message_client_integration.py
-# Integration tests for message_client and imap_client modules
+# Integration tests for message_client and postoffice_client modules
 # Tests real API calls without mocking internal functions
 
 import unittest
@@ -10,7 +10,8 @@ import json
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from postoffice import message_client, imap_client
+from postoffice import message_client
+from postoffice.services import postoffice_client
 
 
 class TestFlagObfuscationIntegration(unittest.TestCase):
@@ -132,7 +133,7 @@ class TestClaimMessageIntegration(unittest.TestCase):
         """Test that claim_message creates proper event payload."""
         import inspect
 
-        sig = inspect.signature(imap_client.claim_message)
+        sig = inspect.signature(postoffice_client.claim_message)
         params = list(sig.parameters.keys())
 
         # Functions now use **kwargs pattern
@@ -154,7 +155,7 @@ class TestClaimMessageIntegration(unittest.TestCase):
         """Test that unclaim_message creates proper event payload."""
         import inspect
 
-        sig = inspect.signature(imap_client.unclaim_message)
+        sig = inspect.signature(postoffice_client.unclaim_message)
         params = list(sig.parameters.keys())
 
         # Functions now use **kwargs pattern
@@ -166,9 +167,9 @@ class TestClaimMessageIntegration(unittest.TestCase):
     def test_fire_event_functions_exist(self):
         """Test that all fire_event_* functions exist."""
         functions = [
-            imap_client.fire_new_message_event,
-            imap_client.fire_flag_changed_event,
-            imap_client.fire_message_deleted_event,
+            postoffice_client.fire_new_message_event,
+            postoffice_client.fire_flag_changed_event,
+            postoffice_client.fire_message_deleted_event,
         ]
 
         for func in functions:

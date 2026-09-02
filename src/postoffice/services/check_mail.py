@@ -6,7 +6,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from .config import MailboxConfig, load_mailboxes
-from . import imap_client as svc_imap
+from . import postoffice_client as svc_imap
 
 logger = logging.getLogger(__name__)
 
