@@ -433,7 +433,7 @@ class TestAuthVerifyCheckCryptHash(unittest.TestCase):
 
 
 class TestAuthVerifyDatabase(unittest.TestCase):
-    """Test database-based password verification with mocked psycopg2."""
+    """Test database-based password verification with mocked bbsengine6.database."""
 
     def setUp(self):
         from mcfeely_authd.config import load_config
@@ -443,29 +443,60 @@ class TestAuthVerifyDatabase(unittest.TestCase):
             socket_path="/tmp/mcfeely-authd-test-mux",
             log_file="/tmp/mcfeely-authd-test.log",
         )
-        self.mock_psycopg = MagicMock()
-        self.psycopg_patcher = patch.dict("sys.modules", {"psycopg": self.mock_psycopg})
-        self.psycopg_patcher.start()
+        self.cfg._pool = self._make_pool(fetchone_return=None)
 
     def tearDown(self):
-        self.psycopg_patcher.stop()
+        self.cfg.close_pool()
 
-    def _make_conn(self, fetchone_return=None):
-        mock_conn = MagicMock()
+    def _make_pool(self, fetchone_return=None):
+        """Build a MagicMock pool whose connect() is a context manager.
+
+        bbsengine6.database.connect(args, pool=pool) is a
+        @contextmanager that yields a connection. The connection's
+        cursor() is a context manager that yields a cursor. The cursor
+        has execute() and fetchone() we want to drive from the test.
+        """
         mock_cur = MagicMock()
         mock_cur.fetchone.return_value = fetchone_return
-        mock_conn.cursor.return_value = mock_cur
-        return mock_conn
+
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+
+        mock_pool = MagicMock()
+        # pool.getconn() not used directly by callers; connect() is.
+        # make connect() a context manager that yields mock_conn.
+        from contextlib import contextmanager
+
+        @contextmanager
+        def fake_connect(args, pool=None, **kw):
+            yield mock_conn
+
+        mock_pool._fake_connect = fake_connect
+        return mock_pool
+
+    def _patch_connect(self, fetchone_return=None):
+        """Patch bbsengine6.database.connect to yield a mock connection."""
+        mock_cur = MagicMock()
+        mock_cur.fetchone.return_value = fetchone_return
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+
+        from contextlib import contextmanager
+
+        @contextmanager
+        def fake_connect(args, pool=None, **kw):
+            yield mock_conn
+
+        return patch("bbsengine6.database.connect", side_effect=fake_connect)
 
     def test_user_found_password_ok(self):
         from mcfeely_authd.auth_verify import _verify_database
         from passlib.hash import sha512_crypt
 
         h = sha512_crypt.hash("correct-password")
-        mock_conn = self._make_conn(fetchone_return=(h,))
-        self.mock_psycopg.connect.return_value = mock_conn
-
-        ok, reason = _verify_database("alice", "correct-password", self.cfg)
+        patcher = self._patch_connect(fetchone_return=(h,))
+        with patcher:
+            ok, reason = _verify_database("alice", "correct-password", self.cfg)
         self.assertTrue(ok)
         self.assertIn("database", reason.lower())
 
@@ -474,44 +505,31 @@ class TestAuthVerifyDatabase(unittest.TestCase):
         from passlib.hash import sha512_crypt
 
         h = sha512_crypt.hash("correct-password")
-        mock_conn = self._make_conn(fetchone_return=(h,))
-        self.mock_psycopg.connect.return_value = mock_conn
-
-        ok, reason = _verify_database("alice", "wrong-password", self.cfg)
+        patcher = self._patch_connect(fetchone_return=(h,))
+        with patcher:
+            ok, reason = _verify_database("alice", "wrong-password", self.cfg)
         self.assertFalse(ok)
         self.assertIn("Invalid password", reason)
 
     def test_user_not_found(self):
         from mcfeely_authd.auth_verify import _verify_database
 
-        mock_conn = self._make_conn(fetchone_return=None)
-        self.mock_psycopg.connect.return_value = mock_conn
-
-        ok, reason = _verify_database("unknown", "password", self.cfg)
+        patcher = self._patch_connect(fetchone_return=None)
+        with patcher:
+            ok, reason = _verify_database("unknown", "password", self.cfg)
         self.assertFalse(ok)
         self.assertIn("not found", reason.lower())
 
     def test_database_error(self):
         from mcfeely_authd.auth_verify import _verify_database
 
-        self.mock_psycopg.connect.side_effect = Exception("Connection refused")
-
-        ok, reason = _verify_database("alice", "password", self.cfg)
+        with patch(
+            "bbsengine6.database.connect",
+            side_effect=Exception("Connection refused"),
+        ):
+            ok, reason = _verify_database("alice", "password", self.cfg)
         self.assertFalse(ok)
         self.assertIn("Database error", reason)
-
-    def test_no_psycopg(self):
-        from mcfeely_authd.auth_verify import _verify_database
-
-        self.psycopg_patcher.stop()
-        self.psycopg_patcher = patch.dict("sys.modules", {"psycopg": None})
-        self.psycopg_patcher.start()
-
-        ok, reason = _verify_database("alice", "password", self.cfg)
-        self.assertFalse(ok)
-        self.psycopg_patcher.stop()
-        self.psycopg_patcher = patch.dict("sys.modules", {"psycopg": self.mock_psycopg})
-        self.psycopg_patcher.start()
 
 
 @patch("mcfeely_authd.auth_verify.subprocess.run")
@@ -630,25 +648,35 @@ class TestGetUserInfo(unittest.TestCase):
             socket_path="/tmp/mcfeely-authd-test-mux",
             log_file="/tmp/mcfeely-authd-test.log",
         )
-        self.mock_psycopg = MagicMock()
-        self.psycopg_patcher = patch.dict("sys.modules", {"psycopg": self.mock_psycopg})
-        self.psycopg_patcher.start()
 
     def tearDown(self):
-        self.psycopg_patcher.stop()
+        self.cfg.close_pool()
+
+    def _patch_connect(self, fetchone_return):
+        """Patch bbsengine6.database.connect to return a mock conn."""
+        mock_cur = MagicMock()
+        mock_cur.fetchone.return_value = fetchone_return
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+
+        from contextlib import contextmanager
+
+        @contextmanager
+        def fake_connect(args, pool=None, **kw):
+            yield mock_conn
+
+        return patch("bbsengine6.database.connect", side_effect=fake_connect)
 
     def test_user_found(self):
         from mcfeely_authd.auth_verify import get_user_info
         from datetime import datetime
 
         now = datetime.now()
-        mock_conn = MagicMock()
-        mock_cur = MagicMock()
-        mock_cur.fetchone.return_value = ("alice", True, now, now, "alice@test.com", now)
-        mock_conn.cursor.return_value = mock_cur
-        self.mock_psycopg.connect.return_value = mock_conn
-
-        info = get_user_info("alice", self.cfg)
+        patcher = self._patch_connect(
+            fetchone_return=("alice", True, now, now, "alice@test.com", now)
+        )
+        with patcher:
+            info = get_user_info("alice", self.cfg)
         self.assertIsNotNone(info)
         self.assertEqual(info["member_moniker"], "alice")
         self.assertEqual(info["email"], "alice@test.com")
@@ -657,32 +685,12 @@ class TestGetUserInfo(unittest.TestCase):
     def test_user_not_found(self):
         from mcfeely_authd.auth_verify import get_user_info
 
-        mock_conn = MagicMock()
-        mock_cur = MagicMock()
-        mock_cur.fetchone.return_value = None
-        mock_conn.cursor.return_value = mock_cur
-        self.mock_psycopg.connect.return_value = mock_conn
-
-        info = get_user_info("nonexistent", self.cfg)
+        patcher = self._patch_connect(fetchone_return=None)
+        with patcher:
+            info = get_user_info("nonexistent", self.cfg)
         self.assertIsNone(info)
 
-    def test_no_psycopg(self):
-        from mcfeely_authd.auth_verify import get_user_info
 
-        self.psycopg_patcher.stop()
-        self.psycopg_patcher = patch.dict("sys.modules", {"psycopg": None})
-        self.psycopg_patcher.start()
-
-        info = get_user_info("alice", self.cfg)
-        self.assertIsNone(info)
-        self.psycopg_patcher.stop()
-        self.psycopg_patcher = patch.dict("sys.modules", {"psycopg": self.mock_psycopg})
-        self.psycopg_patcher.start()
-
-
-# ---------------------------------------------------------------------------
-# mcfeely_authd.mcfeely_authd (daemon) tests
-# ---------------------------------------------------------------------------
 
 class TestDaemonMain(unittest.TestCase):
     """Test the daemon's main() entry point and argument parsing."""
