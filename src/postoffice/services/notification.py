@@ -1,10 +1,10 @@
 # postoffice/services/notification.py
-# Build & send postoffice.email notifications via bbsengine6.notify.
+# Build & send postoffice.email notifications via bbsengine6.message.
 
 import logging
 from typing import List
 
-from bbsengine6.notify import send as message_send
+from bbsengine6.message import send as message_send
 
 from .imap_client import extract_preview
 

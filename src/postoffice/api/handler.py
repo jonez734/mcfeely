@@ -17,29 +17,7 @@ from bbsengine6.net import (
 from postoffice.services import MailboxPoller, get_service, check_mail
 
 
-class SessionManager:
-    """Manages WebSocket sessions and authentication state."""
-
-    def __init__(self):
-        self._sessions: Dict[int, Dict[str, Any]] = {}
-
-    def register_session(self, session_id: int, moniker: str, is_sysop: bool = False) -> None:
-        self._sessions[session_id] = {"moniker": moniker, "is_sysop": is_sysop}
-
-    def unregister_session(self, session_id: int) -> None:
-        if session_id in self._sessions:
-            del self._sessions[session_id]
-
-    def get_session(self, session_id: int) -> Optional[Dict[str, Any]]:
-        return self._sessions.get(session_id)
-
-    def get_moniker(self, session_id: int) -> Optional[str]:
-        session = self._sessions.get(session_id)
-        return session.get("moniker") if session else None
-
-    def get_is_sysop(self, session_id: int) -> bool:
-        session = self._sessions.get(session_id)
-        return session.get("is_sysop", False) if session else False
+from bbsengine6.session import SessionManager
 
 
 class BaseService:
@@ -58,7 +36,12 @@ class BaseService:
 class AuthService(BaseService):
     """Handle authentication messages."""
 
-    def __init__(self, args: Any, session_manager: SessionManager, channel_state: Optional[ChannelState] = None):
+    def __init__(
+        self,
+        args: Any,
+        session_manager: SessionManager,
+        channel_state: Optional[ChannelState] = None,
+    ):
         super().__init__(args, session_manager)
         self.channel_state = channel_state
 
@@ -74,12 +57,18 @@ class AuthService(BaseService):
 
         return None
 
-    async def _handle_auth(self, websocket: Any, message: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_auth(
+        self, websocket: Any, message: Dict[str, Any]
+    ) -> Dict[str, Any]:
         moniker = message.get("moniker", "")
         password = message.get("password", "")
 
         if not moniker:
-            return {"type": "error", "code": "invalid_credentials", "message": "Moniker and password required"}
+            return {
+                "type": "error",
+                "code": "invalid_credentials",
+                "message": "Moniker and password required",
+            }
 
         from postoffice import member_password
 
@@ -105,7 +94,9 @@ class AuthService(BaseService):
 
         pending_messages = []
         try:
-            pending_messages = deliver_pending_on_connect(moniker, database=self.args.databasename)
+            pending_messages = deliver_pending_on_connect(
+                moniker, database=self.args.databasename
+            )
         except Exception as e:
             io.echo(f"Failed to deliver pending messages: {e}", level="warning")
 
@@ -152,7 +143,9 @@ class MailboxServiceHandler(BaseService):
 
         return None
 
-    async def _handle_check_mail(self, session_id: int, message: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_check_mail(
+        self, session_id: int, message: Dict[str, Any]
+    ) -> Dict[str, Any]:
         moniker = self.sessions.get_moniker(session_id)
         if not moniker:
             return {"type": "error", "code": "not_authenticated"}
@@ -167,7 +160,9 @@ class MailboxServiceHandler(BaseService):
             "errors": result.get("errors", []),
         }
 
-    async def _handle_list_mailboxes(self, session_id: int, message: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_list_mailboxes(
+        self, session_id: int, message: Dict[str, Any]
+    ) -> Dict[str, Any]:
         moniker = self.sessions.get_moniker(session_id)
         if not moniker:
             return {"type": "error", "code": "not_authenticated"}
@@ -175,18 +170,22 @@ class MailboxServiceHandler(BaseService):
         service = self._get_postoffice_service()
         mailboxes = []
         for mb in service.mailboxes:
-            mailboxes.append({
-                "host": mb.host,
-                "mailbox": mb.mailbox,
-                "use_ssl": mb.use_ssl,
-            })
+            mailboxes.append(
+                {
+                    "host": mb.host,
+                    "mailbox": mb.mailbox,
+                    "use_ssl": mb.use_ssl,
+                }
+            )
 
         return {
             "type": "mailbox_list",
             "mailboxes": mailboxes,
         }
 
-    async def _handle_mailbox_status(self, session_id: int, message: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_mailbox_status(
+        self, session_id: int, message: Dict[str, Any]
+    ) -> Dict[str, Any]:
         moniker = self.sessions.get_moniker(session_id)
         if not moniker:
             return {"type": "error", "code": "not_authenticated"}
@@ -221,13 +220,16 @@ class AddressServiceHandler(BaseService):
 
         return None
 
-    async def _handle_list_addresses(self, session_id: int, message: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_list_addresses(
+        self, session_id: int, message: Dict[str, Any]
+    ) -> Dict[str, Any]:
         moniker = self.sessions.get_moniker(session_id)
         if not moniker:
             return {"type": "error", "code": "not_authenticated"}
 
         try:
             from postoffice import virtual
+
             addresses = virtual.list_addresses(self.args, moniker)
             return {
                 "type": "address_list",
@@ -237,17 +239,24 @@ class AddressServiceHandler(BaseService):
             io.echo(f"Error listing addresses: {e}", level="error")
             return {"type": "error", "code": "list_failed", "message": str(e)}
 
-    async def _handle_create_address(self, session_id: int, message: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_create_address(
+        self, session_id: int, message: Dict[str, Any]
+    ) -> Dict[str, Any]:
         moniker = self.sessions.get_moniker(session_id)
         if not moniker:
             return {"type": "error", "code": "not_authenticated"}
 
         address = message.get("address", "")
         if not address:
-            return {"type": "error", "code": "invalid_request", "message": "address required"}
+            return {
+                "type": "error",
+                "code": "invalid_request",
+                "message": "address required",
+            }
 
         try:
             from postoffice import virtual
+
             result = virtual.create_address(self.args, moniker, address)
             if result:
                 return {
@@ -255,22 +264,33 @@ class AddressServiceHandler(BaseService):
                     "address": address,
                     "message": f"Address {address} created successfully",
                 }
-            return {"type": "error", "code": "create_failed", "message": "Could not create address"}
+            return {
+                "type": "error",
+                "code": "create_failed",
+                "message": "Could not create address",
+            }
         except Exception as e:
             io.echo(f"Error creating address: {e}", level="error")
             return {"type": "error", "code": "create_failed", "message": str(e)}
 
-    async def _handle_delete_address(self, session_id: int, message: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_delete_address(
+        self, session_id: int, message: Dict[str, Any]
+    ) -> Dict[str, Any]:
         moniker = self.sessions.get_moniker(session_id)
         if not moniker:
             return {"type": "error", "code": "not_authenticated"}
 
         address = message.get("address", "")
         if not address:
-            return {"type": "error", "code": "invalid_request", "message": "address required"}
+            return {
+                "type": "error",
+                "code": "invalid_request",
+                "message": "address required",
+            }
 
         try:
             from postoffice import virtual
+
             result = virtual.delete_address(self.args, moniker, address)
             if result:
                 return {
@@ -278,7 +298,11 @@ class AddressServiceHandler(BaseService):
                     "address": address,
                     "message": f"Address {address} deleted successfully",
                 }
-            return {"type": "error", "code": "delete_failed", "message": "Could not delete address"}
+            return {
+                "type": "error",
+                "code": "delete_failed",
+                "message": "Could not delete address",
+            }
         except Exception as e:
             io.echo(f"Error deleting address: {e}", level="error")
             return {"type": "error", "code": "delete_failed", "message": str(e)}
@@ -287,7 +311,13 @@ class AddressServiceHandler(BaseService):
 class ChannelServiceHandler(BaseService):
     """Handle channel subscription messages."""
 
-    def __init__(self, args: Any, session_manager: SessionManager, channel_state: ChannelState, server: Any):
+    def __init__(
+        self,
+        args: Any,
+        session_manager: SessionManager,
+        channel_state: ChannelState,
+        server: Any,
+    ):
         super().__init__(args, session_manager)
         self.channel_state = channel_state
         self._server = server
@@ -306,14 +336,20 @@ class ChannelServiceHandler(BaseService):
 
         return None
 
-    async def _handle_subscribe(self, session_id: int, message: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_subscribe(
+        self, session_id: int, message: Dict[str, Any]
+    ) -> Dict[str, Any]:
         moniker = self.sessions.get_moniker(session_id)
         if not moniker:
             return {"type": "error", "code": "not_authenticated"}
 
         channel = message.get("channel", "").strip()
         if not channel:
-            return {"type": "error", "code": "invalid_request", "message": "channel required"}
+            return {
+                "type": "error",
+                "code": "invalid_request",
+                "message": "channel required",
+            }
 
         channel_subscribe(self.channel_state, session_id, channel)
 
@@ -323,14 +359,20 @@ class ChannelServiceHandler(BaseService):
             "message": f"Subscribed to {channel}",
         }
 
-    async def _handle_unsubscribe(self, session_id: int, message: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_unsubscribe(
+        self, session_id: int, message: Dict[str, Any]
+    ) -> Dict[str, Any]:
         moniker = self.sessions.get_moniker(session_id)
         if not moniker:
             return {"type": "error", "code": "not_authenticated"}
 
         channel = message.get("channel", "").strip()
         if not channel:
-            return {"type": "error", "code": "invalid_request", "message": "channel required"}
+            return {
+                "type": "error",
+                "code": "invalid_request",
+                "message": "channel required",
+            }
 
         channel_unsubscribe(self.channel_state, session_id, channel)
 
@@ -378,14 +420,20 @@ class BankServiceHandler(BaseService):
 
         return None
 
-    async def _handle_balance(self, session_id: int, message: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_balance(
+        self, session_id: int, message: Dict[str, Any]
+    ) -> Dict[str, Any]:
         session = self.sessions.get_session(session_id)
         if not session:
             return {"type": "error", "code": "not_authenticated"}
 
         moniker = message.get("moniker", session.get("moniker"))
         if not moniker:
-            return {"type": "error", "code": "invalid_request", "message": "moniker required"}
+            return {
+                "type": "error",
+                "code": "invalid_request",
+                "message": "moniker required",
+            }
 
         balance = self.bank_service.get_balance(moniker)
 
@@ -395,14 +443,20 @@ class BankServiceHandler(BaseService):
             "balance": balance,
         }
 
-    async def _handle_add(self, session_id: int, message: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_add(
+        self, session_id: int, message: Dict[str, Any]
+    ) -> Dict[str, Any]:
         session = self.sessions.get_session(session_id)
         if not session:
             return {"type": "error", "code": "not_authenticated"}
 
         moniker = message.get("moniker")
         if not moniker:
-            return {"type": "error", "code": "invalid_request", "message": "moniker required"}
+            return {
+                "type": "error",
+                "code": "invalid_request",
+                "message": "moniker required",
+            }
 
         amount = message.get("amount", 0)
         description = message.get("description", "deposit")
@@ -422,16 +476,26 @@ class BankServiceHandler(BaseService):
                 "new_balance": result.get("new_balance"),
             }
         else:
-            return {"type": "error", "code": "add_failed", "message": result.get("message", "")}
+            return {
+                "type": "error",
+                "code": "add_failed",
+                "message": result.get("message", ""),
+            }
 
-    async def _handle_remove(self, session_id: int, message: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_remove(
+        self, session_id: int, message: Dict[str, Any]
+    ) -> Dict[str, Any]:
         session = self.sessions.get_session(session_id)
         if not session:
             return {"type": "error", "code": "not_authenticated"}
 
         moniker = message.get("moniker")
         if not moniker:
-            return {"type": "error", "code": "invalid_request", "message": "moniker required"}
+            return {
+                "type": "error",
+                "code": "invalid_request",
+                "message": "moniker required",
+            }
 
         amount = message.get("amount", 0)
         description = message.get("description", "withdrawal")
@@ -451,16 +515,26 @@ class BankServiceHandler(BaseService):
                 "new_balance": result.get("new_balance"),
             }
         else:
-            return {"type": "error", "code": "remove_failed", "message": result.get("message", "")}
+            return {
+                "type": "error",
+                "code": "remove_failed",
+                "message": result.get("message", ""),
+            }
 
-    async def _handle_history(self, session_id: int, message: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_history(
+        self, session_id: int, message: Dict[str, Any]
+    ) -> Dict[str, Any]:
         session = self.sessions.get_session(session_id)
         if not session:
             return {"type": "error", "code": "not_authenticated"}
 
         moniker = message.get("moniker")
         if not moniker:
-            return {"type": "error", "code": "invalid_request", "message": "moniker required"}
+            return {
+                "type": "error",
+                "code": "invalid_request",
+                "message": "moniker required",
+            }
 
         limit = message.get("limit", 50)
         history = self.bank_service.get_history(moniker, limit)
@@ -478,10 +552,21 @@ class MessageRouter:
     Handles broadcasting and session lifecycle.
     """
 
-    def __init__(self, args: Any) -> None:
+    def __init__(
+        self,
+        args: Any,
+        channel_state: Optional[ChannelState] = None,
+        server: Any = None,
+    ) -> None:
         self.args = args
         self.sessions = SessionManager()
-        self.channel_state = ChannelState()
+        # Accept shared channel state from caller (typically BED) so
+        # that server.publish(...) and ChannelServiceHandler see the
+        # same subscriptions.
+        self.channel_state = (
+            channel_state if channel_state is not None else ChannelState()
+        )
+        self.server = server
 
         self.auth_service = AuthService(args, self.sessions, self.channel_state)
         self.mailbox_service = MailboxServiceHandler(args, self.sessions)
@@ -492,22 +577,24 @@ class MessageRouter:
     def register_all(self, server: Any) -> None:
         """Register all services with the WebSocketServer."""
         server.register_service(self.auth_service, ["auth", "ping"])
-        server.register_service(self.mailbox_service, [
-            "check_mail", "list_mailboxes", "mailbox_status"
-        ])
-        server.register_service(self.address_service, [
-            "list_addresses", "create_address", "delete_address"
-        ])
-        server.register_service(self.bank_service, [
-            "bank_balance", "bank_add", "bank_remove", "bank_history"
-        ])
+        server.register_service(
+            self.mailbox_service, ["check_mail", "list_mailboxes", "mailbox_status"]
+        )
+        server.register_service(
+            self.address_service, ["list_addresses", "create_address", "delete_address"]
+        )
+        server.register_service(
+            self.bank_service,
+            ["bank_balance", "bank_add", "bank_remove", "bank_history"],
+        )
 
         self.channel_service = ChannelServiceHandler(
             self.args, self.sessions, self.channel_state, server
         )
-        server.register_service(self.channel_service, [
-            "subscribe_channel", "unsubscribe_channel", "get_subscriptions"
-        ])
+        server.register_service(
+            self.channel_service,
+            ["subscribe_channel", "unsubscribe_channel", "get_subscriptions"],
+        )
 
     async def handle_broadcast(
         self, server: Any, websocket: Any, path: str, message: Dict[str, Any]

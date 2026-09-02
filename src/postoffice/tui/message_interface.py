@@ -515,3 +515,18 @@ class MessageInterface:
         """Handle message forward."""
         echo("")
         echo("Forward functionality not yet implemented", level="info")
+
+
+def run(args: Any, current_user: Optional[str] = None, pool: Any = None) -> int:
+    """Module-level entry point for the message TUI.
+
+    Wraps :class:`MessageInterface` so callers (e.g.
+    ``postoffice.__main__``) can invoke ``from .tui.message_interface
+    import run`` and call ``run(args, current_user, pool=pool)``
+    uniformly. The legacy signature accepted ``(args, current_user,
+    pool)``; the current ``MessageInterface`` takes only ``args`` and
+    pulls ``loginid`` / ``issuperuser`` from the namespace.
+    """
+    if current_user is not None:
+        args.loginid = current_user
+    return MessageInterface(args).run()

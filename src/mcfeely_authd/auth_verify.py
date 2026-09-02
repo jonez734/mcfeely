@@ -1,5 +1,11 @@
 # auth_verify.py
-# Password verification for mcfeely-authd (functional style)
+# Password verification for mcfeely-authd (functional style).
+#
+# DB access goes through bbsengine6.database (the DAL the rest of
+# mistermcfeely uses) rather than a direct psycopg.connect call. This
+# gives us a shared connection pool keyed by DSN, autocommit handling,
+# and the standard args namespace (databasename / databasehost /
+# databaseport / databaseuser / databasepassword).
 
 import subprocess
 from typing import Optional, Tuple
@@ -14,39 +20,28 @@ def _get_crypt_hash(username: str, cfg: config.Config) -> Optional[str]:
 
     Args:
         username: Username to look up
-        cfg: Config instance
+        cfg: Config instance (provides pool + args namespace)
 
     Returns:
         Crypt hash string, or None if not found
     """
-    db_args = cfg.get_database_args()
+    from bbsengine6 import database
 
-    try:
-        import psycopg
-    except ImportError:
-        return None
-
-    conn = None
-    try:
-        conn = psycopg.connect(**db_args)
-        cur = conn.cursor()
-
-        cur.execute(
-            """
-            SELECT crypt_hash FROM postoffice.sasl_password
-            WHERE member_moniker = %s AND enabled = true
-            """,
-            (username,),
-        )
-
-        row = cur.fetchone()
-        if row:
-            return row[0]
-        return None
-
-    finally:
-        if conn:
-            conn.close()
+    pool = cfg.get_pool()
+    args = cfg.make_args()
+    with database.connect(args, pool=pool) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT crypt_hash FROM postoffice.sasl_password
+                WHERE member_moniker = %s AND enabled = true
+                """,
+                (username,),
+            )
+            row = cur.fetchone()
+            if row:
+                return row[0]
+            return None
 
 
 def _check_crypt_hash(password: str, crypt_hash: str) -> bool:
@@ -130,7 +125,7 @@ def _verify_pam(username: str, password: str) -> Tuple[bool, str]:
 def verify_password(
     username: str, password: str, cfg: config.Config
 ) -> Tuple[bool, str]:
-    """Verify username/password combination.
+    """Verify username/password.
 
     First tries database authentication, then falls back to PAM.
 
@@ -152,7 +147,7 @@ def verify_password(
     if success:
         return True, reason
 
-    if cfg.fallback_pam:
+    if cfg["fallback_pam"]:
         return _verify_pam(username, password)
 
     return False, reason
@@ -163,49 +158,38 @@ def get_user_info(username: str, cfg: config.Config) -> Optional[dict]:
 
     Args:
         username: Username to look up
-        cfg: Config instance
+        cfg: Config instance (provides pool + args namespace)
 
     Returns:
         Dict with user info, or None if not found
     """
-    db_args = cfg.get_database_args()
+    from bbsengine6 import database
 
-    try:
-        import psycopg
-    except ImportError:
-        return None
-
-    conn = None
-    try:
-        conn = psycopg.connect(**db_args)
-        cur = conn.cursor()
-
-        cur.execute(
-            """
-            SELECT sp.member_moniker, sp.enabled, sp.datecreated, sp.dateupdated,
-                   m.email, m.datecreated as member_created
-            FROM postoffice.sasl_password sp
-            JOIN engine.__member m ON sp.member_moniker = m.moniker
-            WHERE sp.member_moniker = %s
-            """,
-            (username,),
-        )
-
-        row = cur.fetchone()
-        if row:
-            return {
-                "member_moniker": row[0],
-                "enabled": row[1],
-                "datecreated": row[2],
-                "dateupdated": row[3],
-                "email": row[4],
-                "member_created": row[5],
-            }
-        return None
-
-    finally:
-        if conn:
-            conn.close()
+    pool = cfg.get_pool()
+    args = cfg.make_args()
+    with database.connect(args, pool=pool) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT sp.member_moniker, sp.enabled, sp.datecreated, sp.dateupdated,
+                       m.email, m.datecreated as member_created
+                FROM postoffice.sasl_password sp
+                JOIN engine.__member m ON sp.member_moniker = m.moniker
+                WHERE sp.member_moniker = %s
+                """,
+                (username,),
+            )
+            row = cur.fetchone()
+            if row:
+                return {
+                    "member_moniker": row[0],
+                    "enabled": row[1],
+                    "datecreated": row[2],
+                    "dateupdated": row[3],
+                    "email": row[4],
+                    "member_created": row[5],
+                }
+            return None
 
 
 __all__ = ["verify_password", "get_user_info", "_verify_database", "_verify_pam"]

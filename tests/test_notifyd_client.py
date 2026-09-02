@@ -471,10 +471,10 @@ class TestGetRoutingRules(unittest.TestCase):
 
 
 class TestFireEvent(unittest.TestCase):
-    """Test event firing to engine.__notify."""
+    """Test event firing via bbsengine6.message.send (post-migration)."""
 
     def test_fire_event_success(self):
-        """Fire event successfully sends via notify.send() or fallback."""
+        """Fire event successfully sends via bbsengine6.message.send."""
         args = Mock(debug=False, databasename="zoid6")
         conn = Mock()
 
@@ -489,7 +489,7 @@ class TestFireEvent(unittest.TestCase):
             patch("postoffice.notifyd_client.get_routing_rules") as mock_rules,
             patch("postoffice.notifyd_client.is_event_enabled") as mock_enabled,
             patch("postoffice.notifyd_client.render_event_message") as mock_render,
-            patch("postoffice.notifyd_client._fire_event_fallback") as mock_fallback,
+            patch("postoffice.notifyd_client._message_send") as mock_send,
         ):
             mock_enabled.return_value = True
             mock_rules.return_value = [
@@ -501,10 +501,6 @@ class TestFireEvent(unittest.TestCase):
                 }
             ]
             mock_render.return_value = "alice claimed message #423"
-            mock_fallback.return_value = True
-
-            # Patch _notify_module to None to test fallback
-            notifyd_client._notify_module = None
 
             result = notifyd_client.fire_event(
                 args,
@@ -516,8 +512,14 @@ class TestFireEvent(unittest.TestCase):
             )
 
             self.assertTrue(result)
-            # Should call fallback when notify is not available
-            mock_fallback.assert_called_once()
+            mock_send.assert_called_once()
+            kwargs = mock_send.call_args.kwargs
+            self.assertEqual(kwargs["notification_type"], "mcfeely-message-claimed")
+            self.assertEqual(kwargs["recipients"], ["bob"])
+            self.assertEqual(kwargs["sender_moniker"], "alice")
+            self.assertEqual(kwargs["urgency"], "IMPORTANT")
+            self.assertEqual(kwargs["template"], "alice claimed message #423")
+            self.assertIs(kwargs["args"], args)
 
     def test_fire_event_disabled(self):
         """Fire event returns True if event disabled (not an error)."""
@@ -569,7 +571,7 @@ class TestFireEvent(unittest.TestCase):
             patch("postoffice.notifyd_client.is_event_enabled") as mock_enabled,
             patch("postoffice.notifyd_client.get_routing_rules") as mock_rules,
             patch("postoffice.notifyd_client.render_event_message") as mock_render,
-            patch("postoffice.notifyd_client._fire_event_fallback") as mock_fallback,
+            patch("postoffice.notifyd_client._message_send") as mock_send,
         ):
             mock_enabled.return_value = True
             mock_rules.return_value = [
@@ -577,9 +579,6 @@ class TestFireEvent(unittest.TestCase):
                 {"recipient_moniker": "bob", "notification_type": "mcfeely-msg", "urgency": "ROUTINE", "delivery_method": "engine"},
             ]
             mock_render.return_value = "test message"
-            mock_fallback.return_value = True
-
-            notifyd_client._notify_module = None
 
             result = notifyd_client.fire_event(
                 args,
@@ -590,7 +589,7 @@ class TestFireEvent(unittest.TestCase):
             )
 
             self.assertTrue(result)
-            self.assertEqual(mock_fallback.call_count, 1)
+            self.assertEqual(mock_send.call_count, 2)
 
     def test_fire_event_no_connection(self):
         """Test fire_event returns False when no connection provided."""

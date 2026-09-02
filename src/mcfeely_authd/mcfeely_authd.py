@@ -36,14 +36,14 @@ def setup_logging(cfg: config.Config) -> logging.Logger:
     global LOGGER
 
     logger = logging.getLogger(DAEMON_NAME)
-    logger.setLevel(getattr(logging, cfg.log_level.upper(), logging.INFO))
+    logger.setLevel(getattr(logging, cfg["log_level"].upper(), logging.INFO))
 
     log_format = logging.Formatter(
         "%(asctime)s %(name)s[%(process)d]: %(levelname)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    if cfg.log_syslog:
+    if cfg["log_syslog"]:
         try:
             handler = logging.handlers.SysLogHandler(address="/dev/log")
             handler.setFormatter(log_format)
@@ -52,10 +52,10 @@ def setup_logging(cfg: config.Config) -> logging.Logger:
             pass
 
     try:
-        log_dir = os.path.dirname(cfg.log_file)
+        log_dir = os.path.dirname(cfg["log_file"])
         if log_dir:
             os.makedirs(log_dir, mode=0o755, exist_ok=True)
-        handler = logging.FileHandler(cfg.log_file)
+        handler = logging.FileHandler(cfg["log_file"])
         handler.setFormatter(log_format)
         logger.addHandler(handler)
     except Exception as e:
@@ -100,11 +100,11 @@ def daemonize(cfg: config.Config) -> None:
     os.dup2(stdout.fileno(), sys.stdout.fileno())
     os.dup2(stderr.fileno(), sys.stderr.fileno())
 
-    pid_dir = os.path.dirname(cfg.pid_file)
+    pid_dir = os.path.dirname(cfg["pid_file"])
     if pid_dir:
         os.makedirs(pid_dir, mode=0o755, exist_ok=True)
 
-    with open(cfg.pid_file, "w") as f:
+    with open(cfg["pid_file"], "w") as f:
         f.write(str(os.getpid()))
 
 
@@ -148,7 +148,7 @@ def handle_request(sock: socket.socket, cfg: config.Config) -> None:
     """
     file_obj = None
     try:
-        sock.settimeout(cfg.timeout)
+        sock.settimeout(cfg["timeout"])
         file_obj = sock.makefile("rwb")
         request = protocol.parse_request(file_obj)
     except protocol.ProtocolError as e:
@@ -196,23 +196,23 @@ def run_daemon(cfg: config.Config, foreground: bool = False) -> int:
         log("error", f"Configuration error: {error}")
         return 1
 
-    socket_dir = os.path.dirname(cfg.socket_path)
+    socket_dir = os.path.dirname(cfg["socket_path"])
     if socket_dir:
         os.makedirs(socket_dir, mode=0o755, exist_ok=True)
 
-    if os.path.exists(cfg.socket_path):
-        os.unlink(cfg.socket_path)
+    if os.path.exists(cfg["socket_path"]):
+        os.unlink(cfg["socket_path"])
 
     server_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    server_sock.bind(cfg.socket_path)
-    os.chmod(cfg.socket_path, stat.S_IRWXO | stat.S_IRWXG | stat.S_IRWXU)
+    server_sock.bind(cfg["socket_path"])
+    os.chmod(cfg["socket_path"], stat.S_IRWXO | stat.S_IRWXG | stat.S_IRWXU)
 
     try:
         import pwd as pwd_mod
 
         try:
             pw = pwd_mod.getpwnam("postoffice")
-            os.chown(cfg.socket_path, pw.pw_uid, pw.pw_gid)
+            os.chown(cfg["socket_path"], pw.pw_uid, pw.pw_gid)
         except (KeyError, ImportError):
             pass
     except Exception:
@@ -223,7 +223,7 @@ def run_daemon(cfg: config.Config, foreground: bool = False) -> int:
     if not foreground:
         daemonize(cfg)
 
-    log("info", f"Listening on {cfg.socket_path}")
+    log("info", f"Listening on {cfg["socket_path"]}")
 
     signal.signal(signal.SIGTERM, handle_signal)
     signal.signal(signal.SIGINT, handle_signal)

@@ -129,6 +129,66 @@ artificial.
   `casino.*` imports in `src/postoffice/`. The new services package
   introduces no new casino coupling.
 
+## Cross-project: casino ↔ postoffice coupling
+
+`casino/src/casino/api/handler.py:1281` hard-imports
+`postoffice.service.get_postoffice_service` so the casino BED
+`MessageRouter` can register a `check_mail` service that asks the
+IMAP poller "any new mail for this player?" This makes the casino
+test suite depend on a working postoffice install, and is the
+root cause of the 40 pre-existing `ModuleNotFoundError: No module
+named 'postoffice.service'` failures in `make test-unit` while the
+`## Restructure` work above is in flight.
+
+### Short term (option 3 — smallest diff)
+
+- [ ] After `## Restructure` lands, update the casino import:
+
+  ```python
+  # casino/src/casino/api/handler.py:1281
+  from postoffice.services import get_postoffice_service
+  ```
+
+  (or whatever the final public name is in the restructured package).
+  Confirm casino's 40 failing tests go green.
+
+### Long term (option 1 — preferred)
+
+The hard import is a layering smell. Casino's router shouldn't know
+about IMAP at all. Preferred end state:
+
+- [ ] Move `PostofficeServiceHandler` (casino/api/handler.py:1276–1308)
+      and its registration (handler.py:1331, 1365) out of casino into
+      `mistermcfeely`'s BED-side adapter layer (e.g.
+      `postoffice.api.bed_handler`).
+- [ ] The casino `MessageRouter` should accept a `check_mail` handler
+      via constructor injection (or a small `register_service(name, handler)`
+      extension point) instead of constructing it inline. Mistermcfeely
+      then wires the real postoffice handler at server boot.
+- [ ] Once that's in, remove `postoffice` from casino's install
+      requirements entirely. `make test-unit` in the casino repo
+      should pass with `postoffice` not installed.
+
+### Tracked test failures (cleared by the option-3 step)
+
+These are the casino tests that fail today because of the
+`postoffice.service` import; they should go green once the
+restructure + import update lands:
+
+- `casino/tests/test_api.py::TestIntegration::test_full_auth_flow`
+- `casino/tests/test_server.py::TestServerMocked::test_connect_and_auth`
+- `casino/tests/test_server.py::TestServerMocked::test_invalid_message`
+- `casino/tests/test_server.py::TestServerMocked::test_list_tables`
+- `casino/tests/test_server.py::TestServerMocked::test_ping_pong`
+- `casino/tests/test_channel_integration.py::TestChannelSubscriptionIntegration`
+  (11 tests)
+- `casino/tests/test_member_services.py::TestMemberServicesBED` (5 tests)
+- `casino/tests/test_player_observer.py::TestPlayerAndObserver` (2 tests)
+- `casino/tests/test_postoffice_channel.py` (7 tests)
+- `casino/tests/test_postoffice_service.py` (10 tests)
+- `casino/tests/test_postoffice_imap_polling.py` (10 tests)
+- `casino/tests/test_postoffice_manual_check.py` (7 tests)
+
 ## GPG Signing and Encryption
 
 - [ ] Integrate with bbsengine6 GPG key system (see bbsengine6/TODO.md)
@@ -147,3 +207,87 @@ artificial.
   - [ ] `gpg_decrypt` - decrypt received encrypted message
   - [ ] `gpg_sign` - sign message with user's GPG key
   - [ ] `gpg_verify` - verify GPG signature on message
+
+## Deploy targets and venv layout (per-service, like bed)
+
+[ ] Add the `prod` target that `bed` has for sudo installs. `bed/Makefile:202-205`
+    defines `deploy-prod: install` as an explicit umbrella target for the production
+    install path (sysusers + tmpfiles + venv + systemd + etc — all the things that
+    need `sudo`). `mistermcfeely/Makefile:16` currently only has `deploy: install`,
+    which does the same thing but lacks the explicit naming.
+
+    Add to `mistermcfeely/Makefile` (alongside the existing `deploy`):
+
+    ```
+    # Umbrella prod install: includes everything that needs sudo.
+    # Mirrors bed/Makefile:202-205. Reuses the existing install target.
+    deploy-prod: install
+    	@echo "$(PROJECT) installed (production)"
+    ```
+
+    And register in `TARGETS` at `deploytool/src/deploytool/lib.py:96-106`:
+
+    ```
+    "mistermcfeely": ["tui", "venv", "prod"],
+    ```
+
+    …with a `MAKE_TARGET_ALIASES` entry that maps `("mistermcfeely", "tui")` → `"venv"`
+    (same pattern as `bed` — `mistermcfeely` has no separate tui wheel build, the tui
+    alias just points at the same non-sudo venv install that `deploy-venv` would).
+
+[ ] Companion: also add `mistermcfeely/Makefile`'s `deploy-venv` (the non-sudo install
+    into the active venv), mirroring `bed/Makefile:186-200`. **Decision:** per-service
+    venv, not shared — `mistermcfeely` gets its own `/var/lib/mistermcfeely/venv`
+    owned by a `mistermcfeely` user, matching `bed`'s layout (`/var/lib/bed/venv`
+    owned by `bed`). This means the `prod` change above is NOT just an alias rename —
+    it triggers a broader refactor:
+
+    1. `mistermcfeely/Makefile:73-76` — change defaults:
+       ```
+       VENV_DIR    ?= /var/lib/mistermcfeely/venv
+       VENV_OWNER  ?= mistermcfeely
+       VENV_GROUP  ?= mistermcfeely
+       ```
+       Drop `VENV_SHARED` entirely (the shared-venv guard at
+       `mistermcfeely/Makefile:101-107` becomes unnecessary once the venv is
+       per-service).
+
+    2. `mistermcfeely/Makefile` — add `deploy-venv` (non-sudo, active-venv install)
+       mirroring `bed/Makefile:186-200`. Drops the `sudo -u $(VENV_OWNER)` switch
+       and the per-service venv bootstrap; just builds wheels for `bbsengine6` +
+       `mistermcfeely` into a user-owned `$(WHEEL_DIR)` and `pip install`s them
+       into `$VIRTUAL_ENV`. (`getdate_next` is no longer in this set — pip
+       resolves it as a transitive runtime dep of bbsengine6 via
+       `bbsengine6/py/pyproject.toml`.)
+
+    3. `deploytool/src/deploytool/lib.py:55-70` — `VENV_LAYOUT` for `mistermcfeely`
+       changes from `"/var/lib/zoid6/venv"` to `"/var/lib/mistermcfeely/venv"` to
+       match the new `mistermcfeely/Makefile` default.
+
+    The `prod` alias alone (just adding `deploy-prod: install` and the `TARGETS` /
+    `MAKE_TARGET_ALIASES` entries, without the venv refactor) is still safe — it
+    does not change install behavior, only adds the name. But the venv refactor IS
+    the right follow-up once `prod` is in.
+
+    Verification after `prod` lands:
+    - `deploy --dry-run mistermcfeely` → `make -C mistermcfeely deploy-venv`
+      (via the tui→venv alias).
+    - `deploy --dry-run mistermcfeely.venv` → same.
+    - `deploy --dry-run mistermcfeely.prod` → `make -C mistermcfeely deploy-prod`
+      (which runs `install`).
+    - `mistermcfeely/Makefile:help` block (lines 20-42) gains a `deploy-prod` entry.
+
+    Note: `postoffice` is an alias for `mistermcfeely` (see
+    `deploytool/src/deploytool/lib.py:41-43`), so `deploy postoffice` and
+    `deploy postoffice.prod` route through the same `mistermcfeely` Makefile
+
+## Build infrastructure
+
+- [ ] PREPARE_BUILD protection for in-tree `build/` (@since 20260820)
+  - Problem: `mistermcfeely/Makefile` `install-venv` target (lines 89-91) runs `python -m build` twice — against `$(BBSENGINE_DIR)` and `$(CURDIR)`. There is no `PREPARE_BUILD` macro before either of them, so a foreign-owned `build/` in any of those trees (e.g. the existing `mistermcfeely/build/` which is `jam:opencode 2775` — foreign-owned AND setgid, both problematic) causes setuptools to EPERM on the `chown` it does when populating `dist-info/`. (`$(GETDATE_DIR)` is no longer built here — getdate_next is a transitive pip dep of bbsengine6.)
+  - Solution: add a `PREPARE_BUILD` macro to `mistermcfeely/Makefile` mirroring `bed/Makefile:163-185` and call it on each of the two dirs before the corresponding `python -m build` line:
+    - `$(call PREPARE_BUILD,$(BBSENGINE_DIR))` before line 89
+    - `$(call PREPARE_BUILD,$(CURDIR))` before line 91
+    The first is redundant once `bbsengine6` adds its own PREPARE_BUILD (tracked separately in bbsengine6's TODO), but calling it here is safe and matches the `bed/Makefile:178-183` pattern.
+  - Cross-ref: `bed/Makefile:163-185`, `getdate_next/Makefile:32` (needs upgrade), `bbsengine6/TODO.md`, `zoid6/TODO.md` "PREPARE_BUILD standardization".
+    targets after this change.

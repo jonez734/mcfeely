@@ -3,10 +3,10 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mistermcfeely"
+name = "postoffice"
 dynamic = ["version"]
-description = "Mister McFeely's Post Office - email management for BBS"
-requires-python = ">=3.9"
+description = "Mister Mcfeely's Post Office - email management for bbsengine6"
+requires-python = ">=3.9,<3.15"
 dependencies = [
     "bbsengine6",
     "cryptography>=41.0.0",

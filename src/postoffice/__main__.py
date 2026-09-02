@@ -23,7 +23,60 @@ from .tui.message_interface import run as _message_interface_run
 from .tui.cyrus_admin import run as _cyrus_admin_run
 from .tui.projects import run as projects_run
 from .tui.address_manager import run as address_manager_run
-from bbsengine6.notify.tui import run as _notify_run
+from bbsengine6 import message as _message_module
+
+
+def _notify_run(args, current_user):
+    """Read pending notifications for ``current_user`` via the unified
+    message system.
+
+    Replacement for the deleted ``bbsengine6.notify.tui.run``. The old
+    notify TUI showed the user's queued notifications; this stub does
+    the same against ``bbsengine6.message.get_queue``, with no
+    interactive navigation (the bottombar / F2 viewer in getch.py is the
+    canonical interactive viewer). Used by the postoffice main menu's
+    "(n)otifications" choice and the ``notify`` CLI subcommand.
+    """
+    from bbsengine6.io.echo import echo, echo_traceback
+    from bbsengine6.io.inputstring import inputstring
+
+    if not _message_module.is_enabled():
+        echo("Messages unavailable.", level="warn")
+        return 0
+
+    try:
+        pending = _message_module.get_queue(current_user)
+    except Exception as e:
+        echo_traceback("postoffice.__main__._notify_run.get_queue:")
+        echo(f"Error loading notifications: {e}", level="error")
+        return 1
+
+    if not pending:
+        echo("No pending messages.")
+        return 0
+
+    for n in pending:
+        urgency = n.get("urgency", "ROUTINE")
+        sender = n.get("sender_moniker", "system") or "system"
+        datestamp = n.get("datestamp")
+        when = datestamp.strftime("%Y-%m-%d %H:%M:%S") if datestamp else ""
+        content = n.get("content", "")
+        msg_id = n.get("id")
+        echo(f"[{urgency:8}] {when}  from {sender}: {content}")
+        if msg_id is not None:
+            try:
+                _message_module.mark_read(msg_id, current_user)
+            except Exception as e:
+                echo_traceback("postoffice.__main__._notify_run.mark_read:")
+                echo(f"Failed to mark {msg_id} read: {e}", level="error")
+
+    echo("")
+    echo("Press RETURN to continue...")
+    try:
+        inputstring("")
+    except (EOFError, KeyboardInterrupt):
+        pass
+    return 0
 
 
 # ============================================================================

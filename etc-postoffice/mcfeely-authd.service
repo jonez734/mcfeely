@@ -17,7 +17,7 @@ User=postoffice
 Group=postoffice
 WorkingDirectory=/var/lib/postoffice
 
-ExecStart=/var/lib/postoffice/venv/bin/mcfeely-authd --foreground --config /etc/postoffice/mcfeely-authd.conf
+ExecStart=@VENV_DIR@/bin/mcfeely-authd --foreground --config /etc/postoffice/mcfeely-authd.conf
 
 ExecReload=/bin/kill -HUP $MAINPID
 

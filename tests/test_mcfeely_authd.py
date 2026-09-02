@@ -229,102 +229,107 @@ class TestConfig(unittest.TestCase):
                 os.environ.pop(key, None)
 
     def test_default_config_values(self):
-        from mcfeely_authd.config import load_config
+        from mcfeely_authd.config import Config, load_config
 
-        cfg = load_config(config_file="/nonexistent/config.conf")
-        self.assertEqual(cfg.socket_path, "/var/run/mcfeely-authd/mux")
-        self.assertEqual(cfg.pid_file, "/var/run/mcfeely-authd/mcfeely-authd.pid")
-        self.assertEqual(cfg.log_file, "/var/log/mcfeely-authd.log")
-        self.assertEqual(cfg.log_level, "INFO")
-        self.assertTrue(cfg.log_syslog)
-        self.assertTrue(cfg.fallback_pam)
-        self.assertEqual(cfg.pam_service, "imap")
-        self.assertEqual(cfg.database_dsn, "postgresql://localhost/zoid6test")
-        self.assertEqual(cfg.timeout, 30)
-        self.assertEqual(cfg.max_children, 50)
+        cfg = Config(config_file="/nonexistent/config.conf")
+        self.assertEqual(cfg["socket_path"], "/var/run/mcfeely-authd/mux")
+        self.assertEqual(cfg["pid_file"], "/var/run/mcfeely-authd/mcfeely-authd.pid")
+        self.assertEqual(cfg["log_file"], "/var/log/mcfeely-authd.log")
+        self.assertEqual(cfg["log_level"], "INFO")
+        self.assertTrue(cfg["log_syslog"])
+        self.assertTrue(cfg["fallback_pam"])
+        self.assertEqual(cfg["pam_service"], "imap")
+        self.assertEqual(cfg["database_dsn"], "postgresql://localhost/zoid6test")
+        self.assertEqual(cfg["timeout"], 30)
+        self.assertEqual(cfg["max_children"], 50)
 
     def test_override_via_kwargs(self):
-        from mcfeely_authd.config import load_config
+        from mcfeely_authd.config import Config, load_config
 
-        cfg = load_config(
-            config_file="/nonexistent",
-            socket_path="/tmp/test-mux",
-            timeout=10,
+        cfg = Config(
+            overrides={ "socket_path": "/tmp/test-mux", "timeout": 10 }
         )
-        self.assertEqual(cfg.socket_path, "/tmp/test-mux")
-        self.assertEqual(cfg.timeout, 10)
+        self.assertEqual(cfg["socket_path"], "/tmp/test-mux")
+        self.assertEqual(cfg["timeout"], 10)
 
     def test_config_file_loading(self):
-        from mcfeely_authd.config import load_config
+        from mcfeely_authd.config import Config, load_config
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
-            f.write("[socket]\npath = /tmp/test-mux\n")
-            f.write("[daemon]\ntimeout = 15\nmax_children = 10\n")
-            f.write("[logging]\nlevel = DEBUG\nsyslog = false\n")
-            f.write("[auth]\nfallback_pam = false\npam_service = imap\n")
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(
+                {
+                    "socket": {"path": "/tmp/test-mux"},
+                    "daemon": {"timeout": 15, "max_children": 10},
+                    "logging": {"level": "DEBUG", "syslog": False},
+                    "auth": {"fallback_pam": False, "pam_service": "imap"},
+                },
+                f,
+            )
             conf_path = f.name
 
         try:
-            cfg = load_config(config_file=conf_path)
-            self.assertEqual(cfg.socket_path, "/tmp/test-mux")
-            self.assertEqual(cfg.timeout, 15)
-            self.assertEqual(cfg.max_children, 10)
-            self.assertEqual(cfg.log_level, "DEBUG")
-            self.assertFalse(cfg.log_syslog)
-            self.assertFalse(cfg.fallback_pam)
-            self.assertEqual(cfg.pam_service, "imap")
+            cfg = Config(config_file=conf_path)
+            self.assertEqual(cfg["socket_path"], "/tmp/test-mux")
+            self.assertEqual(cfg["timeout"], 15)
+            self.assertEqual(cfg["max_children"], 10)
+            self.assertEqual(cfg["log_level"], "DEBUG")
+            self.assertFalse(cfg["log_syslog"])
+            self.assertFalse(cfg["fallback_pam"])
+            self.assertEqual(cfg["pam_service"], "imap")
         finally:
             os.unlink(conf_path)
 
     def test_env_var_dbname(self):
-        from mcfeely_authd.config import load_config
+        from mcfeely_authd.config import get_db_defaults
 
         os.environ["BBSENGINE6_DBNAME"] = "testdb"
-        cfg = load_config(config_file="/nonexistent")
-        self.assertIn("testdb", cfg.database_dsn)
+        try:
+            db = get_db_defaults()
+            self.assertEqual(db["databasename"], "testdb")
+        finally:
+            os.environ.pop("BBSENGINE6_DBNAME", None)
 
     def test_missing_config_file(self):
-        from mcfeely_authd.config import load_config
+        from mcfeely_authd.config import Config, load_config
 
-        cfg = load_config(config_file="/does/not/exist.conf")
-        self.assertEqual(cfg.socket_path, "/var/run/mcfeely-authd/mux")
+        cfg = Config(config_file="/does/not/exist.conf")
+        self.assertEqual(cfg["socket_path"], "/var/run/mcfeely-authd/mux")
 
     def test_validate_ok(self):
-        from mcfeely_authd.config import load_config
+        from mcfeely_authd.config import Config, load_config
 
         with tempfile.TemporaryDirectory() as tmp:
-            cfg = load_config(
-                config_file="/nonexistent",
-                socket_path=f"{tmp}/mux",
-                log_file=f"{tmp}/authd.log",
-            )
+            cfg = Config(
+            overrides={ "socket_path": f"{tmp}/mux", "log_file": f"{tmp}/authd.log" }
+        )
             valid, err = cfg.validate()
             self.assertTrue(valid)
             self.assertIsNone(err)
 
     def test_validate_no_socket_path(self):
-        from mcfeely_authd.config import load_config
+        from mcfeely_authd.config import Config, load_config
 
-        cfg = load_config(config_file="/nonexistent", socket_path="")
+        cfg = Config(
+            overrides={ "socket_path": "" }
+        )
         valid, err = cfg.validate()
         self.assertFalse(valid)
         self.assertIn("socket_path", err or "")
 
     def test_get_database_args_default(self):
-        from mcfeely_authd.config import load_config
+        from mcfeely_authd.config import Config, load_config
 
-        cfg = load_config(config_file="/nonexistent")
-        args = cfg.get_database_args()
+        cfg = Config(config_file="/nonexistent")
+        args = vars(cfg.make_args())
         self.assertEqual(args.get("databasename"), "zoid6test")
 
     def test_get_database_args_with_credentials(self):
-        from mcfeely_authd.config import load_config
+        from mcfeely_authd.config import Config, load_config
 
-        cfg = load_config(
-            config_file="/nonexistent",
-            database_dsn="postgresql://user:pass@dbhost:5432/testdb",
+        cfg = Config(
+            overrides={ "database_dsn": "postgresql://user:pass@dbhost:5432/testdb" }
         )
-        args = cfg.get_database_args()
+        args = vars(cfg.make_args())
         self.assertEqual(args.get("databasename"), "testdb")
         self.assertEqual(args.get("databaseuser"), "user")
         self.assertEqual(args.get("databasepassword"), "pass")
@@ -332,39 +337,36 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(args.get("databaseport"), 5432)
 
     def test_get_database_args_with_explicit_credentials(self):
-        from mcfeely_authd.config import load_config
+        from mcfeely_authd.config import Config, load_config
 
-        cfg = load_config(
-            config_file="/nonexistent",
-            database_dsn="postgresql://localhost/zoid6test",
-            database_user="custom_user",
-            database_password="custom_pass",
+        cfg = Config(
+            overrides={ "database_dsn": "postgresql://localhost/zoid6test", "database_user": "custom_user", "database_password": "custom_pass" }
         )
-        args = cfg.get_database_args()
+        args = vars(cfg.make_args())
         self.assertEqual(args.get("databaseuser"), "custom_user")
         self.assertEqual(args.get("databasepassword"), "custom_pass")
 
     def test_dict_like_access(self):
-        from mcfeely_authd.config import load_config
+        from mcfeely_authd.config import Config, load_config
 
-        cfg = load_config(config_file="/nonexistent")
+        cfg = Config(config_file="/nonexistent")
         self.assertIn("socket_path", cfg)
         self.assertEqual(cfg["socket_path"], "/var/run/mcfeely-authd/mux")
         cfg["socket_path"] = "/tmp/custom"
         self.assertEqual(cfg["socket_path"], "/tmp/custom")
 
     def test_items(self):
-        from mcfeely_authd.config import load_config
+        from mcfeely_authd.config import Config, load_config
 
-        cfg = load_config(config_file="/nonexistent")
+        cfg = Config(config_file="/nonexistent")
         items = dict(cfg.items())
         self.assertIn("socket_path", items)
         self.assertIn("pid_file", items)
 
     def test_get_method(self):
-        from mcfeely_authd.config import load_config
+        from mcfeely_authd.config import Config, load_config
 
-        cfg = load_config(config_file="/nonexistent")
+        cfg = Config(config_file="/nonexistent")
         self.assertEqual(cfg.get("socket_path"), "/var/run/mcfeely-authd/mux")
         self.assertEqual(cfg.get("nonexistent_key", "default"), "default")
         self.assertIsNone(cfg.get("nonexistent_key"))
@@ -378,12 +380,10 @@ class TestAuthVerify(unittest.TestCase):
     """Test password verification logic (database + PAM fallback)."""
 
     def setUp(self):
-        from mcfeely_authd.config import load_config
+        from mcfeely_authd.config import Config, load_config
 
-        self.cfg = load_config(
-            config_file="/nonexistent",
-            socket_path="/tmp/mcfeely-authd-test-mux",
-            log_file="/tmp/mcfeely-authd-test.log",
+        self.cfg = Config(
+            overrides={ "socket_path": "/tmp/mcfeely-authd-test-mux", "log_file": "/tmp/mcfeely-authd-test.log" }
         )
 
     def test_verify_empty_username(self):
@@ -403,7 +403,7 @@ class TestAuthVerify(unittest.TestCase):
     def test_verify_no_database_no_pam(self):
         from mcfeely_authd.auth_verify import verify_password
 
-        self.cfg._config["fallback_pam"] = False
+        self.cfg["fallback_pam"] = False
         ok, reason = verify_password("alice", "secret", self.cfg)
         self.assertFalse(ok)
 
@@ -433,39 +433,68 @@ class TestAuthVerifyCheckCryptHash(unittest.TestCase):
 
 
 class TestAuthVerifyDatabase(unittest.TestCase):
-    """Test database-based password verification with mocked psycopg2."""
+    """Test database-based password verification with mocked bbsengine6.database."""
 
     def setUp(self):
-        from mcfeely_authd.config import load_config
+        from mcfeely_authd.config import Config, load_config
 
-        self.cfg = load_config(
-            config_file="/nonexistent",
-            socket_path="/tmp/mcfeely-authd-test-mux",
-            log_file="/tmp/mcfeely-authd-test.log",
+        self.cfg = Config(
+            overrides={ "socket_path": "/tmp/mcfeely-authd-test-mux", "log_file": "/tmp/mcfeely-authd-test.log" }
         )
-        self.mock_psycopg = MagicMock()
-        self.psycopg_patcher = patch.dict("sys.modules", {"psycopg": self.mock_psycopg})
-        self.psycopg_patcher.start()
+        self.cfg._pool = self._make_pool(fetchone_return=None)
 
     def tearDown(self):
-        self.psycopg_patcher.stop()
+        self.cfg.close_pool()
 
-    def _make_conn(self, fetchone_return=None):
-        mock_conn = MagicMock()
+    def _make_pool(self, fetchone_return=None):
+        """Build a MagicMock pool whose connect() is a context manager.
+
+        bbsengine6.database.connect(args, pool=pool) is a
+        @contextmanager that yields a connection. The connection's
+        cursor() is a context manager that yields a cursor. The cursor
+        has execute() and fetchone() we want to drive from the test.
+        """
         mock_cur = MagicMock()
         mock_cur.fetchone.return_value = fetchone_return
-        mock_conn.cursor.return_value = mock_cur
-        return mock_conn
+
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+
+        mock_pool = MagicMock()
+        # pool.getconn() not used directly by callers; connect() is.
+        # make connect() a context manager that yields mock_conn.
+        from contextlib import contextmanager
+
+        @contextmanager
+        def fake_connect(args, pool=None, **kw):
+            yield mock_conn
+
+        mock_pool._fake_connect = fake_connect
+        return mock_pool
+
+    def _patch_connect(self, fetchone_return=None):
+        """Patch bbsengine6.database.connect to yield a mock connection."""
+        mock_cur = MagicMock()
+        mock_cur.fetchone.return_value = fetchone_return
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+
+        from contextlib import contextmanager
+
+        @contextmanager
+        def fake_connect(args, pool=None, **kw):
+            yield mock_conn
+
+        return patch("bbsengine6.database.connect", side_effect=fake_connect)
 
     def test_user_found_password_ok(self):
         from mcfeely_authd.auth_verify import _verify_database
         from passlib.hash import sha512_crypt
 
         h = sha512_crypt.hash("correct-password")
-        mock_conn = self._make_conn(fetchone_return=(h,))
-        self.mock_psycopg.connect.return_value = mock_conn
-
-        ok, reason = _verify_database("alice", "correct-password", self.cfg)
+        patcher = self._patch_connect(fetchone_return=(h,))
+        with patcher:
+            ok, reason = _verify_database("alice", "correct-password", self.cfg)
         self.assertTrue(ok)
         self.assertIn("database", reason.lower())
 
@@ -474,44 +503,31 @@ class TestAuthVerifyDatabase(unittest.TestCase):
         from passlib.hash import sha512_crypt
 
         h = sha512_crypt.hash("correct-password")
-        mock_conn = self._make_conn(fetchone_return=(h,))
-        self.mock_psycopg.connect.return_value = mock_conn
-
-        ok, reason = _verify_database("alice", "wrong-password", self.cfg)
+        patcher = self._patch_connect(fetchone_return=(h,))
+        with patcher:
+            ok, reason = _verify_database("alice", "wrong-password", self.cfg)
         self.assertFalse(ok)
         self.assertIn("Invalid password", reason)
 
     def test_user_not_found(self):
         from mcfeely_authd.auth_verify import _verify_database
 
-        mock_conn = self._make_conn(fetchone_return=None)
-        self.mock_psycopg.connect.return_value = mock_conn
-
-        ok, reason = _verify_database("unknown", "password", self.cfg)
+        patcher = self._patch_connect(fetchone_return=None)
+        with patcher:
+            ok, reason = _verify_database("unknown", "password", self.cfg)
         self.assertFalse(ok)
         self.assertIn("not found", reason.lower())
 
     def test_database_error(self):
         from mcfeely_authd.auth_verify import _verify_database
 
-        self.mock_psycopg.connect.side_effect = Exception("Connection refused")
-
-        ok, reason = _verify_database("alice", "password", self.cfg)
+        with patch(
+            "bbsengine6.database.connect",
+            side_effect=Exception("Connection refused"),
+        ):
+            ok, reason = _verify_database("alice", "password", self.cfg)
         self.assertFalse(ok)
         self.assertIn("Database error", reason)
-
-    def test_no_psycopg(self):
-        from mcfeely_authd.auth_verify import _verify_database
-
-        self.psycopg_patcher.stop()
-        self.psycopg_patcher = patch.dict("sys.modules", {"psycopg": None})
-        self.psycopg_patcher.start()
-
-        ok, reason = _verify_database("alice", "password", self.cfg)
-        self.assertFalse(ok)
-        self.psycopg_patcher.stop()
-        self.psycopg_patcher = patch.dict("sys.modules", {"psycopg": self.mock_psycopg})
-        self.psycopg_patcher.start()
 
 
 @patch("mcfeely_authd.auth_verify.subprocess.run")
@@ -519,12 +535,10 @@ class TestAuthVerifyPamFallback(unittest.TestCase):
     """Test PAM fallback password verification."""
 
     def setUp(self):
-        from mcfeely_authd.config import load_config
+        from mcfeely_authd.config import Config, load_config
 
-        self.cfg = load_config(
-            config_file="/nonexistent",
-            socket_path="/tmp/mcfeely-authd-test-mux",
-            log_file="/tmp/mcfeely-authd-test.log",
+        self.cfg = Config(
+            overrides={ "socket_path": "/tmp/mcfeely-authd-test-mux", "log_file": "/tmp/mcfeely-authd-test.log" }
         )
 
     def test_pam_success(self, mock_run):
@@ -566,12 +580,10 @@ class TestAuthVerifyFullFlow(unittest.TestCase):
     """Test the full verify_password flow with fallback."""
 
     def setUp(self):
-        from mcfeely_authd.config import load_config
+        from mcfeely_authd.config import Config, load_config
 
-        self.cfg = load_config(
-            config_file="/nonexistent",
-            socket_path="/tmp/mcfeely-authd-test-mux",
-            log_file="/tmp/mcfeely-authd-test.log",
+        self.cfg = Config(
+            overrides={ "socket_path": "/tmp/mcfeely-authd-test-mux", "log_file": "/tmp/mcfeely-authd-test.log" }
         )
 
     @patch("mcfeely_authd.auth_verify._verify_database")
@@ -611,7 +623,7 @@ class TestAuthVerifyFullFlow(unittest.TestCase):
     def test_no_fallback_when_disabled(self, mock_pam, mock_db):
         from mcfeely_authd.auth_verify import verify_password
 
-        self.cfg._config["fallback_pam"] = False
+        self.cfg["fallback_pam"] = False
         mock_db.return_value = (False, "User not found in database")
 
         ok, reason = verify_password("alice", "secret", self.cfg)
@@ -623,32 +635,40 @@ class TestGetUserInfo(unittest.TestCase):
     """Test the get_user_info function."""
 
     def setUp(self):
-        from mcfeely_authd.config import load_config
+        from mcfeely_authd.config import Config, load_config
 
-        self.cfg = load_config(
-            config_file="/nonexistent",
-            socket_path="/tmp/mcfeely-authd-test-mux",
-            log_file="/tmp/mcfeely-authd-test.log",
+        self.cfg = Config(
+            overrides={ "socket_path": "/tmp/mcfeely-authd-test-mux", "log_file": "/tmp/mcfeely-authd-test.log" }
         )
-        self.mock_psycopg = MagicMock()
-        self.psycopg_patcher = patch.dict("sys.modules", {"psycopg": self.mock_psycopg})
-        self.psycopg_patcher.start()
 
     def tearDown(self):
-        self.psycopg_patcher.stop()
+        self.cfg.close_pool()
+
+    def _patch_connect(self, fetchone_return):
+        """Patch bbsengine6.database.connect to return a mock conn."""
+        mock_cur = MagicMock()
+        mock_cur.fetchone.return_value = fetchone_return
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+
+        from contextlib import contextmanager
+
+        @contextmanager
+        def fake_connect(args, pool=None, **kw):
+            yield mock_conn
+
+        return patch("bbsengine6.database.connect", side_effect=fake_connect)
 
     def test_user_found(self):
         from mcfeely_authd.auth_verify import get_user_info
         from datetime import datetime
 
         now = datetime.now()
-        mock_conn = MagicMock()
-        mock_cur = MagicMock()
-        mock_cur.fetchone.return_value = ("alice", True, now, now, "alice@test.com", now)
-        mock_conn.cursor.return_value = mock_cur
-        self.mock_psycopg.connect.return_value = mock_conn
-
-        info = get_user_info("alice", self.cfg)
+        patcher = self._patch_connect(
+            fetchone_return=("alice", True, now, now, "alice@test.com", now)
+        )
+        with patcher:
+            info = get_user_info("alice", self.cfg)
         self.assertIsNotNone(info)
         self.assertEqual(info["member_moniker"], "alice")
         self.assertEqual(info["email"], "alice@test.com")
@@ -657,32 +677,12 @@ class TestGetUserInfo(unittest.TestCase):
     def test_user_not_found(self):
         from mcfeely_authd.auth_verify import get_user_info
 
-        mock_conn = MagicMock()
-        mock_cur = MagicMock()
-        mock_cur.fetchone.return_value = None
-        mock_conn.cursor.return_value = mock_cur
-        self.mock_psycopg.connect.return_value = mock_conn
-
-        info = get_user_info("nonexistent", self.cfg)
+        patcher = self._patch_connect(fetchone_return=None)
+        with patcher:
+            info = get_user_info("nonexistent", self.cfg)
         self.assertIsNone(info)
 
-    def test_no_psycopg(self):
-        from mcfeely_authd.auth_verify import get_user_info
 
-        self.psycopg_patcher.stop()
-        self.psycopg_patcher = patch.dict("sys.modules", {"psycopg": None})
-        self.psycopg_patcher.start()
-
-        info = get_user_info("alice", self.cfg)
-        self.assertIsNone(info)
-        self.psycopg_patcher.stop()
-        self.psycopg_patcher = patch.dict("sys.modules", {"psycopg": self.mock_psycopg})
-        self.psycopg_patcher.start()
-
-
-# ---------------------------------------------------------------------------
-# mcfeely_authd.mcfeely_authd (daemon) tests
-# ---------------------------------------------------------------------------
 
 class TestDaemonMain(unittest.TestCase):
     """Test the daemon's main() entry point and argument parsing."""
@@ -776,7 +776,7 @@ class TestDaemonSetupLogging(unittest.TestCase):
         from mcfeely_authd.mcfeely_authd import setup_logging
         from mcfeely_authd.config import Config
 
-        cfg = Config(config_file="/nonexistent", log_syslog=False, log_file="/tmp/test-authd.log")
+        cfg = Config(config_file="/nonexistent", overrides={"log_syslog": False, "log_file": "/tmp/test-authd.log"})
         try:
             logger = setup_logging(cfg)
             self.assertIsNotNone(logger)
@@ -793,7 +793,7 @@ class TestDaemonValidateConfig(unittest.TestCase):
         from mcfeely_authd.mcfeely_authd import run_daemon
         from mcfeely_authd.config import Config
 
-        cfg = Config(config_file="/nonexistent", socket_path="")
+        cfg = Config(config_file="/nonexistent", overrides={"socket_path": ""})
 
         def _noop_setup(cfg):
             logger = _logging.getLogger("mcfeely-authd-test")
