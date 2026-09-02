@@ -1,5 +1,12 @@
 # config.py
-# Configuration management for mcfeely-authd
+# Configuration management for mcfeely-authd.
+#
+# Loads INI-style config files (legacy format), exposes a Config class
+# with property-style access for ergonomic callers, and provides
+# make_args() / get_pool() helpers that bridge to bbsengine6.database
+# (the DAL the rest of mistermcfeely uses). The two layers coexist so
+# existing CLI callers and tests that use the property/dict-like API
+# keep working while DB code goes through the standard pool.
 
 import os
 from typing import Any, Optional
@@ -26,6 +33,7 @@ class Config:
 
     def __init__(self, config_file: Optional[str] = None, **overrides):
         self._config = DEFAULT_CONFIG.copy()
+        self._pool: Optional[Any] = None
         self._load_config_file(config_file)
         self._apply_overrides(overrides)
         self._apply_env_vars()
@@ -179,7 +187,13 @@ class Config:
         return self._config["max_children"]
 
     def get_database_args(self) -> dict:
-        """Get database connection arguments."""
+        """Get database connection arguments.
+
+        Returns a dict keyed by bbsengine6.database's expected names
+        (``databasename``, ``databasehost``, ``databaseport``,
+        ``databaseuser``, ``databasepassword``). Mirrors the rest of
+        mistermcfeely (mailbox.py, lib.py, member_password.py, tui/*).
+        """
         args = {
             "databasename": self._extract_dbname(),
         }
@@ -212,6 +226,47 @@ class Config:
         if "/" in dsn:
             return dsn.split("/")[-1]
         return "zoid6test"
+
+    def make_args(self) -> "argparse.Namespace":
+        """Build an argparse.Namespace from get_database_args().
+
+        bbsengine6.database.getpool() reads args.databasename /
+        databasehost / databaseport / databaseuser / databasepassword
+        via getattr, so a plain Namespace is sufficient.
+        """
+        import argparse
+        a = self.get_database_args()
+        return argparse.Namespace(
+            databasename=a.get("databasename"),
+            databasehost=a.get("databasehost"),
+            databaseport=a.get("databaseport"),
+            databaseuser=a.get("databaseuser"),
+            databasepassword=a.get("databasepassword"),
+        )
+
+    def get_pool(self) -> Any:
+        """Return a cached psycopg_pool.ConnectionPool for this config.
+
+        Lazy-cached on first call; subsequent calls return the same
+        pool so the daemon reuses one pool across many auth requests.
+        """
+        if self._pool is None:
+            from bbsengine6 import database
+            self._pool = database.getpool(self.make_args())
+        return self._pool
+
+    def close_pool(self) -> None:
+        """Close and discard the cached pool (if any).
+
+        Safe to call multiple times. Wired into the SIGTERM handler
+        in a follow-up; provided here so tests can reset state.
+        """
+        if self._pool is not None:
+            try:
+                self._pool.close()
+            except Exception:
+                pass
+            self._pool = None
 
     def validate(self) -> tuple[bool, Optional[str]]:
         """Validate configuration.
