@@ -15,6 +15,7 @@ class MailboxConfig:
         mailbox: str = "INBOX",
         use_ssl: bool = True,
         port: Optional[int] = None,
+        recipients: Optional[List[str]] = None,
     ):
         self.host = host
         self.username = username
@@ -22,6 +23,12 @@ class MailboxConfig:
         self.mailbox = mailbox
         self.use_ssl = use_ssl
         self.port = port or (993 if use_ssl else 143)
+        # BBS monikers and/or "@<group>" strings that should receive a
+        # notification when new mail arrives in this mailbox. None
+        # means fall back to the default ("@everyone"); an empty list
+        # means "don't notify anyone" (the poller still runs but
+        # produces no notifications).
+        self.recipients = recipients
 
 
 def load_mailboxes(config: Optional[Dict[str, Any]] = None) -> List[MailboxConfig]:
@@ -29,13 +36,22 @@ def load_mailboxes(config: Optional[Dict[str, Any]] = None) -> List[MailboxConfi
 
     Args:
         config: Dict with a "mailboxes" key holding a list of dicts
-            (each: host, username, password, mailbox?, use_ssl?, port?).
+            (each: host, username, password, mailbox?, use_ssl?,
+            port?, recipients?). ``recipients`` is optional; when
+            absent the MailboxConfig defaults to ``None`` (which
+            signals the notifier to use the @everyone fallback).
             If None, returns an empty list.
     """
     if not config:
         return []
     mailboxes: List[MailboxConfig] = []
     for mb in config.get("mailboxes", []):
+        recipients = mb.get("recipients")
+        if recipients is not None and not isinstance(recipients, list):
+            raise ValueError(
+                f"mailbox {mb.get('username', '?')!r}: "
+                "'recipients' must be a list of monikers/groups"
+            )
         mailboxes.append(
             MailboxConfig(
                 host=mb.get("host", ""),
@@ -44,6 +60,7 @@ def load_mailboxes(config: Optional[Dict[str, Any]] = None) -> List[MailboxConfi
                 mailbox=mb.get("mailbox", "INBOX"),
                 use_ssl=mb.get("use_ssl", True),
                 port=mb.get("port"),
+                recipients=recipients,
             )
         )
     return mailboxes

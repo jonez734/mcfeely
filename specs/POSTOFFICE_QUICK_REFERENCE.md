@@ -306,6 +306,49 @@ monitor.stop()
 2. **Flag Changes** → fires `message-flagged` event  
 3. **Deleted Messages** → fires `message-deleted` event
 
+### MailboxPoller Config Schema
+
+`postoffice.services.MailboxPoller` (the live background poller) is
+configured with a Python dict passed to its constructor or to
+`postoffice.services.start_service()`:
+
+```python
+from postoffice.services import start_service, stop_service
+
+start_service({
+    "enabled": True,
+    "poll_interval": 30,            # seconds between polls
+    "mailboxes": [
+        {
+            "host": "imap.example.com",
+            "username": "shared-support@example.com",
+            "password": "...",      # encrypted at rest in real deployments
+            "mailbox": "INBOX",     # default
+            "use_ssl": True,        # default
+            "port": 993,            # default for use_ssl=True
+            # Optional: who to notify. Defaults to ["@everyone"] when absent.
+            # Set to [] to disable notifications for this mailbox while
+            # still polling (e.g. for analytics).
+            "recipients": ["@support", "alice", "bob"],
+        },
+        # A mailbox with no "recipients" key keeps the @everyone fallback.
+        {
+            "host": "imap.example.com",
+            "username": "shared@example.com",
+            "password": "...",
+        },
+    ],
+})
+```
+
+For each fetched envelope, the poller sends one `postoffice.email`
+notification (via `bbsengine6.message.send`) with a body that uses the
+standard BBS color markup — labels in `{var:labelcolor}` (lightgray),
+the From/Subject/To values in `{var:valuecolor}` (green), and the
+From-address in `{var:recipientcolor}` (cyan). After a successful
+notification the envelope is marked `\Seen` so the next poll does not
+re-notify the same message.
+
 ---
 
 ## TUI Components

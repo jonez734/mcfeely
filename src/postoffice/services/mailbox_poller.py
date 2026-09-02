@@ -98,9 +98,28 @@ class MailboxPoller:
         conn = None
         try:
             conn = svc_imap.connect(mb)
-            envelopes = svc_imap.fetch_envelopes(conn, limit=5)
+            envelopes, message_ids = svc_imap.fetch_envelopes(conn, limit=5)
             if envelopes:
-                notification.notify_new_messages(envelopes)
+                notification.notify_new_messages(
+                    envelopes,
+                    recipients=mb.recipients,
+                    to=f"{mb.username}@{mb.host}/{mb.mailbox}",
+                )
+                for msg_id in message_ids:
+                    try:
+                        # imaplib's stubs say ``message_set`` is str, but
+                        # ``bytes`` works at runtime. Coerce to str so
+                        # both strict type checkers and real servers
+                        # accept it.
+                        if isinstance(msg_id, bytes):
+                            msg_id = msg_id.decode("ascii", errors="replace")
+                        elif isinstance(msg_id, int):
+                            msg_id = str(msg_id)
+                        conn.store(msg_id, "+FLAGS", "\\Seen")
+                    except Exception as e:
+                        logger.warning(
+                            f"MailboxPoller: could not mark {msg_id!r} seen: {e}"
+                        )
         except Exception as e:
             logger.error(f"MailboxPoller._check_mailbox_sync[{mb.host}]: {e}")
         finally:

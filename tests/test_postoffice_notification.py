@@ -64,6 +64,28 @@ class TestBuildEmailPayload(unittest.TestCase):
         call_kwargs = mock_send.call_args.kwargs
         self.assertEqual(call_kwargs["recipients"], ["@everyone"])
 
+    def test_notification_recipient_override(self):
+        """notify_new_messages honors caller-supplied recipients list."""
+        from postoffice.services.notification import notify_new_messages
+        with patch("postoffice.services.notification.message_send") as mock_send:
+            notify_new_messages(
+                [_envelope("a@b.c", "Test", "Body.")],
+                recipients=["alice", "@support"],
+            )
+        call_kwargs = mock_send.call_args.kwargs
+        self.assertEqual(call_kwargs["recipients"], ["alice", "@support"])
+
+    def test_notification_empty_recipients_sends_nothing(self):
+        """An empty recipients list sends no notifications."""
+        from postoffice.services.notification import notify_new_messages
+        with patch("postoffice.services.notification.message_send") as mock_send:
+            sent = notify_new_messages(
+                [_envelope("a@b.c", "Test", "Body.")],
+                recipients=[],
+            )
+        mock_send.assert_not_called()
+        self.assertEqual(sent, 0)
+
     def test_notification_message_type(self):
         """Notification uses postoffice.email message type."""
         from postoffice.services.notification import notify_new_messages
@@ -73,14 +95,44 @@ class TestBuildEmailPayload(unittest.TestCase):
         self.assertEqual(call_kwargs["notification_type"], "postoffice.email")
 
     def test_notification_format(self):
-        """Notification format includes From / Subject / body lines."""
+        """Notification format includes From / To / Subject / body lines."""
         from postoffice.services.notification import build_email_payload
         payload = build_email_payload(
-            _envelope("test@sender.com", "Newsletter", "This is the email content.")
+            _envelope("test@sender.com", "Newsletter", "This is the email content."),
+            to="shared/support@example.com",
         )
-        self.assertTrue(payload.startswith("From:"))
-        self.assertIn("Subject:", payload)
+        self.assertTrue(payload.startswith("{var:labelcolor}From:"))
+        self.assertIn("{var:labelcolor}To: ", payload)
+        self.assertIn("{var:labelcolor}Subject: ", payload)
+        self.assertIn("test@sender.com", payload)
+        self.assertIn("Newsletter", payload)
+        self.assertIn("shared/support@example.com", payload)
         self.assertIn("This is the email content.", payload)
+
+    def test_notification_color_tokens_present(self):
+        """Color tokens {var:labelcolor}, {var:valuecolor},
+        {var:recipientcolor} all appear in the rendered payload so the
+        recipient's terminal can resolve them.
+        """
+        from postoffice.services.notification import build_email_payload
+        payload = build_email_payload(
+            _envelope("a@b.c", "Subj", "Body."),
+            to="shared/example",
+        )
+        self.assertIn("{var:labelcolor}", payload)
+        self.assertIn("{var:valuecolor}", payload)
+        self.assertIn("{var:recipientcolor}", payload)
+
+    def test_notification_to_label_renders_when_missing(self):
+        """An absent ``to`` value still renders the To: label with a
+        blank value (not omitted, not crashing).
+        """
+        from postoffice.services.notification import build_email_payload
+        payload = build_email_payload(_envelope("a@b.c", "Subj", "Body."))
+        self.assertIn("{var:labelcolor}To: ", payload)
+        # The line should be "To: " followed by the valuecolor, with
+        # no inserted junk between them.
+        self.assertIn("{var:labelcolor}To: {var:valuecolor}", payload)
 
 
 @pytest.mark.integration

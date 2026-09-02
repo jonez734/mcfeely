@@ -6,7 +6,7 @@
 import imaplib
 from email.parser import BytesParser
 from email.policy import default
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .config import MailboxConfig
 
@@ -45,14 +45,38 @@ def count_unseen(mailbox: MailboxConfig) -> int:
                 pass
 
 
-def fetch_envelopes(conn: imaplib.IMAP4, limit: int = 5) -> List[bytes]:
-    """Fetch up to `limit` envelope payloads from the currently selected mailbox."""
+def fetch_envelopes(
+    conn: imaplib.IMAP4, limit: int = 5
+) -> Tuple[List[bytes], List[Any]]:
+    """Fetch up to ``limit`` envelope payloads from the currently selected mailbox.
+
+    Returns a ``(envelopes, message_ids)`` tuple. ``message_ids`` lists
+    the IMAP identifiers that correspond to each envelope (in the same
+    order, by position) so the caller can mark them ``\\Seen`` after a
+    successful notification. ``message_ids[i]`` corresponds to
+    ``envelopes[i]``; either list is empty if the mailbox had no UNSEEN
+    messages (or the SEARCH returned an empty set).
+
+    The IMAP ``message_id`` is typed as ``Any`` because imaplib emits
+    bytes on a SEARCH split, but downstream ``conn.store`` also accepts
+    string IDs; coercing happens at the call site.
+    """
     typ, data = conn.search(None, "UNSEEN")
     if typ != "OK" or not data or not data[0]:
-        return []
+        return [], []
     message_ids = data[0].split()[:limit]
     envelopes: List[bytes] = []
+    fetched_ids: List[Any] = []
     for msg_id in message_ids:
+        # imaplib's stubs type SEARCH split results as ``int | bytes``,
+        # but at runtime ``data[0].split()`` always yields ``bytes`` (or
+        # ``str`` if ``unicode=True`` was passed to IMAP4). Coerce to
+        # bytes here so the downstream ``conn.fetch`` / ``conn.store``
+        # calls don't trip strict type-checkers.
+        if isinstance(msg_id, int):
+            msg_id = str(msg_id).encode("ascii")
+        elif isinstance(msg_id, str):
+            msg_id = msg_id.encode("ascii")
         try:
             typ, msg_data = conn.fetch(msg_id, "(ENVELOPE)")
             if typ != "OK" or not msg_data or not msg_data[0]:
@@ -60,9 +84,10 @@ def fetch_envelopes(conn: imaplib.IMAP4, limit: int = 5) -> List[bytes]:
             envelope = msg_data[0][1] if len(msg_data[0]) > 1 else b""
             if envelope:
                 envelopes.append(envelope)
+                fetched_ids.append(msg_id)
         except Exception:
             continue
-    return envelopes
+    return envelopes, fetched_ids
 
 
 def extract_preview(envelope_bytes: bytes, body_limit: int = 500) -> Dict[str, str]:
