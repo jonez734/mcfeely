@@ -1,7 +1,17 @@
 PROJECT = mistermcfeely
 MEDIA = /run/media/jam/BEA6-BBCE/work/$(PROJECT)/
 
-VERSION = $(shell date +%Y%m%d%H%M)
+# VERSION_PREFIX is the single source of truth for the PEP 440 leading
+# component (e.g. `0.0.1.dev`). VERSION is built from it by appending a
+# per-second timestamp; DATESTAMP is the timestamp portion alone (the
+# prefix is stripped via Make text-function substitution so the prefix
+# lives in exactly one place). Per-second resolution (%S) so two
+# invocations in the same minute still produce distinct wheel filenames;
+# `:=` (simply-expanded) is kept as defense in depth to guarantee single
+# eval at parse time. Mirrors zoidoffice/Makefile:VERSION_PREFIX.
+VERSION_PREFIX := 0.0.1.dev
+VERSION := $(VERSION_PREFIX)$(shell date +%Y%m%d%H%M%S)
+DATESTAMP := $(VERSION:$(VERSION_PREFIX)%=%)
 
 PYTHON ?= python3.12
 
@@ -22,8 +32,8 @@ BBSENGINE_DIR = $(CURDIR)/../bbsengine6/py
 # Packages whose wheels land in $(OUTDIR)/$(PROJECT)-*.whl during a
 # build. Precheck-editable and verify-install iterate over this list
 # so a single macro covers the batch install (bbsengine6 wheel +
-# mistermcfeely wheel) that deploy-venv writes into the shared zoid6
-# venv. Adding a new transitive dep whose wheel is also installed by
+# mistermcfeely wheel) that deploy-venv writes into the active venv.
+# Adding a new transitive dep whose wheel is also installed by
 # deploy-venv is a one-line change here.
 WHEEL_PACKAGES := bbsengine6 mistermcfeely
 
@@ -41,7 +51,7 @@ DEPLOY_EDITABLE ?=
 # invocation semantically promises "rebuild the venv, no questions
 # asked", so blocking on an editable install the operator may have
 # placed there on purpose is wrong-headed. The verify-install macro
-# then becomes the correctness contract — if the editable .pth finder
+# then becomes the correctness contract - if the editable .pth finder
 # shadows the wheel install, the dist-info Version check fails and
 # the deploy aborts with a precise diagnosis. Without `--with-deps`,
 # precheck-editable hard-fails (most operators are not consciously
@@ -51,37 +61,49 @@ DEPLOY_WITH_DEPS ?=
 # DEPLOY_UPGRADE is set by `deploytool --upgrade` (default true) and
 # unset by `--no-upgrade`. When "1", every `pip install` in this
 # Makefile (except `pip install --upgrade pip`, which always upgrades
-# pip itself — stale pip breaks everything downstream) passes
+# pip itself - stale pip breaks everything downstream) passes
 # `--upgrade`. Empty = prior no-op-if-version-matches behavior.
 DEPLOY_UPGRADE ?=
 PIP_UPGRADE_FLAG := $(if $(filter 1,$(DEPLOY_UPGRADE)),--upgrade,)
 
-.PHONY: all help clean backup version
-.PHONY: install uninstall deploy deploy-tui deploy-prod
+.PHONY: all help clean backup version build sdist rename-sdist sign release
+.PHONY: install uninstall deploy deploy-tui deploy-venv deploy-prod
 .PHONY: install-sysusers uninstall-sysusers
 .PHONY: install-tmpfiles uninstall-tmpfiles
 .PHONY: install-venv uninstall-venv restorecon
 .PHONY: install-systemd uninstall-systemd
 .PHONY: install-etc uninstall-etc
-
-deploy: install
+.PHONY: ensure-repo ensure-build-dir clean-egg-info commit-version
 
 all: help
 
 help:
 	@echo "$(PROJECT) - Post Office email management for BBS"
 	@echo ""
-	@echo "Targets:"
-	@echo "  install            Full install: sysusers + tmpfiles + venv + systemd + etc"
-	@echo "  uninstall          Full uninstall"
-	@echo "  deploy             Full install (alias for install)"
-	@echo "  deploy-tui         Build wheels into $(OUTDIR) and install into active venv (no sudo; matches casino.tui shape)"
-	@echo "  deploy-prod        sudo umbrella: install-sysusers + install-tmpfiles + install-venv + install-systemd + install-etc"
-	@echo "  deploy-tui DEPLOY_EDITABLE=1    Install editable from src/ (live edits; set by deploytool --editable)"
+	@echo "Build / packaging:"
+	@echo "  build              Build wheel for $(PROJECT) + bbsengine6 into $(OUTDIR)"
+	@echo "  sdist              Build source tarball for $(PROJECT) into $(OUTDIR)"
+	@echo "  rename-sdist       Rename built sdist to include -src suffix"
+	@echo "  sign               GPG-detach-sign every artifact in $(OUTDIR)"
+	@echo "  release            clean + version + build + rename-sdist + sign"
 	@echo "  version            Stamp src/postoffice/_version.py with date + git hash"
-	@echo "  clean              Remove build artifacts"
+	@echo "  ensure-repo        Ensure /srv/repo is group-writable (sudo)"
+	@echo "  ensure-build-dir   Ensure /srv/repo/$(PROJECT) is group-writable (sudo)"
+	@echo "  clean              Remove build artifacts (incl. egg-info)"
+	@echo "  clean-egg-info     Wipe in-tree *.egg-info/ dirs (defensive)"
+	@echo "  commit-version     git add + commit src/postoffice/_version.py if changed"
 	@echo "  backup             Rsync project to $(MEDIA)"
 	@echo ""
+	@echo "Deploy (no sudo):"
+	@echo "  deploy             Alias for deploy-venv (build wheels + install into active venv)"
+	@echo "  deploy-venv        Non-sudo: build wheels + install into active venv"
+	@echo "  deploy-tui         Build wheels into $(OUTDIR) and install into active venv (matches casino.tui shape)"
+	@echo "  deploy-tui DEPLOY_EDITABLE=1    Install editable from src/ (live edits; set by deploytool --editable)"
+	@echo ""
+	@echo "Deploy (sudo):"
+	@echo "  deploy-prod        Full prod install: sysusers + tmpfiles + venv + systemd + etc"
+	@echo "  install            Full install (sysusers + tmpfiles + venv + systemd + etc)"
+	@echo "  uninstall          Full uninstall"
 	@echo "  install-sysusers   Create postoffice user and group via systemd-sysusers"
 	@echo "  uninstall-sysusers Remove sysusers.d/postoffice.conf"
 	@echo "  install-tmpfiles   Create /var/lib/postoffice and /var/run/mcfeely-authd via systemd-tmpfiles"
@@ -93,12 +115,68 @@ help:
 	@echo "  uninstall-systemd  Stop, disable, and remove the mcfeely-authd.service unit"
 	@echo "  install-etc        Install mcfeely-authd.conf and saslauthd config files"
 	@echo "  uninstall-etc      Remove installed config files"
+	@echo ""
+	@echo "Env vars:"
+	@echo "  DEPLOY_EDITABLE=1   install editable from src/ (deploytool --editable)"
+	@echo "  DEPLOY_WITH_DEPS=1  warn-and-proceed over an existing editable install (deploytool --with-deps)"
+	@echo "  DEPLOY_UPGRADE=1    pass --upgrade to every pip install (deploytool --upgrade; default)"
 
+.PHONY: ensure-repo
+ensure-repo:
+	@stat -c '%G' /srv/repo 2>/dev/null | grep -qx repo || sudo chgrp repo /srv/repo
+	@stat -c '%a' /srv/repo 2>/dev/null | grep -q '^2775$$' || sudo chmod 2775 /srv/repo
+
+.PHONY: ensure-build-dir
+ensure-build-dir: ensure-repo
+	@mkdir -p /srv/repo/$(PROJECT)/
+	@stat -c '%G' /srv/repo/$(PROJECT)/ 2>/dev/null | grep -qx repo || sudo chgrp repo /srv/repo/$(PROJECT)/
+	@stat -c '%a' /srv/repo/$(PROJECT)/ 2>/dev/null | grep -q '^2775$$' || sudo chmod 2775 /srv/repo/$(PROJECT)/
+
+# Stamp src/postoffice/_version.py with the current build identity.
+# Delegates to the inner src/Makefile so the actual write lives in
+# exactly one place (mirrors zoidoffice/Makefile:version -> src/Makefile).
+# VERSION and VERSION_PREFIX are forwarded so the inner make sees the
+# same values parsed here (defense against the sub-make re-evaluating
+# `date` and producing a different stamp).
 version:
-	@echo '__version__ = "0.0.1.dev$(VERSION)"' > src/postoffice/_version.py
-	@echo '__datestamp__ = "$(VERSION)"' >> src/postoffice/_version.py
-	@echo '__githash__ = "'`git log -1 --format='%H' 2>/dev/null | cut -c 1-16`'"' >> src/postoffice/_version.py
-	@cat src/postoffice/_version.py
+	$(MAKE) -C src version VERSION=$(VERSION) VERSION_PREFIX=$(VERSION_PREFIX)
+
+# Forward build/sdist to the inner src/Makefile, which holds the
+# PREPARE_BUILD macro and the actual `python -m build` invocation.
+# The root Makefile owns OUTDIR + ensure-build-dir; the inner make
+# writes into src/../dist and the src/Makefile repo target (when
+# invoked) rsyncs into $(OUTDIR). Mirrors zoidoffice/Makefile:build.
+build: version ensure-build-dir
+	$(MAKE) -C src build VERSION=$(VERSION) VERSION_PREFIX=$(VERSION_PREFIX)
+	$(MAKE) -C src repo OUTDIR=$(OUTDIR)
+
+sdist: version ensure-build-dir
+	$(MAKE) -C src sdist VERSION=$(VERSION) VERSION_PREFIX=$(VERSION_PREFIX)
+	$(MAKE) -C src repo OUTDIR=$(OUTDIR)
+
+# Renames the sdist to <project>-src.tar.gz so wheels and source
+# tarballs share the same basename and sort naturally in /srv/repo/.
+# Mirrors bbsengine6/Makefile:rename-sdist, bed/Makefile:rename-sdist,
+# casino/Makefile:rename-sdist.
+rename-sdist:
+	@for f in $(OUTDIR)/*.tar.gz; do \
+		if [ -f "$$f" ] && echo "$$f" | grep -vq '\-src\.tar\.gz' ; then \
+			mv "$$f" "$${f%.tar.gz}-src.tar.gz"; \
+			echo "Renamed $$f -> $${f%.tar.gz}-src.tar.gz"; \
+		fi \
+	done
+
+# Detached-sign every artifact in OUTDIR that lacks a .asc. Mirrors
+# bbsengine6/Makefile:sign, bed/Makefile:sign, casino/Makefile:sign.
+sign:
+	@for f in $(OUTDIR)/*; do \
+		if [ -f "$$f" ] && [ ! -f "$$f.asc" ] && [ "$${f##*.}" != "asc" ]; then \
+			gpg --armor --detach-sign "$$f"; \
+			echo "Signed $$f"; \
+		fi \
+	done
+
+release: clean version build rename-sdist sign
 
 SYSUSERS_SRC = etc-postoffice/postoffice.sysusers
 SYSUSERS_DST = /usr/lib/sysusers.d/postoffice.conf
@@ -142,7 +220,7 @@ VENV_SHARED ?= /var/lib/zoid6/venv
 # a fresh dist-info but is shadowed on import, and the operator's
 # running process keeps seeing the source tree. Wheels accumulate in
 # OUTDIR; dist-info keeps reporting the source-tree version. There
-# is no in-place fix — the two install modes can't coexist.
+# is no in-place fix - the two install modes can't coexist.
 #
 # Implementation note: this macro does NOT call pip show (which would
 # need sudo to query the shared venv as zoid6 user). Instead it reads
@@ -166,18 +244,18 @@ VENV_SHARED ?= /var/lib/zoid6/venv
 #     promises "rebuild the venv, no questions asked", so blocking on
 #     an editable install the operator may have placed there on
 #     purpose is wrong-headed. The post-install verify-install macro
-#     then becomes the correctness contract — if the editable .pth
+#     then becomes the correctness contract - if the editable .pth
 #     finder shadows the wheel install, the dist-info Version check
 #     fails and the deploy aborts with a precise diagnosis naming
 #     the editable-install cause.
 #
 # Used by deploy-tui (operator venv) and install-venv (shared zoid6
 # venv). The calling recipe sets the VENV_PYTHON shell env var before
-# invoking the macro — deploy-tui sets it to operator's `python`
+# invoking the macro - deploy-tui sets it to operator's `python`
 # (so sysconfig.get_paths() reports the operator's site-packages);
 # install-venv sets it to $(VENV_DIR)/bin/python (so sysconfig reports
 # the shared zoid6 venv's site-packages). Either way, the macro runs
-# as the operator (no sudo) — site-packages and dist-info are
+# as the operator (no sudo) - site-packages and dist-info are
 # world-readable in a normal pip install.
 define precheck-editable
 	@for pkg in $(WHEEL_PACKAGES); do \
@@ -212,7 +290,7 @@ define precheck-editable
 				echo "  2) Switch to wheel mode:   pip uninstall $$pkg && deploy mistermcfeely.tui" >&2; \
 				echo "  3) Override for this run:  deploy --with-deps mistermcfeely.tui" >&2; \
 				echo >&2; \
-				echo "(The Makefile intentionally doesn't 'fix' this for you — see precheck-editable.)" >&2; \
+				echo "(The Makefile intentionally doesn't 'fix' this for you - see precheck-editable.)" >&2; \
 				exit 1; \
 			fi; \
 		fi; \
@@ -233,11 +311,11 @@ endef
 #   - filename:  regex-extracted from the wheel filename
 #   - METADATA:  Version: line from the wheel's METADATA (unzip -p)
 #   - dist-info: Version: line from `<pkg>-*.dist-info/METADATA` in
-#     the target venv's site-packages (no pip show — we read the
+#     the target venv's site-packages (no pip show - we read the
 #     file directly so the macro runs without sudo)
 #
 # All three must agree. Editable installs (DEPLOY_EDITABLE=1) skip
-# this — dist-info for an editable install reports the *source-tree*
+# this - dist-info for an editable install reports the *source-tree*
 # version, not a wheel version, and the comparison semantics differ.
 define verify-install
 	@for pkg in $(WHEEL_PACKAGES); do \
@@ -278,32 +356,14 @@ define verify-install
 	done
 endef
 
-# Build both bbsengine6 (transitive runtime dep) and mistermcfeely
-# wheels into the canonical cross-project OUTDIR. Runs as the
-# operator (no sudo) — `python -m build` is a regular local build,
-# the result is published to /srv/repo/mistermcfeely/ which is
-# operator-writable (or owned by the build group; see the
-# OUTDIR/ensure-build-dir pattern in casino/Makefile if more
-# rigor is needed later). Idempotent: each invocation overwrites
-# the prior wheels for the current timestamp.
-#
-# The bbsengine6 sub-build runs with --no-isolation so it uses the
-# already-installed bbsengine6 build deps (pyproject.toml declared
-# them in [build-system]). The mistermcfeely build does the same.
-build: version
-	@mkdir -p $(OUTDIR)
-	$(MAKE) -C $(BBSENGINE_DIR) version
-	$(PYTHON) -m build --no-isolation --wheel --outdir $(OUTDIR) $(BBSENGINE_DIR)
-	$(PYTHON) -m build --no-isolation --wheel --outdir $(OUTDIR) $(CURDIR)
-	@echo "Built bbsengine6 + $(PROJECT) wheels into $(OUTDIR)"
-
 # `make deploy-tui` builds the wheels (via `build`) then installs
 # them into the operator's active venv. Matches casino.tui's shape
-# exactly (casino/Makefile:241): precheck-editable runs first to
-# refuse silently-no-op'ing over an existing editable install, then
-# either installs editable from the source tree (DEPLOY_EDITABLE=1)
-# or installs the freshly-built wheel from $(OUTDIR). Verify-install
-# runs post-install to catch the silent-no-op case.
+# exactly (casino/Makefile:deploy-tui): precheck-editable runs first
+# to refuse silently-no-op'ing over an existing editable install,
+# then either installs editable from the source tree
+# (DEPLOY_EDITABLE=1) or installs the freshly-built wheel from
+# $(OUTDIR). Verify-install runs post-install to catch the
+# silent-no-op case.
 #
 # No sudo: this target is the operator-side install path. The
 # sudo-required install into /var/lib/zoid6/venv lives in
@@ -325,27 +385,65 @@ else
 	@export VENV_PYTHON=$(PYTHON); $(verify-install)
 endif
 
-# sudo umbrella — the production install path. Alias for the full
+# Non-sudo default: build wheels for bbsengine6 + mistermcfeely
+# into a user-owned $(WHEEL_DIR) scratch space, then `pip install`
+# them into the active venv. Mirrors bed/Makefile:deploy-venv but
+# generalized to iterate over WHEEL_PACKAGES so a single recipe
+# covers the batch install. WHEEL_DIR lives in /tmp (user-owned)
+# so no sudo is needed for the build either.
+#
+# In the non-editable branch, both wheels go through the same
+# `pip install` + `verify-install` check. In the editable branch
+# (DEPLOY_EDITABLE=1) only mistermcfeely is installed editable; the
+# bbsengine6 wheel is still installed from $(WHEEL_DIR) since
+# editable mode covers $(PROJECT) only.
+deploy-venv: clean clean-egg-info
+	@mkdir -p $(WHEEL_DIR)
+	@rm -f $(WHEEL_DIR)/*.whl
+	$(MAKE) -C src build VERSION=$(VERSION) VERSION_PREFIX=$(VERSION_PREFIX)
+	$(MAKE) -C src repo OUTDIR=$(WHEEL_DIR)
+ifeq ($(DEPLOY_EDITABLE),1)
+	$(PYTHON) -m pip install $(PIP_UPGRADE_FLAG) --no-cache-dir -e .
+	-rm -rf src/$(PROJECT).egg-info
+else
+	@export VENV_PYTHON=$(PYTHON); $(precheck-editable)
+	@for pkg in $(WHEEL_PACKAGES); do \
+		WHEEL=$$(ls -t $(WHEEL_DIR)/$$pkg-*.whl 2>/dev/null | head -1); \
+		if [ -z "$$WHEEL" ]; then \
+			echo "no wheel for $$pkg in $(WHEEL_DIR)" >&2; \
+			exit 1; \
+		fi; \
+		echo "installing $$WHEEL"; \
+		$(PYTHON) -m pip install $(PIP_UPGRADE_FLAG) --no-cache-dir "$$WHEEL"; \
+	done
+	@export VENV_PYTHON=$(PYTHON); $(verify-install)
+endif
+	-rm -rf $(WHEEL_DIR)
+	@echo "$(PROJECT) installed into active venv$(if $(DEPLOY_EDITABLE), in editable mode)"
+
+# Bare `deploy` is the non-sudo install path - same as `deploy-venv`.
+# The sudo umbrella is `deploy-prod` (alias for `install`). Mirrors
+# bed/Makefile:deploy:deploy-venv.
+deploy: deploy-venv
+
+# Sudo umbrella - the production install path. Alias for the full
 # install chain (sysusers + tmpfiles + venv + systemd + etc). Mirrors
-# zoid6/src/Makefile:deploy-prod:install-fhs and bed/Makefile:deploy-prod:install.
-# Forward DEPLOY_EDITABLE / DEPLOY_WITH_DEPS / DEPLOY_UPGRADE to
-# `install` so the sub-makes (install-venv, deploy-tui) inherit the
-# same env-var contract the operator set on the deploytool CLI.
-deploy-prod:
-	$(MAKE) install DEPLOY_EDITABLE=$(DEPLOY_EDITABLE) DEPLOY_WITH_DEPS=$(DEPLOY_WITH_DEPS) DEPLOY_UPGRADE=$(DEPLOY_UPGRADE)
+# bed/Makefile:deploy-prod:install.
+deploy-prod: install
+	@echo "$(PROJECT) installed (production)"
 
 # Sudo-required install into the shared zoid6 venv. Consumes
 # wheels from $(OUTDIR) (which the operator populated via
 # `make build` or `make deploy-tui` first). Re-runs the build via
 # `$(MAKE) build` so the wheels in $(OUTDIR) reflect the current
-# source — `deploy mistermcfeely.prod` is self-contained, the
+# source - `deploy mistermcfeely.prod` is self-contained, the
 # operator doesn't have to run `deploy-tui` first.
 #
 # Precheck-editable + verify-install run as the operator (no sudo).
 # Both query the shared venv's dist-info directly because
 # site-packages and dist-info are world-readable in a normal pip
 # install. If they're not readable (e.g. umask tightened the venv),
-# the macros SKIP with a message rather than fail — the operator sees
+# the macros SKIP with a message rather than fail - the operator sees
 # the skip and can investigate.
 install-venv:
 	@command -v sudo >/dev/null 2>&1 || { echo "Error: sudo required"; exit 1; }
@@ -432,9 +530,15 @@ install: install-sysusers install-tmpfiles install-venv install-systemd install-
 uninstall: uninstall-systemd uninstall-venv uninstall-tmpfiles uninstall-sysusers
 	@echo "$(PROJECT) fully uninstalled"
 
-clean:
-	-rm -rf build dist
-	-rm -rf *.egg-info
+# Wipe in-tree *.egg-info/ dirs that a prior `pip install -e .` may have
+# left behind. Such egg-infos bake absolute paths into SOURCES.txt and
+# poison any later `python -m build`. Mirrors bed/Makefile:clean-egg-info,
+# zoidoffice/src/Makefile:clean-egg-info.
+clean-egg-info:
+	-rm -rf *.egg-info src/*.egg-info
+
+clean: clean-egg-info
+	-rm -rf build dist build.stale.* build.old
 	-find . -type d -name __pycache__ -exec rm -rf {} +
 	-find . -type d -name .pytest_cache -exec rm -rf {} +
 	-find . -type d -name .ruff_cache -exec rm -rf {} +
@@ -444,3 +548,7 @@ clean:
 
 backup:
 	rsync --recursive --verbose --exclude=.venv . $(MEDIA)
+
+commit-version:
+	git add src/$(PROJECT)/_version.py
+	git diff --cached --quiet || git commit -m "Bump $(PROJECT) version to $(VERSION)"
