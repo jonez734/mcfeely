@@ -1,8 +1,8 @@
-# notifyd_client.py
-# Integration layer for mcfeely event firing and notification routing.
-# Routes events to the unified bbsengine6.message system (post-migration;
-# the engine.__notify schema is gone). Functional design with helper
-# functions.
+# message_client.py
+# Integration layer for mcfeely event firing and message routing.
+# Routes events to the unified bbsengine6.message system (the "message"
+# replacement for the deleted notifyd subsystem). Functional design
+# with helper functions.
 
 import os
 import hmac
@@ -101,7 +101,7 @@ def is_event_enabled(args, mailbox_name: str, event_type: str, **kwargs) -> bool
                 """
                 SELECT enable_new_message_events, enable_claimed_events,
                        enable_flag_change_events, enable_delete_events
-                FROM postoffice.notification_config
+                FROM postoffice.message_config
                 WHERE mailbox_name = %s
                 """,
                 [mailbox_name],
@@ -123,7 +123,7 @@ def is_event_enabled(args, mailbox_name: str, event_type: str, **kwargs) -> bool
             else:
                 return True
     except Exception as e:
-        io.echo(f"notifyd_client.is_event_enabled: {e}", level="error")
+        io.echo(f"message_client.is_event_enabled: {e}", level="error")
         return True
     finally:
         if should_close and use_conn:
@@ -175,7 +175,7 @@ def get_routing_rules(
             cur.execute(
                 """
                 SELECT recipient_moniker, notification_type, urgency, delivery_method
-                FROM postoffice.notification_routing
+                FROM postoffice.message_routing
                 WHERE %s LIKE mailbox_name
                   AND (event_type = %s OR event_type = '*')
                   AND (%s LIKE actor_moniker OR actor_moniker IS NULL)
@@ -196,7 +196,7 @@ def get_routing_rules(
                 rules.append(rule)
             return rules
     except Exception as e:
-        io.echo(f"notifyd_client.get_routing_rules: {e}", level="error")
+        io.echo(f"message_client.get_routing_rules: {e}", level="error")
         return []
     finally:
         if should_close and use_conn:
@@ -296,13 +296,13 @@ def _fire_event_fallback(
 
             if getattr(args, "debug", False):
                 io.echo(
-                    f"notifyd_client: fired {event_type} to {rule['recipient_moniker']} (fallback)",
+                    f"message_client: fired {event_type} to {rule['recipient_moniker']} (fallback)",
                     level="debug",
                 )
 
         except Exception as e:
             io.echo(
-                f"notifyd_client._fire_event_fallback: {e}",
+                f"message_client._fire_event_fallback: {e}",
                 level="error",
             )
             failcount += 1
@@ -338,7 +338,7 @@ def fire_event(
 
     if use_conn is None:
         io.echo(
-            "notifyd_client.fire_event: no connection or pool provided", level="error"
+            "message_client.fire_event: no connection or pool provided", level="error"
         )
         return False
 
@@ -347,7 +347,7 @@ def fire_event(
         if not is_event_enabled(args, mailbox_name, event_type, conn=use_conn):
             if getattr(args, "debug", False):
                 io.echo(
-                    f"notifyd_client.fire_event: event disabled: {mailbox_name} / {event_type}",
+                    f"message_client.fire_event: event disabled: {mailbox_name} / {event_type}",
                     level="debug",
                 )
             return True  # Not an error, just disabled
@@ -360,7 +360,7 @@ def fire_event(
         if not rules:
             if getattr(args, "debug", False):
                 io.echo(
-                    f"notifyd_client.fire_event: no routing rules: {mailbox_name} / {event_type}",
+                    f"message_client.fire_event: no routing rules: {mailbox_name} / {event_type}",
                     level="debug",
                 )
             return True  # No routes = success (nothing to deliver)
@@ -390,13 +390,13 @@ def fire_event(
 
                 if getattr(args, "debug", False):
                     io.echo(
-                        f"notifyd_client: fired {event_type} to {rule['recipient_moniker']}",
+                        f"message_client: fired {event_type} to {rule['recipient_moniker']}",
                         level="debug",
                     )
 
             except Exception as e:
                 io.echo(
-                    f"notifyd_client.fire_event.200: failed to fire event: {e}",
+                    f"message_client.fire_event.200: failed to fire event: {e}",
                     level="error",
                 )
                 failcount += 1
