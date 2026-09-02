@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # mcfeely-notify
-# Cyrus IMAPd event handler that routes events to mistermcfeely notifyd_client.py
-# 
+# Cyrus IMAPd event handler that routes events to mistermcfeely message_client.py
+#
 # Called by Cyrus notifyd with RFC 5423 events
 # Arguments: -c <event-class> -u <user> -m <mailbox> -p <priority>
 # Event data: JSON received on stdin
 #
 # This script bridges Cyrus's built-in notifyd with mistermcfeely's
-# event routing and bbsengine6 notification system.
+# event routing and the unified bbsengine6.message transport.
 
 import sys
 import json
@@ -62,7 +62,7 @@ def main():
     2. Read event JSON from stdin
     3. Filter events (only process shared mailboxes)
     4. Log event to syslog
-    5. Call mistermcfeely notifyd_client to route notification
+    5. Call mistermcfeely message_client to route notification
     """
     
     # Parse command-line arguments from Cyrus
@@ -90,14 +90,14 @@ def main():
     if not mailbox or not mailbox.startswith('shared/'):
         return 0
     
-    # Try to import and use mistermcfeely's notifyd_client
+    # Try to import and use mistermcfeely's message_client
     try:
         # Add mistermcfeely to path if needed
         mcfeely_path = Path(__file__).parent.parent / 'mistermcfeely' / 'src'
         if mcfeely_path.exists():
             sys.path.insert(0, str(mcfeely_path.parent))
-        
-        from postoffice import notifyd_client
+
+        from postoffice import message_client
         
         # Convert Cyrus event class to mistermcfeely event type
         event_type_map = {

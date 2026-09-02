@@ -557,7 +557,7 @@ export MCFEELY_OBFUSCATE_SECRET="your-secret-key-for-claim-hash"
 2. **Configure notification routing in database**:
 ```sql
 -- Setup notification rules for shared mailboxes
-INSERT INTO postoffice.notification_routing
+INSERT INTO postoffice.message_routing
 (mailbox_name, event_type, actor_moniker, recipient_moniker, urgency)
 VALUES 
   ('shared/%', 'message-new', NULL, 'admin', 'ROUTINE'),

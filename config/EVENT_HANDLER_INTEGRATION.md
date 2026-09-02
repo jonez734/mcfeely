@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Cyrus IMAPd configuration has been updated to use **external event handling**, integrating Cyrus's built-in `notifyd` daemon directly with mistermcfeely's `notifyd_client.py` module.
+The Cyrus IMAPd configuration has been updated to use **external event handling**, integrating Cyrus's built-in `notifyd` daemon directly with mistermcfeely's `message_client.py` module.
 
 **Status:** ✅ Complete - Ready for deployment
 
@@ -62,20 +62,20 @@ This tells Cyrus to send events to an external handler script instead of just lo
 │ • Reads JSON event data from stdin                          │
 │ • Filters to shared/* mailboxes only                        │
 │ • Converts event class to mistermcfeely type                │
-│ • Imports and calls notifyd_client.fire_event()             │
+│ • Imports and calls message_client.fire_event()             │
 └──────────────────────┬──────────────────────────────────────┘
                        │
 ┌──────────────────────▼──────────────────────────────────────┐
-│ Step 6: notifyd_client.py Processing                        │
-│ • Checks notification_config (enabled?)                     │
-│ • Queries notification_routing (pattern match)              │
+│ Step 6: message_client.py Processing                        │
+│ • Checks message_config (enabled?)                     │
+│ • Queries message_routing (pattern match)              │
 │ • Obfuscates actor moniker (HMAC-SHA256)                    │
 │ • Constructs event payload JSON                             │
 └──────────────────────┬──────────────────────────────────────┘
                        │
 ┌──────────────────────▼──────────────────────────────────────┐
 │ Step 7: Route to Recipients                                 │
-│ For each matching rule in notification_routing:             │
+│ For each matching rule in message_routing:             │
 │ • Insert into engine.__notify (async)                       │
 │ • Set urgency, recipient_moniker, etc.                      │
 └──────────────────────┬──────────────────────────────────────┘
@@ -193,7 +193,7 @@ To enable event routing, configure the database:
 ### 1. Create Notification Config
 
 ```sql
-INSERT INTO postoffice.notification_config
+INSERT INTO postoffice.message_config
 (mailbox_name, enable_new_message_events, imap_poll_interval_seconds)
 VALUES 
   ('shared/%', TRUE, 5),
@@ -203,7 +203,7 @@ VALUES
 ### 2. Create Notification Routing
 
 ```sql
-INSERT INTO postoffice.notification_routing
+INSERT INTO postoffice.message_routing
 (mailbox_name, event_type, actor_moniker, recipient_moniker, urgency)
 VALUES 
   -- Admin sees all events
@@ -339,7 +339,7 @@ This is inserted into `bbsengine6.engine.__notify` for distribution to:
 
 The script integrates with:
 
-### notifyd_client.py
+### message_client.py
 - `fire_event()` - Main function to route events
 - `is_event_enabled()` - Checks if event type is enabled
 - `get_routing_rules()` - Loads rules from database
@@ -397,7 +397,7 @@ The script integrates with:
 - **CYRUS_SETUP.md** - Installation and configuration guide
 - **README.md** - Configuration overview
 - **imapd.conf** - IMAP daemon configuration with comments
-- **../notifyd_client.py** - Event routing implementation
+- **../message_client.py** - Event routing implementation
 - **../README.md** - mistermcfeely project overview
 
 ## Files Summary
@@ -414,7 +414,7 @@ The script integrates with:
 - **Cyrus IMAPd**: 3.0+ (tested with 3.4+)
 - **Python**: 3.6+
 - **RFC 5423**: IMAP4 Notifications (event spec)
-- **mistermcfeely**: notifyd_client.py module integration
+- **mistermcfeely**: message_client.py module integration
 
 ## Summary
 
@@ -422,7 +422,7 @@ The Cyrus IMAPd configuration now provides **real-time event routing** from mail
 
 1. **Real-time notifications** when messages are claimed/unclaimed
 2. **Integration with bbsengine6.__notify** for multi-channel distribution
-3. **Flexible routing** based on notification_routing database rules
+3. **Flexible routing** based on message_routing database rules
 4. **Secure event handling** with obfuscated actor identity
 5. **Graceful degradation** if mistermcfeely unavailable
 

@@ -100,12 +100,12 @@ STEP 8: Configure Database Notification Rules
   In your PostgreSQL/MySQL database:
 
   -- Enable notifications for shared mailboxes
-  INSERT INTO postoffice.notification_config
+  INSERT INTO postoffice.message_config
   (mailbox_name, enable_new_message_events, imap_poll_interval_seconds)
   VALUES ('shared/%', TRUE, 5);
 
   -- Route events to admin
-  INSERT INTO postoffice.notification_routing
+  INSERT INTO postoffice.message_routing
   (mailbox_name, event_type, actor_moniker, recipient_moniker, urgency)
   VALUES ('shared/%', '*', NULL, 'admin', 'ROUTINE');
 
@@ -233,9 +233,9 @@ WHAT HAPPENS WHEN YOU SEND A MESSAGE
   5. notifyd detects new message
   6. notifyd calls mcfeely-notify script
   7. mcfeely-notify parses RFC 5423 event
-  8. mcfeely-notify calls notifyd_client.fire_event()
-  9. notifyd_client checks notification_config
-  10. notifyd_client loads notification_routing rules
+  8. mcfeely-notify calls message_client.fire_event()
+  9. message_client checks message_config
+  10. message_client loads message_routing rules
   11. For each matching rule, inserts into engine.__notify
   12. External systems (email, chat, dashboard) consume event
 
@@ -262,7 +262,7 @@ VERIFY EVENT HANDLER INTEGRATION
 ═════════════════════════════════════════════════════════════════════════════
 
   Check that your code can be imported:
-  python3 -c "from postoffice import notifyd_client; print('OK')"
+  python3 -c "from postoffice import message_client; print('OK')"
 
   Check annotation support:
   python3 -c "import imaplib; c = imaplib.IMAP4_SSL('localhost'); \
@@ -299,7 +299,7 @@ SUCCESS INDICATORS
   ✓ journalctl shows no errors from cyrus-imapd
   ✓ Messages sent to shared mailboxes trigger logs in journalctl
   ✓ mcfeely-notify script logs appear: "mcfeely-notify: Event:"
-  ✓ notifyd_client.fire_event() is called for shared/* mailboxes
+  ✓ message_client.fire_event() is called for shared/* mailboxes
 
 
 NEXT STEPS

@@ -412,7 +412,7 @@ The imapd.conf has been UPDATED to use external notifier for mistermcfeely:
   event_notifier: external
   event_notifier_path: /usr/local/bin/mcfeely-notify
 
-This integrates Cyrus's built-in notifyd with mistermcfeely's notifyd_client.py,
+This integrates Cyrus's built-in notifyd with mistermcfeely's message_client.py,
 enabling real-time event routing to bbsengine6.__notify.
 
 ════════════════════════════════════════════════════════════════════════════
@@ -452,13 +452,13 @@ After deploying Cyrus configuration, install the event handler script:
         ↓
   Filters shared mailboxes only
         ↓
-  Imports mistermcfeely.notifyd_client
+  Imports mistermcfeely.message_client
         ↓
   Converts Cyrus event class to mistermcfeely event type
         ↓
-  Fires event to bbsengine6.__notify via notifyd_client.fire_event()
+  Fires event to bbsengine6.__notify via message_client.fire_event()
         ↓
-  Routes to recipients based on postoffice.notification_routing
+  Routes to recipients based on postoffice.message_routing
         ↓
   Other systems consume notifications (email, chat, webhooks, etc.)
 
@@ -468,7 +468,7 @@ After deploying Cyrus configuration, install the event handler script:
 
 The mcfeely-notify script bridges Cyrus events to your existing code:
 
-  File: ./mistermcfeely/src/postoffice/notifyd_client.py
+  File: ./mistermcfeely/src/postoffice/message_client.py
   
   Key Functions:
     • fire_event() - Routes events to recipients
@@ -499,7 +499,7 @@ How it works:
   3. Reads JSON event data from stdin
   4. Filters events (only processes shared/* mailboxes)
   5. Converts Cyrus event class to mistermcfeely event type
-  6. Calls mistermcfeely.notifyd_client.fire_event()
+  6. Calls mistermcfeely.message_client.fire_event()
   7. Routes to recipients via bbsengine6.__notify
   8. Logs all events to syslog
 
@@ -531,8 +531,8 @@ After deployment, test the event flow:
      # or
      journalctl | grep mcfeely-notify
 
-  5. In mistermcfeely database, check postoffice.notification_routing:
-     SELECT * FROM postoffice.notification_routing WHERE mailbox_name LIKE 'shared/%';
+  5. In mistermcfeely database, check postoffice.message_routing:
+     SELECT * FROM postoffice.message_routing WHERE mailbox_name LIKE 'shared/%';
 
 ════════════════════════════════════════════════════════════════════════════
 
@@ -565,6 +565,6 @@ With these changes, Cyrus IMAPd now:
   ✓ Gracefully handles errors and missing dependencies
 
 This enables complete end-to-end event flow:
-  Cyrus Event → mcfeely-notify → notifyd_client → bbsengine6.__notify → subscribers
+  Cyrus Event → mcfeely-notify → message_client → bbsengine6.__notify → subscribers
 
 ════════════════════════════════════════════════════════════════════════════
