@@ -619,8 +619,8 @@ def startup_main(args, **kwargs) -> bool:
             ("postoffice.virtual", "virtual.sql"),
             ("postoffice.__message", "message.sql"),
             ("postoffice.member_mailbox_password", "member_mailbox_password.sql"),
-            ("postoffice.notification_routing", "notification_routing.sql"),
-            ("postoffice.notification_config", "notification_config.sql"),
+            ("postoffice.message_routing", "message_routing.sql"),
+            ("postoffice.message_config", "message_config.sql"),
         )
 
         failcount = 0

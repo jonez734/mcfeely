@@ -1,8 +1,11 @@
--- notification_routing.sql
--- Flexible routing rules for mcfeely notifications
--- Supports pattern-based mailbox names and wildcard event types
+-- message_routing.sql
+-- Flexible routing rules for postoffice message events
+-- Supports pattern-based mailbox names and wildcard event types.
+--
+-- Renamed from notification_routing.sql as part of the notifyd -> message
+-- migration; the transport is now bbsengine6.message.
 
-CREATE TABLE postoffice.notification_routing (
+CREATE TABLE postoffice.message_routing (
     id BIGSERIAL PRIMARY KEY,
     mailbox_name TEXT NOT NULL,            -- Pattern: 'shared/support@%', 'shared/%', etc.
     event_type TEXT NOT NULL,              -- 'message-new', 'message-claimed', '*' for all
@@ -19,14 +22,14 @@ CREATE TABLE postoffice.notification_routing (
     UNIQUE(mailbox_name, event_type, recipient_moniker)
 );
 
-CREATE INDEX idx_notification_routing_lookup 
-    ON postoffice.notification_routing(mailbox_name, event_type, recipient_moniker)
+CREATE INDEX idx_message_routing_lookup
+    ON postoffice.message_routing(mailbox_name, event_type, recipient_moniker)
     WHERE enabled = TRUE;
 
-CREATE INDEX idx_notification_routing_actor 
-    ON postoffice.notification_routing(actor_moniker)
+CREATE INDEX idx_message_routing_actor
+    ON postoffice.message_routing(actor_moniker)
     WHERE enabled = TRUE;
 
-GRANT SELECT ON postoffice.notification_routing TO web, term;
-GRANT SELECT, INSERT, UPDATE, DELETE ON postoffice.notification_routing TO sysop;
-GRANT USAGE ON postoffice.notification_routing_id_seq TO sysop;
+GRANT SELECT ON postoffice.message_routing TO web, term;
+GRANT SELECT, INSERT, UPDATE, DELETE ON postoffice.message_routing TO sysop;
+GRANT USAGE ON postoffice.message_routing_id_seq TO sysop;
