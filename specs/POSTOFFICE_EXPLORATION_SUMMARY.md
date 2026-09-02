@@ -36,7 +36,7 @@ postoffice/
 ├── virtual.py                     # Virtual mailbox patterns
 ├── events.py                      # Event type definitions
 ├── audit_log.py                   # Password operation logging
-├── notifyd_client.py              # Event firing & notification routing
+├── message_client.py              # Event firing & notification routing
 │
 ├── Utilities
 ├── lib.py                         # Shared helpers (115 lines)
@@ -161,7 +161,7 @@ claim_message(
 ```
 
 - Sets custom Cyrus flag: `ClaimedBy<moniker>` (optionally obfuscated)
-- Fires `message-claimed` event via notifyd_client
+- Fires `message-claimed` event via message_client
 - Supports optional obfuscation (HMAC-SHA256)
 
 ```python
@@ -507,7 +507,7 @@ class EventType(str, Enum):
     MESSAGE_DELETED = "message-deleted"
 ```
 
-### 7.2 Event Firing (notifyd_client.py)
+### 7.2 Event Firing (message_client.py)
 
 ```python
 def fire_event(
@@ -678,11 +678,11 @@ imap_lib.py (IMAP CONNECTION LAYER)
 imap_client.py (MESSAGE OPERATIONS)
     ├─ claim_message()
     │   ├─ imap_conn.store() → Cyrus flag
-    │   └─ → notifyd_client.fire_event("message-claimed")
+    │   └─ → message_client.fire_event("message-claimed")
     │
     └─ unclaim_message()
         ├─ imap_conn.store() → remove flag
-        └─ → notifyd_client.fire_event("message-unclaimed")
+        └─ → message_client.fire_event("message-unclaimed")
 
                         ↓
 
@@ -699,10 +699,10 @@ imap_monitor.py (BACKGROUND MONITORING)
 
                         ↓
 
-notifyd_client.py (EVENT SYSTEM)
+message_client.py (EVENT SYSTEM)
     ├─ fire_event()
     │   ├─ Write to engine.__notify
-    │   └─ Route via postoffice.notification_routing rules
+    │   └─ Route via postoffice.message_routing rules
     │
     ├─ obfuscate_moniker() → HMAC-SHA256
     ├─ format_claim_flag()
@@ -762,8 +762,8 @@ Requires postoffice tables:
 - `postoffice.mailbox_password`
 - `postoffice.member_mailbox_password`
 - `postoffice.virtual`
-- `postoffice.notification_routing`
-- `postoffice.notification_config` (for monitoring intervals)
+- `postoffice.message_routing`
+- `postoffice.message_config` (for monitoring intervals)
 
 ### Permissions
 

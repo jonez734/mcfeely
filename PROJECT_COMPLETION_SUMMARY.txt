@@ -45,7 +45,7 @@ This session accomplished significant enhancements and refactoring:
 
 5. CONN_POOL_PATTERN REFACTORING
    - Refactored all database functions to use **kwargs pattern
-   - Updated notifyd_client.py (3 functions)
+   - Updated message_client.py (3 functions)
    - Updated imap_client.py (5 functions)
    - Updated imap_monitor.py (2 functions)
    - Updated startup.py (1 function)
@@ -68,7 +68,7 @@ TEST RESULTS
 Total Tests: 64 (ALL PASSING ✅)
 
 Breakdown:
-- test_notifyd_client.py: 30 tests
+- test_message_client.py: 30 tests
 - test_imap_monitor.py: 14 tests
 - test_notifyd_integration.py: 20 tests
 
@@ -118,7 +118,7 @@ ARCHITECTURE & DESIGN
 
 Core Components:
 
-1. notifyd_client.py (382 lines)
+1. message_client.py (382 lines)
    - Event firing and routing
    - Flag obfuscation with HMAC-SHA256
    - Pattern-based routing with SQL LIKE
@@ -144,8 +144,8 @@ Core Components:
    - Pool parameter passing
 
 Database Schema:
-- notification_routing: Pattern-based routing rules
-- notification_config: Per-mailbox configuration
+- message_routing: Pattern-based routing rules
+- message_config: Per-mailbox configuration
 - notification_history: VIEW over engine.__notify
 
 Event Types:
@@ -162,9 +162,9 @@ CONN_POOL_PATTERN REFACTORING
 Pattern: def foo(args, **kwargs) with pool/conn in kwargs
 
 All Functions Updated:
-✅ notifyd_client.is_event_enabled(args, mailbox_name, event_type, **kwargs)
-✅ notifyd_client.get_routing_rules(args, mailbox_name, event_type, actor_moniker, **kwargs)
-✅ notifyd_client.fire_event(args, mailbox_name, event_type, event_data, actor_moniker, **kwargs)
+✅ message_client.is_event_enabled(args, mailbox_name, event_type, **kwargs)
+✅ message_client.get_routing_rules(args, mailbox_name, event_type, actor_moniker, **kwargs)
+✅ message_client.fire_event(args, mailbox_name, event_type, event_data, actor_moniker, **kwargs)
 ✅ imap_client.claim_message(args, mailbox_name, message_uid, actor_moniker, ..., **kwargs)
 ✅ imap_client.unclaim_message(args, mailbox_name, message_uid, actor_moniker, **kwargs)
 ✅ imap_client.fire_new_message_event(args, mailbox_name, message_uid, ..., **kwargs)
@@ -216,7 +216,7 @@ Phase 0: Code Cleanup ✅
 Phase 1: (Skipped)
 
 Phase 2: Event Integration Layer ✅
-- notifyd_client.py (382 lines)
+- message_client.py (382 lines)
 - Flag obfuscation with HMAC-SHA256
 - Event configuration per-mailbox
 - Pattern-based routing with SQL LIKE

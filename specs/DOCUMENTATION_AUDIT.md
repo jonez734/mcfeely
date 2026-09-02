@@ -43,10 +43,8 @@ All documentation and specifications have been created, updated, and saved.
 - ✅ EXPLORATION_INDEX.md (9.2K) - Exploration results index
 - ✅ HYBRID_INTEGRATION_SUMMARY.md (11K) - Integration summary
 
-#### Legacy Documentation (4 files)
+#### Legacy Documentation (2 files)
 - ✅ CONN_POOL_PATTERN.md (5.2K) - Connection pooling patterns
-- ✅ NOTIFYD_SYNC_SPEC.md (16K) - Notifyd sync specifications
-- ✅ NOTIFY_INTEGRATION_ANALYSIS.md (14K) - Notification integration
 - ✅ QUICK_REFERENCE.md (12K) - Quick reference guide
 
 **Total: 26 documentation files (230+ KB)**
@@ -83,7 +81,7 @@ All documentation and specifications have been created, updated, and saved.
 #### Existing Tests (5 files - ALL PASSING)
 - ✅ tests/test_imap_lib.py (12K) - 29 IMAP library tests
 - ✅ tests/test_imap_monitor.py (6.9K) - 20 IMAP monitor tests
-- ✅ tests/test_notifyd_client.py (17K) - 11 notifyd client tests
+- ✅ tests/test_message_client.py (17K) - 11 notifyd client tests
 - ✅ tests/test_notifyd_integration.py (13K) - 20 notifyd integration tests
 - ✅ tests/test_password_crypto.py (5.1K) - 14 password crypto tests
 
@@ -106,8 +104,8 @@ Errors: 0
 - ✅ sql/mailbox.sql - Mailbox tables
 - ✅ sql/message.sql - Message tables
 - ✅ sql/virtual.sql - Virtual mailbox tables
-- ✅ sql/notification_config.sql - Notification configuration
-- ✅ sql/notification_routing.sql - Notification routing
+- ✅ sql/message_config.sql - Notification configuration
+- ✅ sql/message_routing.sql - Notification routing
 
 ### Git Status
 

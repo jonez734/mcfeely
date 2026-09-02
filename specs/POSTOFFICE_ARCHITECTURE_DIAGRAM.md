@@ -129,11 +129,11 @@ BACKGROUND MONITORING LAYER
                               ↓
 EVENT/NOTIFICATION LAYER
 ┌─────────────────────────────────────────────────────────────┐
-│ notifyd_client.py - Event Firing & Routing                  │
+│ message_client.py - Event Firing & Routing                  │
 ├─────────────────────────────────────────────────────────────┤
 │ fire_event(mailbox, event_type, event_data)                 │
 │   ├─ Write to engine.__notify table                         │
-│   └─ Route via postoffice.notification_routing rules        │
+│   └─ Route via postoffice.message_routing rules        │
 │                                                              │
 │ Event Types (events.py):                                    │
 │   ├─ message-new                                            │
@@ -206,12 +206,12 @@ DATABASE LAYER
 │   ├─ result (delivery target)                               │
 │   └─ enabled                                                │
 │                                                              │
-│ postoffice.notification_routing                             │
+│ postoffice.message_routing                             │
 │   ├─ event_type                                             │
 │   ├─ condition                                              │
 │   └─ action                                                 │
 │                                                              │
-│ postoffice.notification_config                              │
+│ postoffice.message_config                              │
 │   ├─ mailbox_id                                             │
 │   └─ poll_interval_seconds                                  │
 │                                                              │
@@ -348,7 +348,7 @@ IMAPMonitor._run_loop() (background thread)
         subject="Help needed"
     )
     
-7. Fire event: notifyd_client.fire_event(
+7. Fire event: message_client.fire_event(
        args,
        mailbox_name="shared/support@example.com",
        event_type="message-new",
@@ -375,8 +375,8 @@ IMAPMonitor._run_loop() (background thread)
         NOW()
     )
     ↓
-9. Notification routing (postoffice.notification_routing):
-    SELECT * FROM postoffice.notification_routing
+9. Notification routing (postoffice.message_routing):
+    SELECT * FROM postoffice.message_routing
     WHERE event_type="message-new"
     AND condition MATCHES mailbox_name
     → Take action (email, webhook, etc.)
@@ -398,7 +398,7 @@ TUI calls: imap_client.claim_message(
 )
     ↓
 1. Get obfuscation secret:
-    notifyd_client.get_obfuscate_secret(args)
+    message_client.get_obfuscate_secret(args)
     → Checks: MCFEELY_OBFUSCATE_SECRET env var
     → If not found: args.databasepassword
     → If not found: None (use plaintext)
@@ -421,7 +421,7 @@ TUI calls: imap_client.claim_message(
     imap_conn.store("42", "+FLAGS", "(ClaimedBy_a3f9k2m1)")
     
 4. Fire event:
-    notifyd_client.fire_event(
+    message_client.fire_event(
         args,
         "shared/support@example.com",
         "message-claimed",
@@ -524,7 +524,7 @@ imap_lib.py
     └─ bbsengine6.io.echo
 
 imap_client.py
-    ├─ notifyd_client
+    ├─ message_client
     └─ bbsengine6.io.echo
 
 imap_monitor.py
@@ -533,7 +533,7 @@ imap_monitor.py
     ├─ threading
     └─ bbsengine6 (database, io)
 
-notifyd_client.py
+message_client.py
     ├─ bbsengine6.database
     ├─ bbsengine6.io.echo
     ├─ json, os, hmac, hashlib
@@ -544,7 +544,7 @@ audit_log.py
 
 mailbox.py
     ├─ lib
-    ├─ notifyd_client
+    ├─ message_client
     └─ bbsengine6 (io, database, member, util, screen)
 
 virtual.py

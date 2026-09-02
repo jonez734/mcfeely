@@ -25,7 +25,7 @@ Successfully implemented **hybrid integration** between mistermcfeely's pattern-
 
 ```
 Layer 1: Pattern Matching (mistermcfeely)
-  postoffice.notification_routing
+  postoffice.message_routing
   - SQL LIKE patterns: 'shared/%', 'shared/support%'
   - Actor filtering: alice, bob, admin
   - Per-mailbox config: enable/disable, poll intervals
@@ -49,9 +49,9 @@ User action (claim/unclaim message)
     ↓
 imap_client.claim_message() / unclaim_message()
     ├─ Set Cyrus flag
-    └─ Call notifyd_client.fire_event()
-        ├─ Check if enabled (postoffice.notification_config)
-        ├─ Get routing rules (postoffice.notification_routing - SQL LIKE)
+    └─ Call message_client.fire_event()
+        ├─ Check if enabled (postoffice.message_config)
+        ├─ Get routing rules (postoffice.message_routing - SQL LIKE)
         └─ For each recipient:
             └─ Call notify.send() (bbsengine6)
                 ├─ Rate limiting check
@@ -64,7 +64,7 @@ imap_client.claim_message() / unclaim_message()
 
 ## Implementation Details
 
-### 1. notifyd_client.py Changes
+### 1. message_client.py Changes
 
 **Optional Import with Fallback**
 ```python
@@ -135,7 +135,7 @@ ON CONFLICT (type_name) DO NOTHING
 ### Pattern-Based Routing (IMAP-Specific)
 ```sql
 -- Flexible mailbox patterns
-INSERT INTO postoffice.notification_routing VALUES
+INSERT INTO postoffice.message_routing VALUES
     ('shared/%', 'message-new', NULL, 'admin', 'ROUTINE'),
     ('shared/support%', 'message-claimed', 'alice', 'bob', 'IMPORTANT'),
     ('shared/support@*%.example.com', '*', NULL, 'team-lead', 'ROUTINE');
@@ -193,8 +193,8 @@ notify.send(
 - `unclaim_message(args, mailbox_name, message_uid, actor_moniker, **kwargs)` ✅
 
 **Database Schema (UNCHANGED)**
-- `postoffice.notification_routing` - Still used for pattern matching
-- `postoffice.notification_config` - Still used for per-mailbox settings
+- `postoffice.message_routing` - Still used for pattern matching
+- `postoffice.message_config` - Still used for per-mailbox settings
 - `engine.__notify` - Same table (now shared with other systems)
 
 **Behavior (PRESERVED)**
@@ -215,7 +215,7 @@ notify.send(
 
 **93 Total Tests (100% passing)**
 - 29 imap_lib tests (new IMAP functionality)
-- 30 notifyd_client unit tests
+- 30 message_client unit tests
 - 14 imap_monitor tests
 - 20 integration tests
 
@@ -252,7 +252,7 @@ On startup, `postoffice.startup.main()` automatically:
 ### Step 2: Define Routing Rules
 
 ```sql
-INSERT INTO postoffice.notification_routing 
+INSERT INTO postoffice.message_routing 
 (mailbox_name, event_type, actor_moniker, recipient_moniker, urgency)
 VALUES
     ('shared/support%', 'message-claimed', 'alice', 'bob', 'IMPORTANT'),
@@ -262,7 +262,7 @@ VALUES
 ### Step 3: Configure Per-Mailbox Settings
 
 ```sql
-INSERT INTO postoffice.notification_config
+INSERT INTO postoffice.message_config
 (mailbox_name, enable_claimed_events, imap_poll_interval_seconds)
 VALUES
     ('shared/support@machine1.example.com', TRUE, 30);
@@ -287,7 +287,7 @@ VALUES
 If desired, can gradually migrate from legacy direct INSERT to full notify integration:
 
 ### Phase 1: Hybrid (Current)
-- Pattern routing: `postoffice.notification_routing`
+- Pattern routing: `postoffice.message_routing`
 - Transport: `bbsengine6.notify.send()` or fallback
 - Status: Both code paths work
 

@@ -27,26 +27,25 @@
 │   ├── imap_client.py                # Message claiming/unclaiming + event firing
 │   ├── imap_monitor.py               # Background IMAP polling daemon
 │   ├── imap_lib.py                   # Cyrus IMAP utility functions
-│   ├── notifyd_client.py             # NotifyD integration & event routing
+│   ├── message_client.py             # NotifyD integration & event routing
 │   └── events.py                     # Event type enumerations
 ├── sql/                               # Database schema files
 │   ├── schema.sql                    # Create postoffice schema
 │   ├── mailbox.sql                   # Mailbox & password tables
 │   ├── virtual.sql                   # Virtual mailbox rules
 │   ├── message.sql                   # Message claim tracking
-│   ├── notification_routing.sql      # Event routing rules
-│   └── notification_config.sql       # Per-mailbox event config
+│   ├── message_routing.sql      # Event routing rules
+│   └── message_config.sql       # Per-mailbox event config
 ├── tests/                             # Test suite
 │   ├── test_imap_lib.py              # IMAP utility tests
 │   ├── test_imap_monitor.py          # Monitor daemon tests
-│   ├── test_notifyd_client.py        # Notification tests
+│   ├── test_message_client.py        # Notification tests
 │   └── test_notifyd_integration.py   # Integration tests
 ├── bin/                               # Executable scripts
 │   └── postoffice                    # Main CLI script
 └── docs/
     ├── README.md                     # Project overview
     ├── CONN_POOL_PATTERN.md          # Database connection pattern
-    ├── NOTIFYD_SYNC_SPEC.md          # NotifyD sync specification
     ├── IMPLEMENTATION_SUMMARY.md     # Recent enhancements
     └── HYBRID_INTEGRATION_SUMMARY.md # Integration analysis
 ```
@@ -57,7 +56,7 @@
 |--------|-----|---------|
 | **imap_lib.py** | 295 | Cyrus IMAP utilities: connect, select, fetch headers/flags, detect changes |
 | **imap_monitor.py** | 443 | Background polling daemon: monitors mailboxes for new/deleted/flagged messages |
-| **notifyd_client.py** | 443 | NotifyD integration: fires events, routes to recipients, flag obfuscation |
+| **message_client.py** | 443 | NotifyD integration: fires events, routes to recipients, flag obfuscation |
 | **imap_client.py** | 291 | Message operations: claim/unclaim messages, fire events |
 | **mailbox.py** | 264 | Mailbox CRUD UI: add/edit/delete mailboxes, manage passwords |
 | **startup.py** | 186 | Schema initialization & monitor startup on system boot |
@@ -72,9 +71,9 @@ User claims message in shared mailbox
     ↓
 imap_client.claim_message() sets Cyrus custom flag
     ↓
-notifyd_client.fire_event() checks notification_config
+message_client.fire_event() checks message_config
     ↓
-SQL pattern matching in notification_routing table
+SQL pattern matching in message_routing table
     ↓
 insert into engine.__notify for each recipient
     ↓
@@ -90,7 +89,7 @@ Other bbsengine6 systems consume: email, chat, in-app, webhooks, etc.
 **Threading Model:**
 - IMAP monitor runs as background daemon thread (started in startup.py)
 - Thread-safe state tracking with `threading.Lock()`
-- Configurable per-mailbox poll intervals via `notification_config` table
+- Configurable per-mailbox poll intervals via `message_config` table
 
 ---
 
@@ -162,7 +161,7 @@ CREATE TABLE postoffice.virtual (
 
 #### D. Notification Routing (Recipient Tracking)
 ```sql
-CREATE TABLE postoffice.notification_routing (
+CREATE TABLE postoffice.message_routing (
     id BIGSERIAL PRIMARY KEY,
     mailbox_name TEXT NOT NULL,        -- Pattern like 'shared/support@%'
     event_type TEXT NOT NULL,          -- 'message-claimed', '*', etc.
@@ -190,8 +189,8 @@ CREATE TABLE postoffice.notification_routing (
 
 **Grant Structure:**
 ```sql
-GRANT SELECT ON postoffice.notification_config TO web, term;
-GRANT SELECT, INSERT, UPDATE, DELETE ON postoffice.notification_config TO sysop;
+GRANT SELECT ON postoffice.message_config TO web, term;
+GRANT SELECT, INSERT, UPDATE, DELETE ON postoffice.message_config TO sysop;
 GRANT SELECT ON postoffice.mailbox TO imapd;
 ```
 
@@ -271,7 +270,7 @@ imap.login(username, password)
 
 **Implementation:**
 ```python
-# From notifyd_client.py:get_obfuscate_secret()
+# From message_client.py:get_obfuscate_secret()
 
 def get_obfuscate_secret(args) -> Optional[str]:
     secret = os.environ.get("MCFEELY_OBFUSCATE_SECRET")
@@ -353,7 +352,7 @@ updatedbymoniker TEXT                 -- Who last edited
 ```
 **Purpose:** Define virtual mailbox expansion rules for Cyrus
 
-#### `postoffice.notification_routing` - Event Routing Rules
+#### `postoffice.message_routing` - Event Routing Rules
 ```sql
 id BIGSERIAL PRIMARY KEY
 mailbox_name TEXT NOT NULL            -- Pattern match: "shared/%" or "shared/support@%"
@@ -368,17 +367,17 @@ enabled BOOLEAN DEFAULT TRUE
 **Example Rules:**
 ```sql
 -- Admin sees all events in all shared mailboxes
-INSERT INTO postoffice.notification_routing
+INSERT INTO postoffice.message_routing
 VALUES (NULL, 'shared/%', '*', NULL, 'admin', 'mcfeely-all-events', 'ROUTINE', 'engine', TRUE);
 
 -- Alice and Bob notify each other when messages are claimed
-INSERT INTO postoffice.notification_routing
+INSERT INTO postoffice.message_routing
 VALUES (NULL, 'shared/support%', 'message-claimed', 'alice', 'bob', NULL, 'IMPORTANT', 'engine', TRUE);
-INSERT INTO postoffice.notification_routing
+INSERT INTO postoffice.message_routing
 VALUES (NULL, 'shared/support%', 'message-claimed', 'bob', 'alice', NULL, 'IMPORTANT', 'engine', TRUE);
 ```
 
-#### `postoffice.notification_config` - Per-Mailbox Event Settings
+#### `postoffice.message_config` - Per-Mailbox Event Settings
 ```sql
 id BIGSERIAL PRIMARY KEY
 mailbox_name TEXT NOT NULL UNIQUE     -- Specific mailbox name (no patterns)
@@ -503,7 +502,7 @@ Access granted to shared mailbox
 
 **Role-Based Access Control (RBAC):**
 
-| Role | postoffice.mailbox | postoffice.notification_routing | postoffice.notification_config | postoffice.virtual |
+| Role | postoffice.mailbox | postoffice.message_routing | postoffice.message_config | postoffice.virtual |
 |------|---|---|---|---|
 | **web** | SELECT | SELECT | SELECT | SELECT |
 | **term** | SELECT | SELECT | SELECT | SELECT |

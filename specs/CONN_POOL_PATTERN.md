@@ -133,7 +133,7 @@ def fire_event(args, event: str, **kwargs) -> bool:  # ✅ CORRECT
 
 All of these files now follow CONN_POOL_PATTERN:
 
-- `src/postoffice/notifyd_client.py`
+- `src/postoffice/message_client.py`
   - `is_event_enabled()` - uses **kwargs
   - `get_routing_rules()` - uses **kwargs
   - `fire_event()` - uses **kwargs

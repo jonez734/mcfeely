@@ -174,7 +174,7 @@ Source code:
 ├── lib.py (115 lines)
 ├── events.py
 ├── audit_log.py
-├── notifyd_client.py
+├── message_client.py
 ├── password_crypto.py (20 lines, deprecated)
 ├── tui/
 │   ├── __init__.py
@@ -256,7 +256,7 @@ Source code:
 ### 6. Event System
 - message-new, message-claimed, message-unclaimed, message-flagged, message-deleted
 - Events written to engine.__notify
-- Routed via postoffice.notification_routing rules
+- Routed via postoffice.message_routing rules
 
 ### 7. TUI Interfaces
 - Main menu: [V]irtual, [M]ailbox, [Q]uit

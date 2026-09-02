@@ -67,7 +67,7 @@ with warnings.catch_warnings():
 | F401 - Unused import | __main__.py | Removed unused `Optional` and `bbsmodule` imports |
 | E712 - Equality to True | mailbox.py | Changed `if enabled == True:` to `if enabled:` |
 | F821 - Undefined name | mailbox.py | Commented out undefined `edit()` call |
-| F841 - Unused variable | notifyd_client.py | Removed unused exception variable `e` |
+| F841 - Unused variable | message_client.py | Removed unused exception variable `e` |
 | F841 - Unused variable | startup.py | Removed unused `result` variable |
 
 ### 3. Code Formatting

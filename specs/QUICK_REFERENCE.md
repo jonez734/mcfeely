@@ -18,7 +18,7 @@
 |------|---------|---|
 | `imap_lib.py` | Cyrus IMAP connection & operations | `connect_cyrus()`, `get_message_headers()`, `detect_flag_changes()` |
 | `imap_monitor.py` | Background polling daemon | `IMAPMonitor` class, `start_monitor()`, `stop_monitor()` |
-| `notifyd_client.py` | Event firing & routing | `fire_event()`, `get_routing_rules()`, `obfuscate_moniker()` |
+| `message_client.py` | Event firing & routing | `fire_event()`, `get_routing_rules()`, `obfuscate_moniker()` |
 | `imap_client.py` | Message operations | `claim_message()`, `unclaim_message()`, `fire_new_message_event()` |
 | `mailbox.py` | Mailbox UI & password mgmt | `add()`, `edit()`, `summary()` |
 | `startup.py` | Schema init & startup | `init()` - called on system boot |
@@ -32,8 +32,8 @@
 | `mailbox.sql` | `postoffice.mailbox`, `postoffice.mailbox_password` | Define mailboxes & user access |
 | `message.sql` | `postoffice.__message` | Track claimed messages |
 | `virtual.sql` | `postoffice.virtual` | Virtual mailbox expansion rules |
-| `notification_routing.sql` | `postoffice.notification_routing` | Who gets notified for what events |
-| `notification_config.sql` | `postoffice.notification_config` | Per-mailbox event settings |
+| `message_routing.sql` | `postoffice.message_routing` | Who gets notified for what events |
+| `message_config.sql` | `postoffice.message_config` | Per-mailbox event settings |
 
 ---
 
@@ -111,7 +111,7 @@ imap_client.claim_message(
     actor_moniker="alice"  # Who is claiming
 )
 
-# This fires an event routed by notification_routing rules:
+# This fires an event routed by message_routing rules:
 # IF mailbox LIKE 'shared/support%'
 #   AND event_type = 'message-claimed'
 #   AND actor_moniker = 'alice'
@@ -139,7 +139,7 @@ kind TEXT                         -- 'inbound' or 'outbound'
 UNIQUE(memberid, address, kind)   -- One password pair per user per mailbox
 ```
 
-### `postoffice.notification_routing` - Event Routing
+### `postoffice.message_routing` - Event Routing
 ```sql
 mailbox_name TEXT                 -- Pattern: "shared/%" or "shared/support@%"
 event_type TEXT                   -- "message-claimed", "message-new", "*" (all)
@@ -151,7 +151,7 @@ enabled BOOLEAN
 
 **Example:** "When alice claims in shared/support%, notify bob as IMPORTANT"
 
-### `postoffice.notification_config` - Per-Mailbox Settings
+### `postoffice.message_config` - Per-Mailbox Settings
 ```sql
 mailbox_name TEXT UNIQUE          -- Specific mailbox (no patterns)
 enable_new_message_events BOOLEAN -- Fire on new arrivals?
@@ -187,9 +187,9 @@ imap_client.fire_new_message_event(
     subject="Help!"
 )
     ↓
-notifyd_client.fire_event()
+message_client.fire_event()
     ↓
-Check notification_routing:
+Check message_routing:
   - mailbox_name LIKE "shared/support" ✓
   - event_type = "message-new" or "*" ✓
   - actor_moniker = NULL or matches ✓
@@ -225,7 +225,7 @@ Result: Mailbox added to `postoffice.mailbox` and `postoffice.mailbox_password`
 
 ```
 Database (SQL insert):
-INSERT INTO postoffice.notification_routing
+INSERT INTO postoffice.message_routing
 (mailbox_name, event_type, actor_moniker, recipient_moniker, urgency)
 VALUES ('shared/support%', 'message-claimed', 'alice', 'bob', 'IMPORTANT');
 ```
@@ -235,7 +235,7 @@ Result: Bob gets notified (IMPORTANT) when Alice claims in shared/support
 ### Disable Event Type for a Mailbox
 
 ```sql
-UPDATE postoffice.notification_config
+UPDATE postoffice.message_config
 SET enable_new_message_events = FALSE
 WHERE mailbox_name = 'shared/support@machine1.example.com';
 ```
@@ -245,7 +245,7 @@ Result: Stop firing message-new events for that mailbox (too noisy)
 ### Change Polling Interval
 
 ```sql
-UPDATE postoffice.notification_config
+UPDATE postoffice.message_config
 SET imap_poll_interval_seconds = 60
 WHERE mailbox_name = 'shared/support@machine1.example.com';
 ```
@@ -341,9 +341,9 @@ imap_monitor.start_monitor()
 ```
 
 ### Events Not Firing
-1. Check `notification_config.enabled = TRUE` for mailbox
-2. Check `notification_routing` rules match mailbox pattern
-3. Check `notification_routing.enabled = TRUE`
+1. Check `message_config.enabled = TRUE` for mailbox
+2. Check `message_routing` rules match mailbox pattern
+3. Check `message_routing.enabled = TRUE`
 4. Verify actor/recipient monikers exist in `engine.__member`
 
 ### Passwords Not Encrypting

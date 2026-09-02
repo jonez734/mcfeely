@@ -11,7 +11,7 @@
 ├── imap_lib.py (370 lines)             - IMAP connection
 ├── imap_client.py (291 lines)          - Message operations
 ├── imap_monitor.py                     - Background monitoring
-├── notifyd_client.py                   - Event firing
+├── message_client.py                   - Event firing
 ├── mailbox.py (264 lines)              - Mailbox CRUD
 ├── virtual.py                          - Virtual patterns
 ├── main.py (49 lines)                  - Main menu
@@ -253,7 +253,7 @@ EventType.MESSAGE_DELETED = "message-deleted"
 ### Firing Events
 
 ```python
-from postoffice.notifyd_client import fire_event
+from postoffice.message_client import fire_event
 
 fire_event(
     args,
@@ -272,7 +272,7 @@ fire_event(
 ) -> bool
 ```
 
-Events are routed via `postoffice.notification_routing` rules.
+Events are routed via `postoffice.message_routing` rules.
 
 ---
 
@@ -398,12 +398,12 @@ SELECT * FROM postoffice.virtual;
 -- pattern, result, enabled
 ```
 
-### postoffice.notification_routing
+### postoffice.message_routing
 
 Event routing rules
 
 ```sql
-SELECT * FROM postoffice.notification_routing;
+SELECT * FROM postoffice.message_routing;
 -- event_type, condition, action
 ```
 
@@ -458,7 +458,7 @@ log_auth_failure(
 ### Setting a Claim Flag
 
 ```python
-from postoffice.notifyd_client import format_claim_flag, obfuscate_moniker
+from postoffice.message_client import format_claim_flag, obfuscate_moniker
 
 # Without obfuscation
 flag = format_claim_flag("alice", secret=None)
@@ -473,7 +473,7 @@ flag = format_claim_flag("alice", secret=secret)
 ### Getting Obfuscation Secret
 
 ```python
-from postoffice.notifyd_client import get_obfuscate_secret
+from postoffice.message_client import get_obfuscate_secret
 
 secret = get_obfuscate_secret(args)
 # Checks:
@@ -485,7 +485,7 @@ secret = get_obfuscate_secret(args)
 ### Verifying Claim Flag
 
 ```python
-from postoffice.notifyd_client import verify_claim_flag
+from postoffice.message_client import verify_claim_flag
 
 is_valid = verify_claim_flag(
     flag="ClaimedBy_a3f9k2m1",
@@ -644,7 +644,7 @@ monitor.start()
 # 1. Polls shared/support@example.com every 30 seconds
 # 2. Detects new messages
 # 3. Fires message-new events
-# 4. Events route to handlers via notification_routing rules
+# 4. Events route to handlers via message_routing rules
 ```
 
 ### List All Member Passwords

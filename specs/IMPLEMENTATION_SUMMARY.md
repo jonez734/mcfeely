@@ -70,9 +70,9 @@ Comprehensive enhancement of mistermcfeely IMAP monitoring and notification syst
 **New Function:** `get_db_connection(args, **kwargs)`
 - Implements CONN_POOL_PATTERN helper
 - Eliminates 15+ lines of boilerplate in each function
-- Used by: `notifyd_client.py`, `imap_monitor.py`
+- Used by: `message_client.py`, `imap_monitor.py`
 
-### Refactored Module: `notifyd_client.py`
+### Refactored Module: `message_client.py`
 **Template-Based Event Messages:**
 - Old: 24-line if/elif chain
 - New: Template dict + format()
@@ -165,12 +165,12 @@ EVENT_MESSAGE_TEMPLATES = {
 ┌─────────────────────────────────────────────────────┐
 │ IMAP Client (imap_client.py)                        │
 │ - Sets Cyrus flags                                  │
-│ - Calls notifyd_client.fire_event()                 │
+│ - Calls message_client.fire_event()                 │
 └──────────┬──────────────────────────────────────────┘
            │
            ↓
 ┌─────────────────────────────────────────────────────┐
-│ NotifyD Client (notifyd_client.py)                  │
+│ NotifyD Client (message_client.py)                  │
 │ - Check if event enabled                            │
 │ - Get routing rules (SQL LIKE patterns)             │
 │ - Fire event to engine.__notify (JSON payload)      │
@@ -225,11 +225,11 @@ EVENT_MESSAGE_TEMPLATES = {
 | `events.py` | New (17 lines) | Event type enum |
 | `lib.py` | +32 lines | Helper function |
 | `imap_monitor.py` | +127 lines, -27 refactored | IMAP integration |
-| `notifyd_client.py` | -105 refactored, templates | Cleaner code |
+| `message_client.py` | -105 refactored, templates | Cleaner code |
 | `imap_client.py` | +4 import | Dependencies |
 | `startup.py` | +6 lines | Import |
 | `test_imap_lib.py` | New (294 lines) | 29 new tests |
-| `test_notifyd_client.py` | -61 refactored | Ruff formatting |
+| `test_message_client.py` | -61 refactored | Ruff formatting |
 | `test_imap_monitor.py` | -83 refactored | Ruff formatting |
 | `test_notifyd_integration.py` | -141 refactored | Ruff formatting |
 

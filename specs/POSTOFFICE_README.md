@@ -141,7 +141,7 @@ IMAPMonitor.start()
         ├─ Detect flag changes → fire message-flagged event
         └─ Detect deletions → fire message-deleted event
     ↓
-Events routed via notification_routing rules
+Events routed via message_routing rules
     ↓
 Handlers execute (email, webhook, etc.)
 ```
@@ -165,7 +165,7 @@ Event Flow:
        ↓
   Write to engine.__notify
        ↓
-  Query postoffice.notification_routing
+  Query postoffice.message_routing
        ↓
   Execute matching actions
 ```
@@ -219,7 +219,7 @@ Three interactive menus provided:
               ↓
 ┌─────────────────────────────────────────┐
 │ EVENT SYSTEM                            │
-│ notifyd_client.py (firing)              │
+│ message_client.py (firing)              │
 │ events.py (types)                       │
 │ audit_log.py (logging)                  │
 └─────────────────────────────────────────┘
@@ -298,7 +298,7 @@ result VARCHAR (delivery target)
 enabled BOOLEAN
 ```
 
-### postoffice.notification_routing
+### postoffice.message_routing
 Event routing rules
 ```sql
 event_type VARCHAR
@@ -572,7 +572,7 @@ Documentation:
 
 ### Events not firing
 - Verify IMAPMonitor is running
-- Check postoffice.notification_routing rules
+- Check postoffice.message_routing rules
 - Review engine.__notify table for events
 
 ---
@@ -599,5 +599,5 @@ Then dive into the source code:
 - startup.py - for encryption key logic
 - password_auth.py - for credential fallback
 - imap_monitor.py - for background monitoring
-- notifyd_client.py - for event firing
+- message_client.py - for event firing
 

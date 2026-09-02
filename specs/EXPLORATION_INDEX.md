@@ -114,8 +114,8 @@ This index provides a roadmap to all analysis documents created during the explo
 2. `postoffice.mailbox_password` - User credentials (ENCRYPTED)
 3. `postoffice.__message` - Message claim tracking
 4. `postoffice.virtual` - Virtual mailbox rules
-5. `postoffice.notification_routing` - Event routing rules
-6. `postoffice.notification_config` - Per-mailbox settings
+5. `postoffice.message_routing` - Event routing rules
+6. `postoffice.message_config` - Per-mailbox settings
 
 ### Authentication Flows (3 Levels)
 1. **System-level:** bbsengine6 member authentication
@@ -133,11 +133,11 @@ This index provides a roadmap to all analysis documents created during the explo
 
 ### 1. CONN_POOL_PATTERN
 Functions accept `**kwargs` with 'conn' or 'pool' parameters for flexible connection management.
-**Where:** All modules, especially `notifyd_client.py`, `imap_monitor.py`
+**Where:** All modules, especially `message_client.py`, `imap_monitor.py`
 
 ### 2. Flag Obfuscation
 Claim flags use HMAC-SHA256(moniker, secret) to prevent username exposure in logs.
-**Where:** `notifyd_client.py:obfuscate_moniker()`
+**Where:** `message_client.py:obfuscate_moniker()`
 
 ### 3. Thread-Safe Monitoring
 Background daemon with `threading.Lock()` for state protection.
@@ -145,7 +145,7 @@ Background daemon with `threading.Lock()` for state protection.
 
 ### 4. Event-Driven Routing
 Pattern-based matching with SQL LIKE for flexible subscriptions.
-**Where:** `notifyd_client.py:get_routing_rules()`
+**Where:** `message_client.py:get_routing_rules()`
 
 ---
 
@@ -161,7 +161,7 @@ Source Code:
   /home/opencode/data/work/mistermcfeely/src/postoffice/
     - imap_lib.py (295 lines)
     - imap_monitor.py (443 lines)
-    - notifyd_client.py (443 lines)
+    - message_client.py (443 lines)
     - imap_client.py (291 lines)
     - mailbox.py (264 lines)
     - startup.py (186 lines)
@@ -173,15 +173,15 @@ Database Schema:
     - mailbox.sql
     - message.sql
     - virtual.sql
-    - notification_routing.sql
-    - notification_config.sql
+    - message_routing.sql
+    - message_config.sql
     - schema.sql
 
 Tests:
   /home/opencode/data/work/mistermcfeely/tests/
     - test_imap_lib.py
     - test_imap_monitor.py
-    - test_notifyd_client.py
+    - test_message_client.py
     - test_notifyd_integration.py
 
 Existing Documentation:
