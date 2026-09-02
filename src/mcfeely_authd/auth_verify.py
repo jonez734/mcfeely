@@ -147,7 +147,7 @@ def verify_password(
     if success:
         return True, reason
 
-    if cfg.fallback_pam:
+    if cfg["fallback_pam"]:
         return _verify_pam(username, password)
 
     return False, reason
