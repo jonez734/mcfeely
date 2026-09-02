@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any
 
 from bbsengine6 import io
 
-from . import notifyd_client
+from . import message_client
 
 
 def claim_message(
@@ -40,8 +40,8 @@ def claim_message(
     db_conn = kwargs.get("conn")
     try:
         # Format the claim flag with obfuscation
-        secret = notifyd_client.get_obfuscate_secret(args)
-        claim_flag = notifyd_client.format_claim_flag(actor_moniker, secret)
+        secret = message_client.get_obfuscate_secret(args)
+        claim_flag = message_client.format_claim_flag(actor_moniker, secret)
 
         if getattr(args, "debug", False):
             io.echo(
@@ -76,7 +76,7 @@ def claim_message(
             event_data["subject"] = message_subject
 
         # Fire notification event
-        return notifyd_client.fire_event(
+        return message_client.fire_event(
             args,
             mailbox_name,
             "message-claimed",
@@ -116,8 +116,8 @@ def unclaim_message(
     db_conn = kwargs.get("conn")
     try:
         # Format the claim flag with obfuscation
-        secret = notifyd_client.get_obfuscate_secret(args)
-        claim_flag = notifyd_client.format_claim_flag(actor_moniker, secret)
+        secret = message_client.get_obfuscate_secret(args)
+        claim_flag = message_client.format_claim_flag(actor_moniker, secret)
 
         if getattr(args, "debug", False):
             io.echo(
@@ -145,7 +145,7 @@ def unclaim_message(
         }
 
         # Fire notification event
-        return notifyd_client.fire_event(
+        return message_client.fire_event(
             args,
             mailbox_name,
             "message-unclaimed",
@@ -193,7 +193,7 @@ def fire_new_message_event(
             "subject": message_subject,
         }
 
-        return notifyd_client.fire_event(
+        return message_client.fire_event(
             args,
             mailbox_name,
             "message-new",
@@ -240,7 +240,7 @@ def fire_flag_changed_event(
             "added": added,
         }
 
-        return notifyd_client.fire_event(
+        return message_client.fire_event(
             args,
             mailbox_name,
             "message-flagged",
@@ -276,7 +276,7 @@ def fire_message_deleted_event(
             "message_uid": message_uid,
         }
 
-        return notifyd_client.fire_event(
+        return message_client.fire_event(
             args,
             mailbox_name,
             "message-deleted",

@@ -2,7 +2,7 @@ import copy
 
 from bbsengine6 import io, database, member, util, screen
 
-from . import lib, notifyd_client
+from . import lib, message_client
 
 
 def _validatemailbox(mailbox):
@@ -210,7 +210,7 @@ def add(args):
                 "maillocation": _mailbox["maillocation"],
                 "actor_moniker": moniker,
             }
-            notifyd_client.fire_event(
+            message_client.fire_event(
                 args,
                 f"postoffice/mailbox/{address}",
                 "mailbox-created",

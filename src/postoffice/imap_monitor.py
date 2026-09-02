@@ -1,7 +1,7 @@
 # imap_monitor.py
 # IMAP mailbox monitoring with embedded polling thread.
 # Detects new messages, flag changes, and deletions in shared mailboxes.
-# Fires corresponding events via notifyd integration.
+# Fires corresponding events via message_client integration.
 
 import threading
 import time
@@ -47,7 +47,7 @@ class IMAPMonitor:
 
     Design:
     - Run as background thread or periodic task
-    - Poll at intervals defined in postoffice.notification_config
+    - Poll at intervals defined in postoffice.message_config
     - Track UIDs and flags per mailbox
     - Handle UID validity changes (mailbox reset)
     - Graceful error handling (continue on connection errors)
@@ -395,7 +395,7 @@ class IMAPMonitor:
                     cur.execute(
                         """
                         SELECT imap_poll_interval_seconds
-                        FROM postoffice.notification_config
+                        FROM postoffice.message_config
                         WHERE mailbox_name = %s
                         """,
                         [mailbox_name],
