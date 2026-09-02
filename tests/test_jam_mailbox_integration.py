@@ -178,7 +178,7 @@ class TestMailboxCreateEvents(unittest.TestCase):
     def tearDown(self):
         _cleanup_mailbox(MAILBOX_NAME)
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_create_fires_mailbox_created_event(self, mock_fire_event):
         mock_fire_event.return_value = True
         admin = _get_admin()
@@ -348,7 +348,7 @@ class TestMailboxUpdateEvents(unittest.TestCase):
     def tearDownClass(cls):
         _cleanup_mailbox(MAILBOX_NAME)
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_acl_change_fires_event(self, mock_fire_event):
         mock_fire_event.return_value = True
         admin = _get_admin()
@@ -400,7 +400,7 @@ class TestMailboxDeleteEvents(unittest.TestCase):
     def tearDown(self):
         _cleanup_mailbox(MAILBOX_NAME)
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_delete_fires_mailbox_deleted_event(self, mock_fire_event):
         mock_fire_event.return_value = True
         admin = _get_admin()

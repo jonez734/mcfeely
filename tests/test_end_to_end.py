@@ -14,13 +14,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from postoffice import (
     imap_client,
     imap_lib,
-    notifyd_client,
+    message_client,
     member_password,
     shared_mailbox_password,
     password_auth,
     password_crypto,
     audit_log,
-    events,
 )
 
 
@@ -106,7 +105,7 @@ class TestEndToEndClaimFlow(unittest.TestCase):
             if key in os.environ:
                 del os.environ[key]
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     @patch("imaplib.IMAP4_SSL")
     def test_claim_message_full_flow(self, mock_imap_class, mock_fire_event):
         """Test complete claim message flow."""
@@ -140,7 +139,7 @@ class TestEndToEndClaimFlow(unittest.TestCase):
         self.assertEqual(event_data["event_type"], "message-claimed")
         self.assertEqual(event_data["actor_moniker"], "alice")
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     @patch("imaplib.IMAP4_SSL")
     def test_unclaim_message_full_flow(self, mock_imap_class, mock_fire_event):
         """Test complete unclaim message flow."""
@@ -163,7 +162,7 @@ class TestEndToEndClaimFlow(unittest.TestCase):
         call_args = mock_imap.store.call_args[0]
         self.assertIn("-FLAGS", call_args[1])
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_fire_new_message_event(self, mock_fire_event):
         """Test firing new message event."""
         mock_fire_event.return_value = True
@@ -186,7 +185,7 @@ class TestEndToEndClaimFlow(unittest.TestCase):
         self.assertEqual(event_data["event_type"], "message-new")
         self.assertIsNone(call_args[1].get("actor_moniker"))
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_fire_flag_changed_event(self, mock_fire_event):
         """Test firing flag changed event."""
         mock_fire_event.return_value = True
@@ -208,7 +207,7 @@ class TestEndToEndClaimFlow(unittest.TestCase):
         self.assertEqual(event_data["flag_name"], "\\Seen")
         self.assertTrue(event_data["added"])
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_fire_message_deleted_event(self, mock_fire_event):
         """Test firing message deleted event."""
         mock_fire_event.return_value = True
@@ -244,13 +243,13 @@ class TestEndToEndFlagObfuscation(unittest.TestCase):
                 del os.environ[key]
 
     def test_obfuscation_consistency_across_modules(self):
-        """Test that flag obfuscation is consistent across imap_client and notifyd_client."""
+        """Test that flag obfuscation is consistent across imap_client and message_client."""
         moniker = "alice"
         secret = os.environ.get("MCFEELY_OBFUSCATE_SECRET")
 
-        flag_from_notify = notifyd_client.format_claim_flag(moniker, secret)
+        flag_from_notify = message_client.format_claim_flag(moniker, secret)
 
-        flag_from_imap_client = notifyd_client.format_claim_flag(moniker, secret)
+        flag_from_imap_client = message_client.format_claim_flag(moniker, secret)
 
         self.assertEqual(flag_from_notify, flag_from_imap_client)
 
@@ -259,7 +258,7 @@ class TestEndToEndFlagObfuscation(unittest.TestCase):
         moniker = "alice"
         secret = "test_secret"
 
-        flag = notifyd_client.format_claim_flag(moniker, secret)
+        flag = message_client.format_claim_flag(moniker, secret)
 
         self.assertTrue(flag.startswith("ClaimedBy_"))
         hex_part = flag[len("ClaimedBy_") :]
@@ -270,8 +269,8 @@ class TestEndToEndFlagObfuscation(unittest.TestCase):
         """Test that different secrets produce different flags."""
         moniker = "alice"
 
-        flag1 = notifyd_client.format_claim_flag(moniker, "secret1")
-        flag2 = notifyd_client.format_claim_flag(moniker, "secret2")
+        flag1 = message_client.format_claim_flag(moniker, "secret1")
+        flag2 = message_client.format_claim_flag(moniker, "secret2")
 
         self.assertNotEqual(flag1, flag2)
 
@@ -280,12 +279,12 @@ class TestEndToEndFlagObfuscation(unittest.TestCase):
         moniker = "alice"
         secret = "verify_secret"
 
-        flag = notifyd_client.format_claim_flag(moniker, secret)
+        flag = message_client.format_claim_flag(moniker, secret)
 
-        self.assertTrue(notifyd_client.verify_claim_flag(flag, moniker, secret))
-        self.assertFalse(notifyd_client.verify_claim_flag(flag, "bob", secret))
+        self.assertTrue(message_client.verify_claim_flag(flag, moniker, secret))
+        self.assertFalse(message_client.verify_claim_flag(flag, "bob", secret))
         self.assertFalse(
-            notifyd_client.verify_claim_flag(flag, moniker, "wrong_secret")
+            message_client.verify_claim_flag(flag, moniker, "wrong_secret")
         )
 
 
@@ -453,13 +452,13 @@ class TestEndToEndNotificationRouting(unittest.TestCase):
         ]
 
         for event_type, actor, data in test_cases:
-            rendered = notifyd_client.render_event_message(event_type, actor, data)
+            rendered = message_client.render_event_message(event_type, actor, data)
             self.assertIsNotNone(rendered)
             self.assertGreater(len(rendered), 0)
 
     def test_render_with_missing_fields(self):
         """Test rendering handles missing fields gracefully."""
-        rendered = notifyd_client.render_event_message(
+        rendered = message_client.render_event_message(
             "message-new", None, {"from": "test@example.com"}
         )
         self.assertIn("test@example.com", rendered)
@@ -467,7 +466,7 @@ class TestEndToEndNotificationRouting(unittest.TestCase):
 
     def test_render_special_characters(self):
         """Test rendering with special characters."""
-        rendered = notifyd_client.render_event_message(
+        rendered = message_client.render_event_message(
             "message-new",
             None,
             {
@@ -480,10 +479,10 @@ class TestEndToEndNotificationRouting(unittest.TestCase):
 
 
 class TestEndToEndEventTypes(unittest.TestCase):
-    """End-to-end tests for event type definitions."""
+    """End-to-end tests for event type templates."""
 
-    def test_all_event_types_defined(self):
-        """Test all expected event types are defined."""
+    def test_all_event_types_have_template(self):
+        """Test all expected event types have a render template."""
         expected_types = [
             "message-new",
             "message-claimed",
@@ -493,18 +492,13 @@ class TestEndToEndEventTypes(unittest.TestCase):
         ]
 
         for event_type in expected_types:
-            self.assertTrue(
-                hasattr(events.EventType, event_type.replace("-", "_").upper())
-            )
-            self.assertEqual(
-                getattr(events.EventType, event_type.replace("-", "_").upper()).value,
-                event_type,
-            )
+            self.assertIn(event_type, message_client.EVENT_MESSAGE_TEMPLATES)
 
-    def test_event_types_are_strings(self):
-        """Test event types are string enums."""
-        for event_type in events.EventType:
-            self.assertIsInstance(event_type.value, str)
+    def test_templates_are_strings(self):
+        """Test all templates are non-empty strings."""
+        for event_type, template in message_client.EVENT_MESSAGE_TEMPLATES.items():
+            self.assertIsInstance(template, str)
+            self.assertGreater(len(template), 0)
 
 
 class TestEndToEndAuditLogging(unittest.TestCase):

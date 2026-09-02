@@ -1,5 +1,5 @@
-# test_notifyd_integration.py
-# Integration tests for notifyd_client and imap_client modules
+# test_message_client_integration.py
+# Integration tests for message_client and imap_client modules
 # Tests real API calls without mocking internal functions
 
 import unittest
@@ -10,7 +10,7 @@ import json
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from postoffice import notifyd_client, imap_client
+from postoffice import message_client, imap_client
 
 
 class TestFlagObfuscationIntegration(unittest.TestCase):
@@ -22,13 +22,13 @@ class TestFlagObfuscationIntegration(unittest.TestCase):
         secret = None
 
         # Format flag
-        flag = notifyd_client.format_claim_flag(moniker, secret)
+        flag = message_client.format_claim_flag(moniker, secret)
 
         # Verify it matches
-        self.assertTrue(notifyd_client.verify_claim_flag(flag, moniker, secret))
+        self.assertTrue(message_client.verify_claim_flag(flag, moniker, secret))
 
         # Verify it doesn't match other monikers
-        self.assertFalse(notifyd_client.verify_claim_flag(flag, "bob", secret))
+        self.assertFalse(message_client.verify_claim_flag(flag, "bob", secret))
 
     def test_claim_flag_roundtrip_obfuscated(self):
         """Test obfuscated flag creation and verification roundtrip."""
@@ -36,17 +36,17 @@ class TestFlagObfuscationIntegration(unittest.TestCase):
         secret = "super_secret_key_123"
 
         # Format flag
-        flag = notifyd_client.format_claim_flag(moniker, secret)
+        flag = message_client.format_claim_flag(moniker, secret)
 
         # Verify it matches
-        self.assertTrue(notifyd_client.verify_claim_flag(flag, moniker, secret))
+        self.assertTrue(message_client.verify_claim_flag(flag, moniker, secret))
 
         # Verify it doesn't match other monikers
-        self.assertFalse(notifyd_client.verify_claim_flag(flag, "bob", secret))
+        self.assertFalse(message_client.verify_claim_flag(flag, "bob", secret))
 
         # Verify wrong secret fails
         self.assertFalse(
-            notifyd_client.verify_claim_flag(flag, moniker, "wrong_secret")
+            message_client.verify_claim_flag(flag, moniker, "wrong_secret")
         )
 
     def test_obfuscate_moniker_is_deterministic(self):
@@ -54,9 +54,9 @@ class TestFlagObfuscationIntegration(unittest.TestCase):
         secret = "test_secret"
         moniker = "test_user"
 
-        obf1 = notifyd_client.obfuscate_moniker(moniker, secret)
-        obf2 = notifyd_client.obfuscate_moniker(moniker, secret)
-        obf3 = notifyd_client.obfuscate_moniker(moniker, secret)
+        obf1 = message_client.obfuscate_moniker(moniker, secret)
+        obf2 = message_client.obfuscate_moniker(moniker, secret)
+        obf3 = message_client.obfuscate_moniker(moniker, secret)
 
         self.assertEqual(obf1, obf2)
         self.assertEqual(obf2, obf3)
@@ -66,7 +66,7 @@ class TestFlagObfuscationIntegration(unittest.TestCase):
         secret = "shared_secret"
 
         hashes = {
-            notifyd_client.obfuscate_moniker(user, secret)
+            message_client.obfuscate_moniker(user, secret)
             for user in ["alice", "bob", "charlie", "david", "eve"]
         }
 
@@ -96,7 +96,7 @@ class TestEventMessageRenderingIntegration(unittest.TestCase):
         ]
 
         for event_type, actor, data in test_cases:
-            result = notifyd_client.render_event_message(event_type, actor, data)
+            result = message_client.render_event_message(event_type, actor, data)
             self.assertIsNotNone(result)
             self.assertGreater(len(result), 0)
             self.assertIsInstance(result, str)
@@ -104,7 +104,7 @@ class TestEventMessageRenderingIntegration(unittest.TestCase):
     def test_render_handles_missing_fields(self):
         """Test that rendering handles missing optional fields gracefully."""
         # message-new without all fields
-        result = notifyd_client.render_event_message(
+        result = message_client.render_event_message(
             "message-new",
             None,
             {"from": "sender@example.com"},  # missing subject
@@ -113,7 +113,7 @@ class TestEventMessageRenderingIntegration(unittest.TestCase):
 
     def test_render_handles_special_characters(self):
         """Test rendering with special characters in data."""
-        result = notifyd_client.render_event_message(
+        result = message_client.render_event_message(
             "message-new",
             None,
             {
@@ -265,17 +265,17 @@ class TestSecretRetrievalIntegration(unittest.TestCase):
             from unittest.mock import Mock
 
             args = Mock(databasepassword=None)
-            result = notifyd_client.get_obfuscate_secret(args)
+            result = message_client.get_obfuscate_secret(args)
             self.assertIsNone(result)
 
             # Test 2: Env set → use env
             os.environ["MCFEELY_OBFUSCATE_SECRET"] = "env_secret"
-            result = notifyd_client.get_obfuscate_secret(args)
+            result = message_client.get_obfuscate_secret(args)
             self.assertEqual(result, "env_secret")
 
             # Test 3: Env set, args set → env takes priority
             args.databasepassword = "db_secret"
-            result = notifyd_client.get_obfuscate_secret(args)
+            result = message_client.get_obfuscate_secret(args)
             self.assertEqual(result, "env_secret")
 
         finally:
@@ -298,7 +298,7 @@ class TestFlagFormatConsistency(unittest.TestCase):
         ]
 
         for moniker, expected in test_cases:
-            result = notifyd_client.format_claim_flag(moniker, secret=None)
+            result = message_client.format_claim_flag(moniker, secret=None)
             self.assertEqual(result, expected)
 
     def test_obfuscated_flags_follow_convention(self):
@@ -306,7 +306,7 @@ class TestFlagFormatConsistency(unittest.TestCase):
         secret = "test_secret"
 
         for moniker in ["alice", "bob", "charlie"]:
-            flag = notifyd_client.format_claim_flag(moniker, secret)
+            flag = message_client.format_claim_flag(moniker, secret)
 
             # Check pattern
             self.assertTrue(flag.startswith("ClaimedBy_"))
@@ -322,15 +322,15 @@ class TestFlagFormatConsistency(unittest.TestCase):
         moniker = "symmetry_test_user"
 
         # Create flag
-        flag = notifyd_client.format_claim_flag(moniker, secret)
+        flag = message_client.format_claim_flag(moniker, secret)
 
         # Verify forward
-        self.assertTrue(notifyd_client.verify_claim_flag(flag, moniker, secret))
+        self.assertTrue(message_client.verify_claim_flag(flag, moniker, secret))
 
         # Verify also works if we recreate the flag
-        flag2 = notifyd_client.format_claim_flag(moniker, secret)
+        flag2 = message_client.format_claim_flag(moniker, secret)
         self.assertEqual(flag, flag2)
-        self.assertTrue(notifyd_client.verify_claim_flag(flag2, moniker, secret))
+        self.assertTrue(message_client.verify_claim_flag(flag2, moniker, secret))
 
 
 if __name__ == "__main__":

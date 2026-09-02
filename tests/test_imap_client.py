@@ -25,7 +25,7 @@ class TestClaimMessage(unittest.TestCase):
         if "MCFEELY_OBFUSCATE_SECRET" in os.environ:
             del os.environ["MCFEELY_OBFUSCATE_SECRET"]
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_claim_message_basic(self, mock_fire_event):
         """Test basic message claiming."""
         mock_fire_event.return_value = True
@@ -45,7 +45,7 @@ class TestClaimMessage(unittest.TestCase):
         mock_imap.select.assert_called_once_with("shared/support")
         mock_imap.store.assert_called_once()
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_claim_message_with_full_headers(self, mock_fire_event):
         """Test claiming message with all header data."""
         mock_fire_event.return_value = True
@@ -72,7 +72,7 @@ class TestClaimMessage(unittest.TestCase):
         self.assertEqual(event_data["from"], "user@example.com")
         self.assertEqual(event_data["subject"], "Help needed")
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_claim_message_without_imap_conn(self, mock_fire_event):
         """Test claiming message without IMAP connection (event only)."""
         mock_fire_event.return_value = True
@@ -89,7 +89,7 @@ class TestClaimMessage(unittest.TestCase):
         self.assertTrue(result)
         mock_fire_event.assert_called_once()
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_claim_message_fire_event_failure(self, mock_fire_event):
         """Test claiming returns False when fire_event fails."""
         mock_fire_event.return_value = False
@@ -107,7 +107,7 @@ class TestClaimMessage(unittest.TestCase):
 
         self.assertFalse(result)
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_claim_message_imap_store_failure(self, mock_fire_event):
         """Test claiming returns False when IMAP store fails."""
         mock_fire_event.return_value = True
@@ -127,7 +127,7 @@ class TestClaimMessage(unittest.TestCase):
 
         self.assertFalse(result)
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_claim_message_event_data_structure(self, mock_fire_event):
         """Test that event data has correct structure."""
         mock_fire_event.return_value = True
@@ -153,7 +153,7 @@ class TestClaimMessage(unittest.TestCase):
         mock_imap = MagicMock()
         mock_conn = MagicMock()
 
-        with patch("postoffice.notifyd_client.fire_event") as mock_fire:
+        with patch("postoffice.message_client.fire_event") as mock_fire:
             mock_fire.return_value = True
 
             result = imap_client.claim_message(
@@ -181,7 +181,7 @@ class TestUnclaimMessage(unittest.TestCase):
         if "MCFEELY_OBFUSCATE_SECRET" in os.environ:
             del os.environ["MCFEELY_OBFUSCATE_SECRET"]
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_unclaim_message_basic(self, mock_fire_event):
         """Test basic message unclaiming."""
         mock_fire_event.return_value = True
@@ -203,7 +203,7 @@ class TestUnclaimMessage(unittest.TestCase):
         store_call = mock_imap.store.call_args[0]
         self.assertIn("-FLAGS", store_call[1])
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_unclaim_message_without_imap_conn(self, mock_fire_event):
         """Test unclaiming message without IMAP connection."""
         mock_fire_event.return_value = True
@@ -220,7 +220,7 @@ class TestUnclaimMessage(unittest.TestCase):
         self.assertTrue(result)
         mock_fire_event.assert_called_once()
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_unclaim_message_event_data(self, mock_fire_event):
         """Test unclaim event has correct data."""
         mock_fire_event.return_value = True
@@ -247,7 +247,7 @@ class TestUnclaimMessage(unittest.TestCase):
         mock_imap.select.side_effect = Exception("Select failed")
         mock_conn = MagicMock()
 
-        with patch("postoffice.notifyd_client.fire_event") as mock_fire:
+        with patch("postoffice.message_client.fire_event") as mock_fire:
             mock_fire.return_value = True
 
             result = imap_client.unclaim_message(
@@ -269,7 +269,7 @@ class TestFireNewMessageEvent(unittest.TestCase):
         self.args = Mock()
         self.args.debug = False
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_fire_new_message_basic(self, mock_fire_event):
         """Test firing new message event."""
         mock_fire_event.return_value = True
@@ -293,7 +293,7 @@ class TestFireNewMessageEvent(unittest.TestCase):
         self.assertEqual(event_data["event_type"], "message-new")
         self.assertIsNone(call_args[1].get("actor_moniker"))
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_fire_new_message_no_connection(self, mock_fire_event):
         """Test firing event without connection."""
         mock_fire_event.return_value = True
@@ -328,7 +328,7 @@ class TestFireFlagChangedEvent(unittest.TestCase):
         self.args = Mock()
         self.args.debug = False
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_fire_flag_added(self, mock_fire_event):
         """Test firing flag added event."""
         mock_fire_event.return_value = True
@@ -351,7 +351,7 @@ class TestFireFlagChangedEvent(unittest.TestCase):
         self.assertEqual(event_data["event_type"], "message-flagged")
         self.assertTrue(event_data["added"])
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_fire_flag_removed(self, mock_fire_event):
         """Test firing flag removed event."""
         mock_fire_event.return_value = True
@@ -373,7 +373,7 @@ class TestFireFlagChangedEvent(unittest.TestCase):
         event_data = call_args[0][3]
         self.assertFalse(event_data["added"])
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_fire_flag_no_actor(self, mock_fire_event):
         """Test firing flag event without actor."""
         mock_fire_event.return_value = True
@@ -390,7 +390,7 @@ class TestFireFlagChangedEvent(unittest.TestCase):
 
         self.assertTrue(result)
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_fire_flag_claimed_by_flag(self, mock_fire_event):
         """Test firing event for claim flag."""
         mock_fire_event.return_value = True
@@ -416,7 +416,7 @@ class TestFireMessageDeletedEvent(unittest.TestCase):
         self.args = Mock()
         self.args.debug = False
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_fire_deleted_basic(self, mock_fire_event):
         """Test firing message deleted event."""
         mock_fire_event.return_value = True
@@ -436,7 +436,7 @@ class TestFireMessageDeletedEvent(unittest.TestCase):
         self.assertEqual(event_data["event_type"], "message-deleted")
         self.assertIsNone(call_args[1].get("actor_moniker"))
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_fire_deleted_no_connection(self, mock_fire_event):
         """Test firing deleted event without connection."""
         mock_fire_event.return_value = True
@@ -458,14 +458,14 @@ class TestFlagObfuscationIntegration(unittest.TestCase):
         self.args.debug = False
         self.args.databasepassword = "test_secret"
 
-    @patch("postoffice.notifyd_client.get_obfuscate_secret")
+    @patch("postoffice.message_client.get_obfuscate_secret")
     def test_claim_uses_obfuscated_flag(self, mock_get_secret):
         """Test that claim uses obfuscated flag."""
         mock_get_secret.return_value = "obfuscate_secret"
         mock_imap = MagicMock()
         mock_conn = MagicMock()
 
-        with patch("postoffice.notifyd_client.fire_event") as mock_fire:
+        with patch("postoffice.message_client.fire_event") as mock_fire:
             mock_fire.return_value = True
 
             imap_client.claim_message(
@@ -481,14 +481,14 @@ class TestFlagObfuscationIntegration(unittest.TestCase):
             flag = store_call[2]
             self.assertIn("ClaimedBy", flag)
 
-    @patch("postoffice.notifyd_client.get_obfuscate_secret")
+    @patch("postoffice.message_client.get_obfuscate_secret")
     def test_unclaim_uses_obfuscated_flag(self, mock_get_secret):
         """Test that unclaim uses obfuscated flag."""
         mock_get_secret.return_value = "obfuscate_secret"
         mock_imap = MagicMock()
         mock_conn = MagicMock()
 
-        with patch("postoffice.notifyd_client.fire_event") as mock_fire:
+        with patch("postoffice.message_client.fire_event") as mock_fire:
             mock_fire.return_value = True
 
             imap_client.unclaim_message(
@@ -504,14 +504,14 @@ class TestFlagObfuscationIntegration(unittest.TestCase):
             flag = store_call[2]
             self.assertIn("ClaimedBy", flag)
 
-    @patch("postoffice.notifyd_client.get_obfuscate_secret")
+    @patch("postoffice.message_client.get_obfuscate_secret")
     def test_plain_flag_without_secret(self, mock_get_secret):
         """Test plain flag when no secret available."""
         mock_get_secret.return_value = None
         mock_imap = MagicMock()
         mock_conn = MagicMock()
 
-        with patch("postoffice.notifyd_client.fire_event") as mock_fire:
+        with patch("postoffice.message_client.fire_event") as mock_fire:
             mock_fire.return_value = True
 
             imap_client.claim_message(
@@ -535,7 +535,7 @@ class TestExceptionHandling(unittest.TestCase):
         self.args = Mock()
         self.args.debug = False
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_claim_message_exception_returns_false(self, mock_fire_event):
         """Test that exceptions are caught and False is returned."""
         mock_fire_event.side_effect = Exception("Event fire failed")
@@ -553,7 +553,7 @@ class TestExceptionHandling(unittest.TestCase):
 
         self.assertFalse(result)
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_unclaim_message_exception_returns_false(self, mock_fire_event):
         """Test unclaim exception handling."""
         mock_fire_event.side_effect = Exception("Event fire failed")
@@ -575,7 +575,7 @@ class TestExceptionHandling(unittest.TestCase):
         """Test new message event exception handling."""
         mock_conn = MagicMock()
 
-        with patch("postoffice.notifyd_client.fire_event") as mock_fire:
+        with patch("postoffice.message_client.fire_event") as mock_fire:
             mock_fire.side_effect = Exception("Event fire failed")
 
             result = imap_client.fire_new_message_event(
@@ -604,7 +604,7 @@ class TestDebugLogging(unittest.TestCase):
         if "MCFEELY_OBFUSCATE_SECRET" in os.environ:
             del os.environ["MCFEELY_OBFUSCATE_SECRET"]
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_claim_debug_output(self, mock_fire_event):
         """Test that debug output is produced when debug is enabled."""
         mock_fire_event.return_value = True
@@ -624,7 +624,7 @@ class TestDebugLogging(unittest.TestCase):
             debug_calls = [call for call in mock_echo.call_args_list if call[1].get("level") == "debug"]
             self.assertGreater(len(debug_calls), 0)
 
-    @patch("postoffice.notifyd_client.fire_event")
+    @patch("postoffice.message_client.fire_event")
     def test_unclaim_debug_output(self, mock_fire_event):
         """Test that debug output is produced for unclaim."""
         mock_fire_event.return_value = True
