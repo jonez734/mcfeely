@@ -30,3 +30,14 @@ version = { attr = "postoffice._version.__version__" }
 markers = [
     "integration: tests that require external services (e.g., IMAP server)",
 ]
+collect_ignore = [
+    "tests/imap_test_admin.py",
+    "tests/imap_test_create_folder.py",
+    "tests/imap_test_create_mailbox_with_acl.py",
+    "tests/imap_test_delete_mailbox.py",
+    "tests/imap_test_list_mailboxes.py",
+    "tests/imap_test_list_messages.py",
+    "tests/imap_test_login.py",
+    "tests/imap_test_send.py",
+    "tests/testimap.py",
+]
