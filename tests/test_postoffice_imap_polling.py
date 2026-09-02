@@ -200,20 +200,20 @@ class TestNotifyNewMessages(unittest.TestCase):
 
     def test_notify_new_messages_calls_message_send(self):
         """Test notify_new_messages calls bbsengine6 message_send once per envelope."""
-        from postoffice.services import notification as svc_notification
-        from postoffice.services.notification import notify_new_messages
+        from postoffice.services import message as svc_message
+        from postoffice.services.message import notify_new_messages
 
         envelopes = [b"from a", b"from b"]
-        with patch("postoffice.services.notification.message_send") as mock_send:
+        with patch("postoffice.services.message.message_send") as mock_send:
             sent = notify_new_messages(envelopes)
         self.assertEqual(sent, 2)
         self.assertEqual(mock_send.call_count, 2)
 
     def test_notify_new_messages_uses_postoffice_sender(self):
         """Test notify_new_messages uses postoffice as sender_moniker."""
-        from postoffice.services.notification import notify_new_messages
+        from postoffice.services.message import notify_new_messages
 
-        with patch("postoffice.services.notification.message_send") as mock_send:
+        with patch("postoffice.services.message.message_send") as mock_send:
             notify_new_messages([b"x"])
         call_kwargs = mock_send.call_args.kwargs
         self.assertEqual(call_kwargs["sender_moniker"], "postoffice")
@@ -323,7 +323,7 @@ class TestMailboxPollerRecipients(unittest.TestCase):
             "postoffice.services.mailbox_poller.svc_imap.connect",
             return_value=mock_conn,
         ), patch(
-            "postoffice.services.notification.notify_new_messages",
+            "postoffice.services.message.notify_new_messages",
         ) as mock_notify:
             poller._check_mailbox_sync(mb)
 
@@ -351,7 +351,7 @@ class TestMailboxPollerRecipients(unittest.TestCase):
             "postoffice.services.mailbox_poller.svc_imap.connect",
             return_value=mock_conn,
         ), patch(
-            "postoffice.services.notification.notify_new_messages",
+            "postoffice.services.message.notify_new_messages",
         ) as mock_notify:
             poller._check_mailbox_sync(mb)
 
@@ -386,7 +386,7 @@ class TestMailboxPollerMarksSeen(unittest.TestCase):
             "postoffice.services.mailbox_poller.svc_imap.connect",
             return_value=mock_conn,
         ), patch(
-            "postoffice.services.notification.notify_new_messages",
+            "postoffice.services.message.notify_new_messages",
         ):
             poller._check_mailbox_sync(mb)
 
@@ -411,7 +411,7 @@ class TestMailboxPollerMarksSeen(unittest.TestCase):
             "postoffice.services.mailbox_poller.svc_imap.connect",
             return_value=mock_conn,
         ), patch(
-            "postoffice.services.notification.notify_new_messages",
+            "postoffice.services.message.notify_new_messages",
         ) as mock_notify:
             poller._check_mailbox_sync(mb)
 
@@ -440,7 +440,7 @@ class TestMailboxPollerMarksSeen(unittest.TestCase):
             "postoffice.services.mailbox_poller.svc_imap.connect",
             return_value=mock_conn,
         ), patch(
-            "postoffice.services.notification.notify_new_messages",
+            "postoffice.services.message.notify_new_messages",
         ):
             poller._check_mailbox_sync(mb)
 

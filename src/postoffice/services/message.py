@@ -1,4 +1,4 @@
-# postoffice/services/notification.py
+# postoffice/services/message.py
 # Build & send postoffice.email notifications via bbsengine6.message.
 
 import logging
@@ -7,7 +7,7 @@ from typing import List, Optional
 
 from bbsengine6.message import send as message_send
 
-from .imap_client import extract_preview
+from .postoffice_client import extract_preview
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ def build_email_payload(
 
     Args:
         envelope_bytes: Raw RFC822 envelope, as returned by
-            :func:`postoffice.services.imap_client.fetch_envelopes`.
+            :func:`postoffice.services.postoffice_client.fetch_envelopes`.
         to: Optional label for the ``To:`` line -- typically the IMAP
             account that received the message, e.g.
             ``"user@example.com"`` or ``"shared/support"``. Empty /
@@ -140,7 +140,7 @@ def notify_new_messages(
 
     Args:
         envelopes: List of raw RFC822 envelope byte strings, as
-            returned by :func:`postoffice.services.imap_client.fetch_envelopes`.
+            returned by :func:`postoffice.services.postoffice_client.fetch_envelopes`.
         recipients: BBS monikers and/or ``@<group>`` strings that
             should receive the notification. Defaults to
             ``["@everyone"]`` when ``None``. An empty list short-circuits

@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from .config import MailboxConfig, load_mailboxes
 from . import postoffice_client as svc_imap
-from . import notification
+from . import message
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ class MailboxPoller:
             conn = svc_imap.connect(mb)
             envelopes, message_ids = svc_imap.fetch_envelopes(conn, limit=5)
             if envelopes:
-                notification.notify_new_messages(
+                message.notify_new_messages(
                     envelopes,
                     recipients=mb.recipients,
                     to=f"{mb.username}@{mb.host}/{mb.mailbox}",
