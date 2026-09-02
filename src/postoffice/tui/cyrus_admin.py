@@ -390,3 +390,18 @@ class CyrusAdmin:
                 echo(f"✓ {ptype.capitalize()} password set for {member}")
             else:
                 echo(f"✗ Failed to set {ptype} password", level="error")
+
+
+def run(args: Any, current_user=None, pool=None) -> int:
+    """Module-level entry point for the Cyrus admin TUI.
+
+    Wraps :class:`CyrusAdmin` so callers (e.g. ``postoffice.__main__``)
+    can invoke ``from .tui.cyrus_admin import run`` and call
+    ``run(args, current_user, pool=pool)`` uniformly. The legacy
+    signature accepted ``(args, current_user, pool)``; the current
+    :class:`CyrusAdmin` takes only ``args`` and pulls ``loginid`` /
+    ``issuperuser`` from the namespace.
+    """
+    if current_user is not None:
+        args.loginid = current_user
+    return CyrusAdmin(args).run()

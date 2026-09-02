@@ -11,12 +11,10 @@ from typing import Optional
 # Set BBSENGINE6_DBNAME so notify functions that create their own connections use the right db
 os.environ["BBSENGINE6_DBNAME"] = "zoid6test"
 
-from bbsengine6 import database, io, member, notify as notify_module
+from bbsengine6 import database, io, member, message as message_module
 from bbsengine6.startup import main as bbsengine6_startup_main
 from postoffice import startup
 from postoffice.shared_mailbox_password import set_shared_mailbox_password
-
-notify_module.lib._DEFAULT_DBNAME = "zoid6test"
 
 
 _LOREM_WORDS = [
@@ -198,70 +196,69 @@ def _phase_messages(args, pool) -> list[tuple[int, str]]:
         with database.cursor(conn) as cur:
             cur.execute(
                 """
-                INSERT INTO engine.__notify_type (type_name, default_urgency, persist_by_default, registeredbymoniker)
-                VALUES ('demo_message', 'ROUTINE', true, 'bob')
+                INSERT INTO engine.__message_type
+                    (type_name, description, rate_limit_per_hour, requires_approval)
+                VALUES ('demo_message', 'Demo messages from startup_test', 0, false)
                 ON CONFLICT (type_name) DO NOTHING
                 """
             )
             io.echo("  registered type", level="ok")
         conn.commit()
 
-    with database.connect(args, pool=pool) as conn:
-        roll = random.randint(1, 4)
-        n = 3 + roll
-        io.echo(f"Phase 3: sending {n} messages (3+1d4={3}+{roll})...")
+    sent = []
+    for i in range(3 + random.randint(1, 4)):
+        paragraph = _generate_paragraph()
+        msg_id = message_module.store_message(
+            channel="demo_message",
+            sender_moniker="bob",
+            content=paragraph[:100],
+            recipient_monikers=["alice"],
+            template="{message}",
+            template_vars={"message": paragraph[:100]},
+            data={"index": i + 1},
+            database=args.databasename,
+        )
+        sent.append((msg_id, paragraph))
+        io.echo(f"  sent message {i + 1} (id={msg_id})")
 
-        sent = []
-        for i in range(n):
-            paragraph = _generate_paragraph()
-            result = notify_module.send(
-                notification_type="demo_message",
-                recipients=["alice"],
-                template="{message}",
-                template_vars={"message": paragraph[:100]},
-                sender_moniker="bob",
-                data={"index": i + 1, "total": n},
-                conn=conn,
-            )
-            sent.append((result.id, paragraph))
-            io.echo(f"  sent message {i + 1}/{n} (id={result.id})")
-
-        conn.commit()
-        return sent
+    return sent
 
 
 def _phase_notify_processing(args, pool, sent_ids: list[int]) -> bool:
     io.echo("Phase 4: notify processing test...")
 
-    notifications = notify_module.get_notifications(
-        "alice", limit=50, args=args, pool=pool
+    notifications = message_module.get_pending_messages(
+        "alice", limit=50, database=args.databasename
     )
     io.echo(f"  alice has {len(notifications)} notifications")
     if not notifications:
         io.echo("  FAIL: no notifications found for alice", level="error")
         return False
 
-    unread_count = notify_module.count("alice", args=args, pool=pool)
+    unread_count = message_module.get_unread_count(
+        "alice", args=args, pool=pool
+    )
     io.echo(f"  unread count: {unread_count}")
 
-    bob_notifs = [n for n in notifications if n.sender_moniker == "bob"]
+    bob_notifs = [n for n in notifications if n["sender_moniker"] == "bob"]
     if not bob_notifs:
         io.echo("  FAIL: no notifications from bob found for alice", level="error")
         return False
 
     first = bob_notifs[0]
-    io.echo(f"  first bob notification: sender={first.sender_moniker}, id={first.id}")
+    first_id = first["id"]
+    io.echo(f"  first bob notification: sender={first['sender_moniker']}, id={first_id}")
 
-    notify_module.mark_read(first.id, "alice", args=args, pool=pool)
-    unread_after = notify_module.count("alice", args=args, pool=pool)
+    message_module.mark_read(first_id, "alice", database=args.databasename)
+    unread_after = message_module.get_unread_count("alice", args=args, pool=pool)
     io.echo(f"  after mark_read, unread count: {unread_after}")
 
-    notify_module.expunge(first.id, args=args, pool=pool)
-    notifications_after = notify_module.get_notifications(
-        "alice", limit=10, args=args, pool=pool
+    message_module.expunge(first_id, "bob", database=args.databasename)
+    notifications_after = message_module.get_pending_messages(
+        "alice", limit=10, database=args.databasename
     )
     io.echo(f"  after expunge, notifications: {len(notifications_after)}")
-    if any(n.id == first.id for n in notifications_after):
+    if any(n["id"] == first_id for n in notifications_after):
         io.echo("  FAIL: expunged notification still present", level="error")
         return False
 

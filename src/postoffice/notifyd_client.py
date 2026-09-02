@@ -1,23 +1,18 @@
 # notifyd_client.py
 # Integration layer for mcfeely event firing and notification routing.
-# Fires events to engine.__notify and routes based on postoffice.notification_routing rules.
-# Functional design with helper functions.
+# Routes events to the unified bbsengine6.message system (post-migration;
+# the engine.__notify schema is gone). Functional design with helper
+# functions.
 
-import json
 import os
 import hmac
 import hashlib
 from typing import Optional, List, Dict, Any
 
 from bbsengine6 import database, io
+from bbsengine6.message import send as _message_send
 
 from . import lib
-
-# Optional: bbsengine6 notify integration (for hybrid transport)
-try:
-    from bbsengine6 import notify as _notify_module
-except ImportError:
-    _notify_module = None
 
 
 # --- Configuration ---
@@ -277,35 +272,27 @@ def _fire_event_fallback(
     rules: List[Dict[str, Any]],
 ) -> bool:
     """
-    Fallback event firing if bbsengine6.notify is not available.
+    Fallback event firing if the bbsengine6.message transport is unavailable.
 
-    Direct database insert to engine.__notify (legacy behavior).
-    Used only if notify module is not available.
+    Routes through bbsengine6.message.send (post-migration; the legacy
+    engine.__notify schema is gone). The rendered message is passed as
+    the template body; the message system stores it as ``content``
+    after rendering.
     """
-    event_data_json = json.dumps(event_data)
     failcount = 0
 
     for rule in rules:
         try:
-            # Direct insert (legacy behavior)
-            with database.cursor(use_conn) as cur:
-                cur.execute(
-                    """
-                    INSERT INTO engine.__notify 
-                    (notification_type, sender_moniker, template, rendered_message, 
-                     data, urgency, should_persist)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    """,
-                    [
-                        rule["notification_type"],
-                        actor_moniker,
-                        rule["notification_type"],
-                        rendered_message,
-                        event_data_json,
-                        rule["urgency"],
-                        True,
-                    ],
-                )
+            _message_send(
+                notification_type=rule["notification_type"],
+                recipients=[rule["recipient_moniker"]],
+                template=rendered_message,
+                template_vars={},
+                sender_moniker=actor_moniker,
+                data=event_data,
+                urgency=rule["urgency"],
+                args=args,
+            )
 
             if getattr(args, "debug", False):
                 io.echo(
@@ -335,7 +322,7 @@ def fire_event(
     **kwargs,
 ) -> bool:
     """
-    Fire an event and route to recipients via engine.__notify.
+    Fire an event and route to recipients via bbsengine6.message.
 
     Args:
         args: bbsengine6 args object
@@ -381,42 +368,24 @@ def fire_event(
         # Render message for notifications
         rendered_message = render_event_message(event_type, actor_moniker, event_data)
 
-        # Fire event for each recipient via bbsengine6.notify.send()
-        notify = _notify_module
-        if notify is None:
-            # Fallback: direct database insert if notify not available
-            io.echo(
-                "notifyd_client.fire_event: bbsengine6.notify not available, "
-                "falling back to direct database insert",
-                level="warn",
-            )
-            return _fire_event_fallback(
-                args,
-                mailbox_name,
-                event_type,
-                event_data,
-                actor_moniker,
-                use_conn,
-                rendered_message,
-                rules,
-            )
-
         failcount = 0
 
         for rule in rules:
             try:
-                # Use bbsengine6.notify as transport layer
-                # This provides rate limiting, recipient expansion, and standardized handling
-                notify.send(
+                # Route through bbsengine6.message (the unified message
+                # transport; the post-migration replacement for the
+                # deleted bbsengine6.notify package). The rendered
+                # message is used as the template body so the message
+                # system stores it as content after rendering.
+                _message_send(
                     notification_type=rule["notification_type"],
                     recipients=[rule["recipient_moniker"]],
-                    template=rule["notification_type"],
-                    template_vars={},  # We render message inline, template vars not used
+                    template=rendered_message,
+                    template_vars={},  # We render message inline
                     sender_moniker=actor_moniker,
                     data=event_data,
                     urgency=rule["urgency"],
-                    should_persist=True,
-                    conn=use_conn,
+                    args=args,
                 )
 
                 if getattr(args, "debug", False):
@@ -432,7 +401,6 @@ def fire_event(
                 )
                 failcount += 1
 
-        use_conn.commit()
         return failcount == 0
 
     finally:
