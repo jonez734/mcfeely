@@ -605,19 +605,18 @@ def handle_menu(args: argparse.Namespace) -> int:
         util.heading("postoffice")
 
         if is_sysop:
-            choice = inputchoice(
-                "Choose action: ",
-                "tnmax",
-                default="m",
-                help="(t)ui messages, (n)otifications, (m)anage accounts, (a)dmin menu, e(x)it",
-            )
+            optionstr = "tnmax"
+            helptext = "(t)ui messages, (n)otifications, (m)anage accounts, (a)dmin menu, e(x)it"
         else:
-            choice = inputchoice(
-                "Choose action: ",
-                "tnqx",
-                default="m",
-                help="(t)ui messages, (n)otifications, (m)anage accounts, e(x)it",
-            )
+            optionstr = "tnqx"
+            helptext = "(t)ui messages, (n)otifications, e(x)it"
+
+        choice = inputchoice(
+            "Choose action: ",
+            optionstr,
+            default="t",
+            help=helptext,
+        )
 
         if choice in ("Q", "X"):
             echo("Goodbye!")
@@ -675,35 +674,29 @@ def handle_menu(args: argparse.Namespace) -> int:
                 except termios.error:
                     pass
         elif choice == "M":
-            if is_sysop:
-                from bbsengine6 import screen
+            from bbsengine6 import screen
+
+            try:
+                screen.init()
+            except termios.error:
+                pass
+            try:
+                result = _cyrus_admin_run(args, current_user, pool=pool)
+            except KeyboardInterrupt:
+                echo("{/all}*INTR*")
+            except EOFError:
+                echo("{/all}*EOF*")
+            except termios.error:
+                pass
+            finally:
+                from bbsengine6.io import terminal
 
                 try:
-                    screen.init()
+                    echo(
+                        f"{{savecursor}}{{curpos:{terminal.height()},0}}{{el}}{{reset}}{{restorecursor}}"
+                    )
                 except termios.error:
                     pass
-                try:
-                    result = _cyrus_admin_run(args, current_user, pool=pool)
-                except KeyboardInterrupt:
-                    echo("{/all}*INTR*")
-                except EOFError:
-                    echo("{/all}*EOF*")
-                except termios.error:
-                    pass
-                finally:
-                    from bbsengine6.io import terminal
-
-                    try:
-                        echo(
-                            f"{{savecursor}}{{curpos:{terminal.height()},0}}{{el}}{{reset}}{{restorecursor}}"
-                        )
-                    except termios.error:
-                        pass
-            else:
-                echo(
-                    "Error: Only administrators can access account management",
-                    level="error",
-                )
         elif choice == "A" and is_sysop:
             echo("Admin features not yet implemented", level="error")
 
