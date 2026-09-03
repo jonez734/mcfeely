@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # imap_test.py
-# Test IMAP login to verify the mcfeely-authd auth chain is working.
+# Test IMAP login to verify the postoffice-authd auth chain is working.
 # Prompts for username and password (password masked with X's).
 
 import sys

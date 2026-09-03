@@ -10,10 +10,10 @@ Inbound (port 25/SMTP):
   External MTA → Postfix → LMTP → Cyrus IMAP → User reads via IMAP
 
 Outbound (port 587/submission):
-  User → Postfix → saslauthd → mcfeely-authd → PostgreSQL
+  User → Postfix → saslauthd → postoffice-authd → PostgreSQL
 
 IMAP (port 143/993):
-  User → Cyrus IMAP → saslauthd → mcfeely-authd → PostgreSQL
+  User → Cyrus IMAP → saslauthd → postoffice-authd → PostgreSQL
 ```
 
 **Key settings in etc-postfix/postfix/main.cf:**
@@ -45,7 +45,7 @@ IMAP Client → Cyrus IMAP → saslauthd → PAM → /etc/shadow (system passwor
 ## Proposed Architecture
 
 ```
-IMAP Client → Cyrus IMAP → saslauthd → mcfeely-authd → PostgreSQL
+IMAP Client → Cyrus IMAP → saslauthd → postoffice-authd → PostgreSQL
                                             ↓
                                      Falls back to PAM
                                      (for migration)
@@ -107,7 +107,7 @@ def delete_sasl_password(args, member_moniker):
     """Remove SASL password (user must use PAM fallback)."""
 ```
 
-### Phase 3: mcfeely-authd Daemon
+### Phase 3: postoffice-authd Daemon
 
 #### 3.1 Create Daemon Structure
 **Directory:** `mistermcfeely/src/mcfeely_authd/`
@@ -122,7 +122,7 @@ mcfeely_authd/
 ```
 
 #### 3.2 authdaemon Protocol
-mcfeely-authd implements the authdaemon protocol expected by saslauthd:
+postoffice-authd implements the authdaemon protocol expected by saslauthd:
 ```
 # Request from saslauthd
 AUTH <mechanism>\n
@@ -138,7 +138,7 @@ NO\n
 FAIL <reason>\n
 ```
 
-#### 3.3 mcfeely-authd Configuration
+#### 3.3 postoffice-authd Configuration
 **File:** `mistermcfeely/etc-postoffice/mcfeely-authd.conf`
 ```ini
 [database]
@@ -151,7 +151,7 @@ fallback_pam = yes
 pam_service = imap
 
 [socket]
-path = /var/run/mcfeely-authd/mux
+path = /var/run/postoffice-authd/mux
 
 [logging]
 level = INFO
@@ -159,7 +159,7 @@ syslog = yes
 ```
 
 #### 3.4 Daemon Behavior
-1. Listen on UNIX socket (`/var/run/mcfeely-authd/mux`)
+1. Listen on UNIX socket (`/var/run/postoffice-authd/mux`)
 2. For each request (fork-per-request):
    - Parse authdaemon protocol
    - Query `postoffice.sasl_password` for user's crypt hash
@@ -180,11 +180,11 @@ syslog = yes
 **New:**
 ```bash
 # Authentication mechanisms
-# mcfeely-authd handles database lookup with PAM fallback
+# postoffice-authd handles database lookup with PAM fallback
 MECHANISMS = authdaemond
 
-# Path to mcfeely-authd socket
-AUTHDAEMOND_PATH = /var/run/mcfeely-authd/mux
+# Path to postoffice-authd socket
+AUTHDAEMOND_PATH = /var/run/postoffice-authd/mux
 
 # Fallback to PAM if user not in database
 FLAGS = "-r"
@@ -248,7 +248,7 @@ def verify_imap_login_fails(host, port, user, wrong_password):
 
 #### 6.1 Update `specs/MCFEELY_CYRUS_IMAP.md`
 - Add section: "Authentication Architecture"
-- Document mcfeely-authd daemon
+- Document postoffice-authd daemon
 - Document migration path from PAM
 
 #### 6.2 Update `specs/PASSWORD_SYSTEMS_SUMMARY.md`
@@ -257,7 +257,7 @@ def verify_imap_login_fails(host, port, user, wrong_password):
 - Add migration guide
 
 #### 6.3 Create `config/MCFEELY_AUTH_SETUP.md`
-- Installation guide for mcfeely-authd
+- Installation guide for postoffice-authd
 - Configuration reference
 - Troubleshooting guide
 
@@ -288,7 +288,7 @@ def verify_imap_login_fails(host, port, user, wrong_password):
 | `etc-postoffice/pam.d-imap` | PAM fallback config |
 | `specs/MCFEELY_CYRUS_IMAP.md` | Document new architecture |
 | `specs/PASSWORD_SYSTEMS_SUMMARY.md` | Add SASL password section |
-| `Makefile` | Add mcfeely-authd targets |
+| `Makefile` | Add postoffice-authd targets |
 
 ### Commented Out (for reference)
 | File | Line | Original |
@@ -308,7 +308,7 @@ See commented config in `etc-postoffice/saslauthd.conf` for libsasl2-modules-sql
 
 ## Postfix SMTP Configuration
 
-For outbound email (SMTP submission on port 587), configure Postfix to use the same saslauthd/mcfeely-authd chain:
+For outbound email (SMTP submission on port 587), configure Postfix to use the same saslauthd/postoffice-authd chain:
 
 ```bash
 # /etc/postfix/main.cf
@@ -324,14 +324,14 @@ Both IMAP and SMTP use the same `postoffice.sasl_password` table for authenticat
 ## Testing Strategy
 
 1. **Unit Tests** - Test password hashing, verification functions
-2. **Integration Tests** - Test full auth flow with mcfeely-authd
+2. **Integration Tests** - Test full auth flow with postoffice-authd
 3. **End-to-End Tests** - Test IMAP login via telnet/openssl
 4. **Migration Tests** - Test PAM fallback for existing users
 
 ## Rollout Plan
 
 1. **Phase 1:** Add schema, update password management
-2. **Phase 2:** Deploy mcfeely-authd in parallel with PAM
+2. **Phase 2:** Deploy postoffice-authd in parallel with PAM
 3. **Phase 3:** Switch saslauthd to authdaemond
 4. **Phase 4:** Migrate users to database auth
 5. **Phase 5:** Disable PAM fallback (optional)

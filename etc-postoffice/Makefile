@@ -21,8 +21,10 @@ COPY_TO_ETC := cyrus.conf imapd.conf
 SASL_FILES := saslauthd.conf
 SYSCONFIG_FILES := saslauthd.sysconfig
 PAM_FILES := pam.d-saslauthd pam.d-imap
-SYSTEMD_FILES := cyrus-imapd.service saslauthd.service mcfeely-authd.service
+# MCFEELY_FILES lists config files that retain the historical 'mcfeely-'
+# name (config keys, not the user-facing daemon binary name).
 MCFEELY_FILES := mcfeely-authd.conf
+SYSTEMD_FILES := cyrus-imapd.service saslauthd.service postoffice-authd.service
 
 .PHONY: all install uninstall check help
 
@@ -92,13 +94,13 @@ install: $(CONFIG_FILES) $(SASL_FILES) $(SYSCONFIG_FILES) $(PAM_FILES) $(SYSTEMD
 	@install -o root -g root -m 644 saslauthd.service "$(SYSTEMD)/saslauthd.service"
 	@echo "  -> $(SYSTEMD)/saslauthd.service"
 	@echo ""
-	@echo "Installing mcfeely-authd.service..."
-	@install -o root -g root -m 644 mcfeely-authd.service "$(SYSTEMD)/mcfeely-authd.service"
-	@echo "  -> $(SYSTEMD)/mcfeely-authd.service"
+	@echo "Installing postoffice-authd.service..."
+	@install -o root -g root -m 644 postoffice-authd.service "$(SYSTEMD)/postoffice-authd.service"
+	@echo "  -> $(SYSTEMD)/postoffice-authd.service"
 	@echo ""
 	@echo "Installing mcfeely-authd.conf to /etc/postoffice/..."
 	@install -o root -g root -m 640 mcfeely-authd.conf "$(POSTOFFICE)/mcfeely-authd.conf"
-	@echo "  -> $(POSTOFFICE)/mcfeely-authd.conf"
+	@echo "  -> $(POSTOFFICE)/mcfeely-authd.conf (config filename unchanged; only the binary name was renamed)"
 	@echo ""
 	@echo "Creating postoffice system user..."
 	@id postoffice 2>/dev/null || sudo useradd -r -d /var/lib/postoffice -s /sbin/nologin -c "Postoffice SASL Auth Daemon" postoffice
@@ -150,6 +152,7 @@ uninstall:
 	@echo "Removing systemd units..."
 	@rm -f "$(SYSTEMD)/cyrus-imapd.service"
 	@rm -f "$(SYSTEMD)/saslauthd.service"
+	@rm -f "$(SYSTEMD)/postoffice-authd.service"
 	@rm -f "$(SYSTEMD)/mcfeely-authd.service"
 	@echo "Removing mcfeely-authd.conf from /etc/postoffice/..."
 	@rm -f "$(POSTOFFICE)/mcfeely-authd.conf"
@@ -181,7 +184,7 @@ check:
 	@echo "  pam.d-imap         -> $(PAM_ETCDIR)/imap"
 	@echo "  cyrus-imapd.service-> $(SYSTEMD)/cyrus-imapd.service"
 	@echo "  saslauthd.service  -> $(SYSTEMD)/saslauthd.service"
-	@echo "  mcfeely-authd.service -> $(SYSTEMD)/mcfeely-authd.service"
+	@echo "  postoffice-authd.service -> $(SYSTEMD)/postoffice-authd.service"
 	@echo "  mcfeely-authd.conf -> $(POSTOFFICE)/mcfeely-authd.conf"
 	@echo ""
 	@echo "Owner: root:mail (640 for config, 644 for sysconfig/pam/service)"

@@ -1,13 +1,13 @@
 -- sasl_password.sql
--- SASL-authenticated password storage for mcfeely-authd
+-- SASL-authenticated password storage for postoffice-authd
 -- Stores SHA-512 crypt hashes compatible with saslauthd and PAM
 
 -- This table stores crypt()-hashed passwords for IMAP/SMTP authentication
--- via the mcfeely-authd daemon. It pairs with:
+-- via the postoffice-authd daemon. It pairs with:
 --   - AES-256-GCM encrypted passwords in engine.__member (for Python usage)
 --   - PAM fallback for users not yet migrated to database auth
 
--- Users with entries in this table authenticate via mcfeely-authd
+-- Users with entries in this table authenticate via postoffice-authd
 -- Users without entries fall back to PAM (via saslauthd)
 
 -- ============================================================================
@@ -51,7 +51,7 @@ CREATE INDEX IF NOT EXISTS idx_sasl_password_datecreated
 -- ============================================================================
 
 COMMENT ON TABLE postoffice.sasl_password IS
-    'SASL-authenticated passwords for IMAP/SMTP. Stores SHA-512 crypt hashes for use with mcfeely-authd daemon.';
+    'SASL-authenticated passwords for IMAP/SMTP. Stores SHA-512 crypt hashes for use with postoffice-authd daemon.';
 
 COMMENT ON COLUMN postoffice.sasl_password.member_moniker IS
     'Member moniker (citext, case-insensitive)';
@@ -81,9 +81,9 @@ GRANT USAGE, SELECT ON SEQUENCE postoffice.sasl_password_id_seq TO postoffice;
 
 -- When a user's IMAP password is set via member_password.set_personal_password(),
 -- a corresponding entry should be created in this table with the crypt hash.
--- This enables the mcfeely-authd daemon to verify passwords without PAM.
+-- This enables the postoffice-authd daemon to verify passwords without PAM.
 --
 -- For users not yet migrated:
 --   - No entry in this table
 --   - saslauthd falls back to PAM (using /etc/shadow)
---   - Use mcfeely-authd.conf fallback_pam setting to control this behavior
+--   - Use /etc/postoffice/mcfeely-authd.conf fallback_pam setting to control this behavior

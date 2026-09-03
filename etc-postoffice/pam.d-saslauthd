@@ -6,7 +6,7 @@
 # New Configuration: PAM Fallback Only
 ###############################################################################
 # This configuration provides PAM fallback for users not yet migrated
-# to database authentication. mcfeely-authd handles primary auth.
+# to database authentication. postoffice-authd handles primary auth.
 
 auth        sufficient    pam_permit.so
 auth        required      pam_deny.so

@@ -12,18 +12,18 @@ See [POSTOFFICE_IMAP_SETUP.md](./POSTOFFICE_IMAP_SETUP.md) for the current worki
 
 ### Overview
 
-IMAP authentication uses the `mcfeely-authd` daemon with database-backed password storage, allowing IMAP passwords to be independent of shell passwords.
+IMAP authentication uses the `postoffice-authd` daemon with database-backed password storage, allowing IMAP passwords to be independent of shell passwords.
 
 ```
-IMAP Client → Cyrus IMAP → saslauthd → mcfeely-authd → PostgreSQL (sasl_password table)
+IMAP Client → Cyrus IMAP → saslauthd → postoffice-authd → PostgreSQL (sasl_password table)
                                            ↓
                                     PAM fallback (for unmigrated users)
 ```
 
 ### Components
 
-1. **mcfeely-authd** - Custom SASL auth daemon
-   - Listens on `/var/run/mcfeely-authd/mux` (UNIX socket)
+1. **postoffice-authd** - Custom SASL auth daemon
+   - Listens on `/var/run/postoffice-authd/mux` (UNIX socket)
    - Queries `postoffice.sasl_password` for SHA-512 crypt hashes
    - Falls back to PAM if user not in database
 
@@ -31,21 +31,21 @@ IMAP Client → Cyrus IMAP → saslauthd → mcfeely-authd → PostgreSQL (sasl_
    - Stores SHA-512 crypt hashes for SASL authentication
    - Pairs with AES-256-GCM encrypted passwords in `engine.__member`
 
-3. **saslauthd** - Routes auth to mcfeely-authd
+3. **saslauthd** - Routes auth to postoffice-authd
    - Mechanism: `authdaemond`
-   - Path: `/var/run/mcfeely-authd/mux`
+   - Path: `/var/run/postoffice-authd/mux`
 
 ### Configuration Files
 
 | File | Purpose |
 |------|---------|
-| `mcfeely-authd.conf` | mcfeely-authd daemon config |
+| `mcfeely-authd.conf` | postoffice-authd daemon config (filename unchanged) |
 | `saslauthd.conf` | saslauthd mechanism config |
 | `pam.d-saslauthd` | PAM fallback rules |
 
 ### Migration Path
 
-1. **Phase 1**: mcfeely-authd deployed, PAM fallback enabled
+1. **Phase 1**: postoffice-authd deployed, PAM fallback enabled
 2. **Phase 2**: Users set IMAP passwords via postoffice system
 3. **Phase 3**: Users authenticate via database
 4. **Phase 4**: (Optional) Disable PAM fallback

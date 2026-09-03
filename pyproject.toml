@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-mcfeely-authd = "mcfeely_authd.mcfeely_authd:main"
+postoffice-authd = "mcfeely_authd.mcfeely_authd:main"
 
 [tool.setuptools]
 packages = ["postoffice", "mcfeely_authd"]

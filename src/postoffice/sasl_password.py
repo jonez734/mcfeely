@@ -1,5 +1,5 @@
 # sasl_password.py
-# SASL password management for mcfeely-authd daemon
+# SASL password management for postoffice-authd daemon
 # Stores SHA-512 crypt hashes for PAM/saslauthd-compatible authentication
 
 from passlib.hash import sha512_crypt

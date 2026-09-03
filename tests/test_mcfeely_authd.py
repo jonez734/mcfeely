@@ -232,9 +232,9 @@ class TestConfig(unittest.TestCase):
         from mcfeely_authd.config import Config, load_config
 
         cfg = Config(config_file="/nonexistent/config.conf")
-        self.assertEqual(cfg["socket_path"], "/var/run/mcfeely-authd/mux")
-        self.assertEqual(cfg["pid_file"], "/var/run/mcfeely-authd/mcfeely-authd.pid")
-        self.assertEqual(cfg["log_file"], "/var/log/mcfeely-authd.log")
+        self.assertEqual(cfg["socket_path"], "/var/run/postoffice-authd/mux")
+        self.assertEqual(cfg["pid_file"], "/var/run/postoffice-authd/mcfeely-authd.pid")
+        self.assertEqual(cfg["log_file"], "/var/log/postoffice-authd.log")
         self.assertEqual(cfg["log_level"], "INFO")
         self.assertTrue(cfg["log_syslog"])
         self.assertTrue(cfg["fallback_pam"])
@@ -293,7 +293,7 @@ class TestConfig(unittest.TestCase):
         from mcfeely_authd.config import Config, load_config
 
         cfg = Config(config_file="/does/not/exist.conf")
-        self.assertEqual(cfg["socket_path"], "/var/run/mcfeely-authd/mux")
+        self.assertEqual(cfg["socket_path"], "/var/run/postoffice-authd/mux")
 
     def test_validate_ok(self):
         from mcfeely_authd.config import Config, load_config
@@ -351,7 +351,7 @@ class TestConfig(unittest.TestCase):
 
         cfg = Config(config_file="/nonexistent")
         self.assertIn("socket_path", cfg)
-        self.assertEqual(cfg["socket_path"], "/var/run/mcfeely-authd/mux")
+        self.assertEqual(cfg["socket_path"], "/var/run/postoffice-authd/mux")
         cfg["socket_path"] = "/tmp/custom"
         self.assertEqual(cfg["socket_path"], "/tmp/custom")
 
@@ -367,7 +367,7 @@ class TestConfig(unittest.TestCase):
         from mcfeely_authd.config import Config, load_config
 
         cfg = Config(config_file="/nonexistent")
-        self.assertEqual(cfg.get("socket_path"), "/var/run/mcfeely-authd/mux")
+        self.assertEqual(cfg.get("socket_path"), "/var/run/postoffice-authd/mux")
         self.assertEqual(cfg.get("nonexistent_key", "default"), "default")
         self.assertIsNone(cfg.get("nonexistent_key"))
 
@@ -696,7 +696,7 @@ class TestDaemonMain(unittest.TestCase):
         mock_load_config.return_value = mock_cfg
         mock_verify.return_value = (True, "Authenticated via database")
 
-        with patch.object(sys, "argv", ["mcfeely-authd", "--test", "alice"]), \
+        with patch.object(sys, "argv", ["postoffice-authd", "--test", "alice"]), \
              patch("sys.stdin", io.StringIO("secret\n")):
             rc = main()
             self.assertEqual(rc, 0)
@@ -710,7 +710,7 @@ class TestDaemonMain(unittest.TestCase):
         mock_load_config.return_value = mock_cfg
         mock_verify.return_value = (False, "Invalid password")
 
-        with patch.object(sys, "argv", ["mcfeely-authd", "--test", "alice"]), \
+        with patch.object(sys, "argv", ["postoffice-authd", "--test", "alice"]), \
              patch("sys.stdin", io.StringIO("wrong\n")):
             rc = main()
             self.assertEqual(rc, 1)
@@ -724,7 +724,7 @@ class TestDaemonMain(unittest.TestCase):
         mock_load_config.return_value = mock_cfg
         mock_run.return_value = 0
 
-        with patch.object(sys, "argv", ["mcfeely-authd", "--foreground"]):
+        with patch.object(sys, "argv", ["postoffice-authd", "--foreground"]):
             rc = main()
             self.assertEqual(rc, 0)
             mock_run.assert_called_once_with(mock_cfg, foreground=True)
@@ -738,7 +738,7 @@ class TestDaemonMain(unittest.TestCase):
         mock_load_config.return_value = mock_cfg
         mock_run.return_value = 0
 
-        with patch.object(sys, "argv", ["mcfeely-authd"]):
+        with patch.object(sys, "argv", ["postoffice-authd"]):
             rc = main()
             self.assertEqual(rc, 0)
             mock_run.assert_called_once_with(mock_cfg, foreground=False)
@@ -752,7 +752,7 @@ class TestDaemonMain(unittest.TestCase):
         mock_load_config.return_value = mock_cfg
         mock_run.return_value = 0
 
-        with patch.object(sys, "argv", ["mcfeely-authd", "-c", "/tmp/my.conf", "--foreground"]):
+        with patch.object(sys, "argv", ["postoffice-authd", "-c", "/tmp/my.conf", "--foreground"]):
             rc = main()
             self.assertEqual(rc, 0)
             mock_load_config.assert_called_once_with("/tmp/my.conf")

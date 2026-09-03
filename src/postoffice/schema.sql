@@ -63,8 +63,8 @@ create index if not exists idx_shared_mailbox_datecreated
 -- SASL Passwords
 -- ============================================================================
 
--- SHA-512 crypt hashes for IMAP/SMTP authentication via mcfeely-authd
--- mcfeely-authd looks up this table to verify user passwords without needing
+-- SHA-512 crypt hashes for IMAP/SMTP authentication via postoffice-authd
+-- postoffice-authd looks up this table to verify user passwords without needing
 -- shell accounts or PAM.
 create table if not exists postoffice.sasl_password (
     member_moniker citext primary key,

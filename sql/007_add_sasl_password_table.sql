@@ -1,5 +1,5 @@
 -- 007_add_sasl_password_table.sql
--- Migration: Add postoffice.sasl_password table for mcfeely-authd SASL authentication
+-- Migration: Add postoffice.sasl_password table for postoffice-authd SASL authentication
 
 BEGIN;
 

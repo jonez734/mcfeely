@@ -20,7 +20,7 @@ The system now uses **three complementary password systems**:
 
 ### System 3: SHA-512 Crypt Hashes (SASL Authentication)
 **Location**: `postoffice.sasl_password`
-**Purpose**: IMAP authentication via saslauthd/mcfeely-authd
+**Purpose**: IMAP authentication via saslauthd/postoffice-authd
 **Algorithm**: SHA-512 crypt (compatible with PAM/system passwords)
 **Can**: Verify passwords via crypt.crypt(), authenticate to IMAP
 **Cannot**: Decrypt, Get plaintext (one-way like SHA-256)
@@ -169,7 +169,7 @@ To Verify:
 - ✅ One-way: Cannot recover plaintext
 - ✅ Salt: Prevents rainbow tables
 - ✅ Standard: Compatible with PAM/system passwords
-- ✅ Used by: saslauthd, PAM, mcfeely-authd
+- ✅ Used by: saslauthd, PAM, postoffice-authd
 
 ### SHA-256 Hashing (Member Login)
 
@@ -341,7 +341,7 @@ export PASSWORD_STORAGE=postgresql      # Default
 - ✅ Authenticating to external servers
 
 ### Use SHA-512 Crypt When:
-- ✅ Authenticating to IMAP via saslauthd/mcfeely-authd
+- ✅ Authenticating to IMAP via saslauthd/postoffice-authd
 - ✅ Need PAM-compatible password format
 - ✅ One-way verification sufficient
 - ✅ Password must work with system auth (PAM fallback)

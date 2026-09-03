@@ -1,14 +1,14 @@
 # MCFEELY_AUTH_SETUP.md
-# Setup guide for mcfeely-authd SASL authentication daemon
+# Setup guide for postoffice-authd SASL authentication daemon
 
 ## Overview
 
-`mcfeely-authd` is a SASL authentication daemon that enables IMAP passwords to be stored independently of shell passwords. It provides database-based authentication with optional PAM fallback for migration.
+`postoffice-authd` is a SASL authentication daemon that enables IMAP passwords to be stored independently of shell passwords. It provides database-based authentication with optional PAM fallback for migration.
 
 ## Architecture
 
 ```
-IMAP Client → Cyrus IMAP → saslauthd → mcfeely-authd → PostgreSQL (sasl_password table)
+IMAP Client → Cyrus IMAP → saslauthd → postoffice-authd → PostgreSQL (sasl_password table)
                                             ↓
                                      PAM (fallback for unmigrated users)
 ```
@@ -45,7 +45,7 @@ dnf install policycoreutils-python-utils
 psql -d zoid6test -f /path/to/mistermcfeely/sql/sasl_password.sql
 ```
 
-### 3. Install mcfeely-authd
+### 3. Install postoffice-authd
 
 Use the Makefile targets (requires sudo):
 
@@ -108,20 +108,20 @@ Update `/etc/saslauthd.conf`:
 ```bash
 # Use authdaemond mechanism
 MECHANISMS = authdaemond
-AUTHDAEMOND_PATH = /var/run/mcfeely-authd/mux
+AUTHDAEMOND_PATH = /var/run/postoffice-authd/mux
 
 # Realm merging flag
 FLAGS = "-r"
 ```
 
-### 5. Start mcfeely-authd
+### 5. Start postoffice-authd
 
 ```bash
 # As root (or via systemd)
-sudo /usr/local/bin/mcfeely-authd --foreground
+sudo /usr/local/bin/postoffice-authd --foreground
 
 # Or as postoffice user (for testing)
-/usr/local/bin/mcfeely-authd -f
+/usr/local/bin/postoffice-authd -f
 ```
 
 ### 6. Create systemd Service (optional)
@@ -129,10 +129,10 @@ sudo /usr/local/bin/mcfeely-authd --foreground
 Install with `make install-systemd` or manually:
 
 ```bash
-sudo cp etc-postoffice/mcfeely-authd.service /etc/systemd/system/
+sudo cp etc-postoffice/postoffice-authd.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable mcfeely-authd
-sudo systemctl start mcfeely-authd
+sudo systemctl enable postoffice-authd
+sudo systemctl start postoffice-authd
 ```
 
 ## Configuration
@@ -184,7 +184,7 @@ member_password.set_personal_password(
 
 ```bash
 # Test as user (reads password from stdin)
-echo "password" | mcfeely-authd --test alice
+echo "password" | postoffice-authd --test alice
 # Output: OK: Authenticated via database
 # or: NO: Invalid password
 ```
@@ -208,10 +208,10 @@ Inbound (port 25):
   External MTA → Postfix → LMTP socket → Cyrus IMAP → User reads via IMAP
 
 Outbound (port 587):
-  User → Postfix (submission) → saslauthd → mcfeely-authd → PostgreSQL → Delivered
+  User → Postfix (submission) → saslauthd → postoffice-authd → PostgreSQL → Delivered
 
 IMAP Access (port 143/993):
-  User → Cyrus IMAP → saslauthd → mcfeely-authd → PostgreSQL
+  User → Cyrus IMAP → saslauthd → postoffice-authd → PostgreSQL
 ```
 
 ### Key Postfix Settings
@@ -285,11 +285,11 @@ AUTH LOGIN
 <base64_password>
 ```
 
-### mcfeely-authd for SMTP
+### postoffice-authd for SMTP
 
-The same `mcfeely-authd` daemon handles both IMAP and SMTP authentication:
-- IMAP: Cyrus IMAP uses saslauthd → mcfeely-authd
-- SMTP: Postfix uses saslauthd → mcfeely-authd
+The same `postoffice-authd` daemon handles both IMAP and SMTP authentication:
+- IMAP: Cyrus IMAP uses saslauthd → postoffice-authd
+- SMTP: Postfix uses saslauthd → postoffice-authd
 
 Both use the same `postoffice.sasl_password` table for password lookup.
 
@@ -314,17 +314,17 @@ ausearch -m avc --recent | grep mcfeely
 
 ### Socket Connection Failed
 
-Check that mcfeely-authd is running:
+Check that postoffice-authd is running:
 ```bash
-ps aux | grep mcfeely-authd
-ls -la /var/run/mcfeely-authd/mux
+ps aux | grep postoffice-authd
+ls -la /var/run/postoffice-authd/mux
 ```
 
 ### Authentication Fails
 
-1. Check mcfeely-authd logs:
+1. Check postoffice-authd logs:
    ```bash
-   tail -f /var/log/mcfeely-authd.log
+   tail -f /var/log/postoffice-authd.log
    ```
 
 2. Verify database connection:
@@ -345,7 +345,7 @@ Ensure `/etc/pam.d/imap` has appropriate fallback rules. See `etc-postoffice/pam
 
 ### From PAM to Database Auth
 
-1. Ensure mcfeely-authd is running with `fallback_pam = yes`
+1. Ensure postoffice-authd is running with `fallback_pam = yes`
 2. Users can set their IMAP password via the postoffice system
 3. Passwords are stored in `postoffice.sasl_password` table
 4. PAM fallback is available during transition
@@ -356,7 +356,7 @@ Test that both auth methods work:
 
 ```bash
 # Database auth
-echo "password" | mcfeely-authd --test alice
+echo "password" | postoffice-authd --test alice
 
 # PAM fallback (if configured)
 testsaslauthd -s imap -u alice -p shell_password
@@ -364,7 +364,7 @@ testsaslauthd -s imap -u alice -p shell_password
 
 ## Security
 
-- mcfeely-authd runs as `postoffice` user
+- postoffice-authd runs as `postoffice` user
 - Socket permissions restrict access to saslauthd
 - Passwords are stored as SHA-512 crypt hashes (not reversible)
 - PAM fallback allows shell password access during migration

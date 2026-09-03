@@ -1,6 +1,10 @@
 PROJECT = mistermcfeely
 MEDIA = /run/media/jam/BEA6-BBCE/work/$(PROJECT)/
 
+# Distribution name (must match [project].name in pyproject.toml).
+# Used for wheel filenames (PEP 427 default) and pip install key.
+DIST_NAME = postoffice
+
 VERSION = $(shell date +%Y%m%d%H%M)
 
 PYTHON ?= python3.12
@@ -10,10 +14,10 @@ PIP ?= $(PYTHON) -m pip
 # project root) so wheels land in the project's own tree and the
 # operator doesn't need to be in the `repo` group to write them.
 # Override with OUTDIR= on the make command line or in the shell env
-# to write elsewhere (e.g. the cross-project /srv/repo/mistermcfeely/
+# to write elsewhere (e.g. the cross-project /srv/repo/postoffice/
 # location used by bed/casino/zoid6/bbsengine6).
 OUTDIR ?= dist/
-WHEEL_PACKAGES := bbsengine6 mistermcfeely
+WHEEL_PACKAGES := bbsengine6 $(DIST_NAME)
 
 DEPLOY_EDITABLE ?=
 DEPLOY_WITH_DEPS ?=
@@ -45,7 +49,7 @@ help:
 	@echo "  uninstall          Full uninstall"
 	@echo "  deploy-tui         Operator-side (no sudo): install into \$$VIRTUAL_ENV (active venv)"
 	@echo "  deploy-prod        Sudo umbrella: sysusers + tmpfiles + systemd + etc + wheel install"
-	@echo "  build              Build bbsengine6 + mistermcfeely wheels into \$$(OUTDIR) (default: dist/)"
+	@echo "  build              Build bbsengine6 + $(DIST_NAME) wheels into \$$(OUTDIR) (default: dist/)"
 	@echo "  version            Stamp src/postoffice/_version.py with date + git hash"
 	@echo "  clean              Remove build artifacts (operator-owned only; safe, non-interactive)"
 	@echo "  deep-clean         Like clean, plus renames foreign-owned build/ to build.to_remove.<pid>"
@@ -54,19 +58,19 @@ help:
 	@echo ""
 	@echo "  install-sysusers   Create postoffice user and group via systemd-sysusers"
 	@echo "  uninstall-sysusers Remove sysusers.d/postoffice.conf"
-	@echo "  install-tmpfiles   Create /var/lib/postoffice and /var/run/mcfeely-authd via systemd-tmpfiles"
+	@echo "  install-tmpfiles   Create /var/lib/postoffice and /var/run/postoffice-authd via systemd-tmpfiles"
 	@echo "  uninstall-tmpfiles Remove tmpfiles.d/postoffice.conf"
-	@echo "  install-venv       Build bbsengine6 + mistermcfeely wheels and pip install into \$$VIRTUAL_ENV"
+	@echo "  install-venv       Build bbsengine6 + $(DIST_NAME) wheels and pip install into \$$VIRTUAL_ENV"
 	@echo "  uninstall-venv     N/A — wheel installs are removed by 'pip uninstall' (no shared venv)"
 	@echo "  restorecon         Relabel venv binaries for SELinux (Fedora/RHEL)"
-	@echo "  install-systemd    Install mcfeely-authd.service and daemon-reload"
-	@echo "  uninstall-systemd  Stop, disable, and remove the mcfeely-authd.service unit"
-	@echo "  install-etc        Install mcfeely-authd.conf and saslauthd config files"
+	@echo "  install-systemd    Install postoffice-authd.service and daemon-reload"
+	@echo "  uninstall-systemd  Stop, disable, and remove the postoffice-authd.service unit"
+	@echo "  install-etc        Install postoffice-authd.conf and saslauthd config files"
 	@echo "  uninstall-etc      Remove installed config files"
 	@echo ""
 	@echo "Environment variables:"
 	@echo "  OUTDIR=/path/to/   Wheel output directory (default: dist/, i.e. local project tree)."
-	@echo "                     Override to write to the cross-project /srv/repo/mistermcfeely/"
+	@echo "                     Override to write to the cross-project /srv/repo/postoffice/"
 	@echo "                     location when /srv/repo/ is writable (e.g. operator in repo group)."
 	@echo "  DEPLOY_EDITABLE=1  deploy-tui installs editable from src/ (set by 'deploytool --editable')"
 	@echo "  DEPLOY_WITH_DEPS=1 precheck-editable warns instead of hard-failing (set by 'deploytool --with-deps')"
@@ -96,7 +100,7 @@ PREPARE_BUILD = \
 	fi; \
 	mkdir -p $(1)/build && chmod g-s,+t $(1)/build
 
-# Build bbsengine6 + mistermcfeely wheels into $(OUTDIR). Operator-side
+# Build bbsengine6 + $(DIST_NAME) wheels into $(OUTDIR). Operator-side
 # (no sudo) — the wheels are inputs to both deploy-tui and deploy-prod.
 # Mirrors the bed/casino/zoid6 build target shape.
 build: clean version
@@ -149,12 +153,12 @@ print(json.load(open('$$DIRECT_URL')).get('url',''))" 2>/dev/null); \
 				echo "one venv (the editable .pth finder shadows subsequent wheel installs), so" >&2; \
 				echo "this Makefile refuses to silently no-op. Pick one:" >&2; \
 				echo >&2; \
-				echo "  1) Stay in editable mode: deploy --editable mistermcfeely.tui" >&2; \
-				echo "  2) Switch to wheel mode: pip uninstall $$pkg && deploy mistermcfeely.tui" >&2; \
-				echo "  3) Override for this run only: deploy --with-deps mistermcfeely.tui" >&2; \
-				echo >&2; \
-				echo "(The Makefile intentionally doesn't 'fix' this for you — see" >&2; \
-				echo " precheck-editable in mistermcfeely/Makefile.)" >&2; \
+			echo "  1) Stay in editable mode: deploy --editable $(DIST_NAME).tui" >&2; \
+			echo "  2) Switch to wheel mode: pip uninstall $$pkg && deploy $(DIST_NAME).tui" >&2; \
+			echo "  3) Override for this run only: deploy --with-deps $(DIST_NAME).tui" >&2; \
+			echo >&2; \
+			echo "(The Makefile intentionally doesn't 'fix' this for you — see" >&2; \
+			echo " precheck-editable in $(PROJECT)/Makefile.)" >&2; \
 				exit 1; \
 			fi; \
 		fi; \
@@ -214,7 +218,7 @@ ifeq ($(DEPLOY_EDITABLE),1)
 	-rm -rf *.egg-info
 else
 	@$(precheck-editable)
-	@WHEEL=$$(ls -t $(OUTDIR)/$(PROJECT)-*.whl 2>/dev/null | head -1); \
+	@WHEEL=$$(ls -t $(OUTDIR)/$(DIST_NAME)-*.whl 2>/dev/null | head -1); \
 	if [ -z "$$WHEEL" ]; then \
 		echo "no wheel found in $(OUTDIR); run \`make build\` first" >&2; \
 		exit 1; \
@@ -274,7 +278,7 @@ install-venv:
 
 uninstall-venv:
 	@echo "$(PROJECT) installs into the operator venv (\$$VIRTUAL_ENV / sys.prefix)."
-	@echo "Remove via: $(PIP) uninstall mistermcfeely bbsengine6"
+	@echo "Remove via: $(PIP) uninstall $(DIST_NAME) bbsengine6"
 	@echo "(This Makefile does not maintain a per-project venv directory.)"
 
 restorecon:
@@ -287,8 +291,8 @@ restorecon:
 		echo "restorecon: VIRTUAL_ENV not set; skipping"; \
 	fi
 
-UNIT_SRC = etc-postoffice/mcfeely-authd.service
-UNIT_DST = /usr/lib/systemd/system/mcfeely-authd.service
+UNIT_SRC = etc-postoffice/postoffice-authd.service
+UNIT_DST = /usr/lib/systemd/system/postoffice-authd.service
 
 install-systemd:
 	sed 's|@VENV_DIR@|$(OPERATOR_VENV)|g' $(UNIT_SRC) | sudo tee $(UNIT_DST) > /dev/null
@@ -298,8 +302,8 @@ install-systemd:
 	@echo "Installed $(UNIT_DST)"
 
 uninstall-systemd:
-	-sudo systemctl stop mcfeely-authd 2>/dev/null
-	-sudo systemctl disable mcfeely-authd 2>/dev/null
+	-sudo systemctl stop postoffice-authd 2>/dev/null
+	-sudo systemctl disable postoffice-authd 2>/dev/null
 	-sudo rm -f $(UNIT_DST)
 	-sudo systemctl daemon-reload
 	@echo "Removed $(UNIT_DST)"
@@ -314,6 +318,7 @@ install-etc:
 	sudo install -d $(MCFEELY_ETCDIR)
 	sudo rsync --chmod=0640 $(FACTORY_DIR)/mcfeely-authd.conf $(MCFEELY_ETCDIR)/mcfeely-authd.conf
 	@echo "Installed $(MCFEELY_ETCDIR)/mcfeely-authd.conf from factory defaults"
+	@echo "  (NOTE: config filename keeps the historical 'mcfeely-authd' name; it is the binary name that was renamed.)"
 	sudo rsync --chmod=0640 etc-postoffice/saslauthd.conf $(SASL_ETCDIR)/saslauthd.conf
 	[ -f /etc/debian_version ] && \
 		sudo rsync --chmod=0644 etc-postoffice/saslauthd.sysconfig /etc/default/saslauthd || \
@@ -328,10 +333,10 @@ uninstall-etc:
 		-sudo rm -f /etc/default/saslauthd || \
 		-sudo rm -f $(SASL_SYSCONFIG)/saslauthd
 	-sudo rm -f $(PAM_ETCDIR)/saslauthd
-	@echo "Removed mcfeely-authd and saslauthd config files"
+	@echo "Removed postoffice-authd and saslauthd config files"
 
 install: build install-sysusers install-tmpfiles install-venv install-systemd install-etc
-	@echo "$(PROJECT) fully installed. Run: systemctl enable --now mcfeely-authd"
+	@echo "$(PROJECT) fully installed. Run: systemctl enable --now postoffice-authd"
 
 uninstall: uninstall-systemd uninstall-venv uninstall-tmpfiles uninstall-sysusers uninstall-etc
 	@echo "$(PROJECT) fully uninstalled"

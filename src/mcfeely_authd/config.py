@@ -28,9 +28,9 @@ KNOWN_SECTIONS: frozenset[str] = frozenset(
 )
 
 HARDCODED_DEFAULTS: dict[str, Any] = {
-    "socket_path": "/var/run/mcfeely-authd/mux",
-    "pid_file": "/var/run/mcfeely-authd/mcfeely-authd.pid",
-    "log_file": "/var/log/mcfeely-authd.log",
+    "socket_path": "/var/run/postoffice-authd/mux",
+    "pid_file": "/var/run/postoffice-authd/mcfeely-authd.pid",
+    "log_file": "/var/log/postoffice-authd.log",
     "log_level": "INFO",
     "log_syslog": True,
     "fallback_pam": True,
