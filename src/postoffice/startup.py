@@ -13,7 +13,7 @@ from bbsengine6.io import echo
 import binascii
 
 
-def _read_key_file(path: str) -> Optional[bytes]:
+def _read_key_file(path: str, verbose: bool = False) -> Optional[bytes]:
     """
     Read a 32-byte base64-encoded key from a file.
 
@@ -21,6 +21,10 @@ def _read_key_file(path: str) -> Optional[bytes]:
     one-line ERROR) if the file is missing, unreadable (OSError including
     PermissionError), has insecure permissions, is empty, contains
     invalid base64, or has the wrong byte length. Does not raise.
+
+    The ``verbose`` flag demotes the OSError warning (e.g. a system-wide
+    key file that's unreadable while a user-level fallback succeeds) to
+    debug level so it doesn't appear in normal output.
     """
     if not os.path.exists(path):
         return None
@@ -37,7 +41,9 @@ def _read_key_file(path: str) -> Optional[bytes]:
             key_b64 = f.read().strip()
     except OSError as e:
         # PermissionError, IsADirectoryError, race-condition FileNotFoundError, etc.
-        echo(f"WARNING: Failed to read {path}: {e}", level="warning")
+        # Demote to debug unless verbose; a later fallback may succeed.
+        level = "warning" if verbose else "debug"
+        echo(f"WARNING: Failed to read {path}: {e}", level=level)
         return None
     except UnicodeDecodeError as e:
         # File is not valid UTF-8 (e.g. raw binary garbage, not a base64 string).
@@ -98,14 +104,20 @@ def get_encryption_key() -> Optional[bytes]:
         # fall through to file sources
 
     # Try system-wide key file (production)
-    key = _read_key_file("/etc/postoffice/password.key")
+    key = _read_key_file(
+        "/etc/postoffice/password.key",
+        verbose=getattr(get_encryption_key, "_verbose", False),
+    )
     if key is not None:
         if getattr(get_encryption_key, "_verbose", False):
             echo("Loaded encryption key from /etc/postoffice/password.key", level="debug")
         return key
 
     # Try user key file (personal development)
-    key = _read_key_file(os.path.expanduser("~/.postoffice/password.key"))
+    key = _read_key_file(
+        os.path.expanduser("~/.postoffice/password.key"),
+        verbose=getattr(get_encryption_key, "_verbose", False),
+    )
     if key is not None:
         if getattr(get_encryption_key, "_verbose", False):
             echo("Loaded encryption key from ~/.postoffice/password.key", level="debug")
