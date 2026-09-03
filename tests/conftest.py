@@ -24,3 +24,18 @@ def pytest_configure(config):
             f"Non-standard venv active ({active}). Tests expect {venv_path}.",
             UserWarning,
         )
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--postoffice-databasename",
+        action="store",
+        default=os.environ.get("POSTOFFICE_DATABASENAME", ""),
+        help="PostgreSQL database name for integrated tests (zoid6, etc.)",
+    )
+
+
+def pytest_collectstart(collector):
+    value = collector.config.getoption("--postoffice-databasename")
+    if value:
+        os.environ["POSTOFFICE_DATABASENAME"] = value
