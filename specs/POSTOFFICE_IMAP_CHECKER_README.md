@@ -58,6 +58,15 @@ python -m postoffice imap-check --imapport 143
 
 # Override both
 python -m postoffice imap-check --imaphost mail.example.com --imapport 993 -v
+
+# Trust a local CA in a PEM file (self-signed dev certs)
+python -m postoffice imap-check --cafile /etc/pki/cyrus-imapd/cyrus-imapd-ca.pem
+
+# Trust CAs in a c_rehash directory
+python -m postoffice imap-check --capath /etc/pki/tls/certs
+
+# Skip TLS verification entirely (DEV ONLY — prints a warning)
+python -m postoffice imap-check -k
 ```
 
 ## Module Documentation
@@ -249,19 +258,19 @@ checker = IMAPChecker("mail.example.com", 993, timeout=10, verbose=True)
 ### SSL/TLS Verification
 
 The checker uses `ssl.create_default_context()` which:
-- Verifies SSL/TLS certificates against system CA bundle
+- Verifies SSL/TLS certificates against the system CA bundle
 - Rejects self-signed certificates by default
 - Enforces modern TLS protocols
 
-For self-signed certificates, the check will fail. This is intentional for security, but can be bypassed in development:
+For self-signed certificates (typical in local development installs of Cyrus), the check will fail. This is intentional for security. There are three opt-in ways to relax verification, all surfaced as command-line flags on `imap-check`:
 
-```python
-import ssl
-context = ssl.create_default_context()
-context.check_hostname = False
-context.verify_mode = ssl.CERT_NONE
-# Then use custom context (not recommended for production)
-```
+| Flag                      | Effect                                                                                          |
+| ------------------------- | ----------------------------------------------------------------------------------------------- |
+| `--cafile PATH`           | Trust an additional CA cert from a PEM file in addition to the system trust store.              |
+| `--capath PATH`           | Trust all CAs in a directory of hashed certs (`c_rehash` format) in addition to the system store. |
+| `-k` / `--insecure`       | Skip TLS verification entirely. Prints a warning. DEV ONLY — vulnerable to MITM.                |
+
+`--cafile` and `--capath` are mutually exclusive (matching `ssl.create_default_context` semantics). Both can be combined with the system trust store; they do not replace it.
 
 ### No Credentials Stored
 
@@ -360,6 +369,20 @@ def initialize_postoffice():
     
     return True
 ```
+
+## Installation Notes
+
+The repo-template `etc-postoffice/imapd.conf` ships with TLS paths pointing
+at `/etc/pki/cyrus-imapd/cyrus-imapd.pem` and
+`/etc/pki/cyrus-imapd/cyrus-imapd-key.pem`, which is where certs live on a
+default Fedora/RHEL-style install. Earlier revisions pointed at
+`/etc/pki/cyrus/imapd.pem`, which is not where certs are actually placed.
+
+If the live `/etc/imapd.conf` was hand-installed (not symlinked from the
+repo), the path fix in the template will not be picked up by the running
+daemon until `/etc/imapd.conf` is reinstalled from the corrected template.
+`imap-check` itself only cares about the cert it sees from the server, not
+about the template.
 
 ## Files
 

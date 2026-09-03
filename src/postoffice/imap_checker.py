@@ -2,6 +2,7 @@
 # IMAP server connectivity and health checking
 
 import imaplib
+import os
 import socket
 import ssl
 from typing import Tuple
@@ -12,7 +13,16 @@ from bbsengine6.io import echo
 class IMAPChecker:
     """Check IMAP server connectivity and SSL/TLS configuration."""
 
-    def __init__(self, host: str, port: int, timeout: int = 5, verbose: bool = False):
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        timeout: int = 5,
+        verbose: bool = False,
+        cafile: str | None = None,
+        capath: str | None = None,
+        insecure: bool = False,
+    ):
         """
         Initialize IMAP checker.
 
@@ -21,9 +31,16 @@ class IMAPChecker:
             port: IMAP server port
             timeout: Connection timeout in seconds (default: 5)
             verbose: Show verbose output
+            cafile: Path to a PEM file of CA certs to trust for TLS verification.
+                Mutually exclusive with capath.
+            capath: Path to a directory of CA certs (c_rehash format) to trust
+                for TLS verification. Mutually exclusive with cafile.
+            insecure: If True, skip TLS certificate verification entirely.
+                DEV ONLY: prints a warning when the SSL context is built.
 
         Raises:
-            ValueError: If host or port are invalid
+            ValueError: If host/port are invalid, or cafile/capath are set
+                incorrectly, or both are set together.
         """
         if not host or not isinstance(host, str):
             raise ValueError("Host must be a non-empty string")
@@ -32,10 +49,43 @@ class IMAPChecker:
         if timeout < 1:
             raise ValueError("Timeout must be at least 1 second")
 
+        if cafile is not None and capath is not None:
+            raise ValueError("cafile and capath are mutually exclusive")
+
+        if cafile is not None:
+            if not os.path.isfile(cafile):
+                raise ValueError(f"cafile not found or not a regular file: {cafile}")
+        if capath is not None:
+            if not os.path.isdir(capath):
+                raise ValueError(f"capath not found or not a directory: {capath}")
+
         self.host = host.strip()
         self.port = port
         self.timeout = timeout
         self.verbose = verbose
+        self.cafile = cafile
+        self.capath = capath
+        self.insecure = insecure
+
+    def _build_ssl_context(self) -> ssl.SSLContext:
+        """
+        Build the SSL context used for IMAP TLS verification.
+
+        Returns an unverified context if self.insecure is True (with a one-time
+        warning), otherwise a default context optionally trusting cafile/capath.
+        """
+        if self.insecure:
+            echo(
+                "WARNING: TLS certificate verification is disabled (-k/--insecure). "
+                "This is for development use only and is vulnerable to MITM attacks.",
+                level="warning",
+            )
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            return ctx
+
+        return ssl.create_default_context(cafile=self.cafile, capath=self.capath)
 
     def check_connectivity(self) -> Tuple[bool, str]:
         """
@@ -106,8 +156,8 @@ class IMAPChecker:
             echo(f"Checking IMAP protocol on {self.host}:{self.port}...", level="debug")
 
         try:
-            # Create SSL context
-            context = ssl.create_default_context()
+            # Build SSL context (honors insecure / cafile / capath)
+            context = self._build_ssl_context()
 
             # Connect with IMAP4_SSL
             imap = imaplib.IMAP4_SSL(
@@ -246,7 +296,13 @@ class IMAPChecker:
 
     @staticmethod
     def verify_connection(
-        host: str, port: int, timeout: int = 5, verbose: bool = False
+        host: str,
+        port: int,
+        timeout: int = 5,
+        verbose: bool = False,
+        cafile: str | None = None,
+        capath: str | None = None,
+        insecure: bool = False,
     ) -> bool:
         """
         Quick utility function to verify IMAP connectivity.
@@ -256,10 +312,15 @@ class IMAPChecker:
             port: IMAP server port
             timeout: Connection timeout in seconds
             verbose: Show verbose output
+            cafile: Path to a PEM file of CA certs to trust for TLS verification.
+            capath: Path to a directory of CA certs (c_rehash format) to trust.
+            insecure: If True, skip TLS certificate verification entirely.
 
         Returns:
             True if both TCP and IMAP protocol checks pass
         """
-        checker = IMAPChecker(host, port, timeout, verbose)
+        checker = IMAPChecker(
+            host, port, timeout, verbose, cafile=cafile, capath=capath, insecure=insecure
+        )
         all_pass, _ = checker.check_all()
         return all_pass

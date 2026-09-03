@@ -38,8 +38,20 @@ def _check_imap_connectivity(args):
     if not imap_port:
         imap_port = 993
 
+    cafile = getattr(args, "cafile", None)
+    capath = getattr(args, "capath", None)
+    insecure = getattr(args, "insecure", False)
+
     try:
-        checker = IMAPChecker(imap_host, imap_port, timeout=5, verbose=False)
+        checker = IMAPChecker(
+            imap_host,
+            imap_port,
+            timeout=5,
+            verbose=False,
+            cafile=cafile,
+            capath=capath,
+            insecure=insecure,
+        )
         all_pass, _ = checker.check_all()
         return all_pass
     except Exception as e:

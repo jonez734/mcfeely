@@ -270,11 +270,23 @@ def handle_imap_check(args: argparse.Namespace) -> bool:
     if hasattr(args, "imapport") and args.imapport:
         imap_port = args.imapport
 
+    cafile = getattr(args, "cafile", None)
+    capath = getattr(args, "capath", None)
+    insecure = getattr(args, "insecure", False)
+
     echo(f"Checking IMAP server at {imap_host}:{imap_port}...", level="info")
     echo("")
 
     try:
-        checker = IMAPChecker(imap_host, imap_port, timeout=5, verbose=args.verbose)
+        checker = IMAPChecker(
+            imap_host,
+            imap_port,
+            timeout=5,
+            verbose=args.verbose,
+            cafile=cafile,
+            capath=capath,
+            insecure=insecure,
+        )
         all_pass, results = checker.check_all()
         checker.print_results(all_pass, results)
         return all_pass
@@ -1223,12 +1235,17 @@ Options:
   --version                          Show version
   --imaphost HOST                    IMAP host (for imap-check)
   --imapport PORT                    IMAP port (for imap-check)
+  --cafile PATH                      PEM file of CAs to trust for IMAP TLS (for imap-check)
+  --capath PATH                      Directory of CA certs to trust for IMAP TLS (for imap-check)
+  --insecure, -k                     Skip TLS cert verification for IMAP check (DEV ONLY)
 
 Examples:
   python -m postoffice                          (runs menu)
   python -m postoffice imap-check
   python -m postoffice imap-check -v
   python -m postoffice imap-check --imaphost mail.example.com
+  python -m postoffice imap-check --cafile /etc/pki/cyrus-imapd/cyrus-imapd-ca.pem
+  python -m postoffice imap-check -k            # dev only: skip TLS verification
   python -m postoffice tui
   python -m postoffice accounts
   python -m postoffice startup-check --verbose
@@ -1261,6 +1278,22 @@ Examples:
         "--imapport",
         type=int,
         help="IMAP port override (for imap-check)",
+    )
+    parser.add_argument(
+        "--cafile",
+        type=str,
+        help="Path to a PEM file of CAs to trust for IMAP TLS verification (for imap-check)",
+    )
+    parser.add_argument(
+        "--capath",
+        type=str,
+        help="Path to a directory of CA certs (c_rehash format) to trust for IMAP TLS verification (for imap-check)",
+    )
+    parser.add_argument(
+        "--insecure",
+        "-k",
+        action="store_true",
+        help="Skip TLS certificate verification for IMAP check (DEV ONLY)",
     )
     parser.add_argument(
         "--loginid",

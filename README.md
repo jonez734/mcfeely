@@ -58,6 +58,23 @@ python -m postoffice accounts --issuperuser
 python -m postoffice imap-check --verbose
 ```
 
+If `imap-check` fails with `CERTIFICATE_VERIFY_FAILED` against a
+self-signed local Cyrus cert, three flags are available:
+
+```bash
+# Trust an additional CA in a PEM file
+python -m postoffice imap-check --cafile /etc/pki/cyrus-imapd/cyrus-imapd-ca.pem
+
+# Trust CAs in a c_rehash directory
+python -m postoffice imap-check --capath /etc/pki/tls/certs
+
+# Skip TLS verification entirely (DEV ONLY — prints a warning)
+python -m postoffice imap-check -k
+```
+
+See [`specs/POSTOFFICE_IMAP_CHECKER_README.md`](./specs/POSTOFFICE_IMAP_CHECKER_README.md)
+for the full reference.
+
 ### User Detection
 
 The system automatically detects the current user by:
