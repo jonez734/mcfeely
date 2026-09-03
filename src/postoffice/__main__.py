@@ -1230,22 +1230,22 @@ Commands:
   startup-init                       Initialize password system
 
 Options:
-  --verbose, -v                      Show verbose output
+  --verbose                          Show verbose output
   --help, -h                         Show this help
   --version                          Show version
   --imaphost HOST                    IMAP host (for imap-check)
   --imapport PORT                    IMAP port (for imap-check)
   --cafile PATH                      PEM file of CAs to trust for IMAP TLS (for imap-check)
   --capath PATH                      Directory of CA certs to trust for IMAP TLS (for imap-check)
-  --insecure, -k                     Skip TLS cert verification for IMAP check (DEV ONLY)
+  --insecure                         Skip TLS cert verification for IMAP check (DEV ONLY)
 
 Examples:
   python -m postoffice                          (runs menu)
   python -m postoffice imap-check
-  python -m postoffice imap-check -v
+  python -m postoffice imap-check --verbose
   python -m postoffice imap-check --imaphost mail.example.com
   python -m postoffice imap-check --cafile /etc/pki/cyrus-imapd/cyrus-imapd-ca.pem
-  python -m postoffice imap-check -k            # dev only: skip TLS verification
+  python -m postoffice imap-check --insecure   # dev only: skip TLS verification
   python -m postoffice tui
   python -m postoffice accounts
   python -m postoffice startup-check --verbose
@@ -1260,7 +1260,6 @@ Examples:
     )
     parser.add_argument(
         "--verbose",
-        "-v",
         action="store_true",
         help="Show verbose output",
     )
@@ -1291,7 +1290,6 @@ Examples:
     )
     parser.add_argument(
         "--insecure",
-        "-k",
         action="store_true",
         help="Skip TLS certificate verification for IMAP check (DEV ONLY)",
     )
@@ -1323,7 +1321,6 @@ Examples:
     )
     parser.add_argument(
         "--password",
-        "-p",
         type=str,
         dest="password",
         help="Password value (for set/reset actions)",

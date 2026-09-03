@@ -48,7 +48,7 @@ If no config file exists, defaults to:
 python -m postoffice imap-check
 
 # Check with verbose output
-python -m postoffice imap-check -v
+python -m postoffice imap-check --verbose
 
 # Override host
 python -m postoffice imap-check --imaphost mail.example.com
@@ -66,7 +66,7 @@ python -m postoffice imap-check --cafile /etc/pki/cyrus-imapd/cyrus-imapd-ca.pem
 python -m postoffice imap-check --capath /etc/pki/tls/certs
 
 # Skip TLS verification entirely (DEV ONLY — prints a warning)
-python -m postoffice imap-check -k
+python -m postoffice imap-check --insecure
 ```
 
 ## Module Documentation
@@ -157,7 +157,7 @@ Timeout: 5s
 ### Verbose Output
 
 ```bash
-$ python -m postoffice imap-check -v
+$ python -m postoffice imap-check --verbose
 
 Checking IMAP server at localhost:993...
 
@@ -268,7 +268,7 @@ For self-signed certificates (typical in local development installs of Cyrus), t
 | ------------------------- | ----------------------------------------------------------------------------------------------- |
 | `--cafile PATH`           | Trust an additional CA cert from a PEM file in addition to the system trust store.              |
 | `--capath PATH`           | Trust all CAs in a directory of hashed certs (`c_rehash` format) in addition to the system store. |
-| `-k` / `--insecure`       | Skip TLS verification entirely. Prints a warning. DEV ONLY — vulnerable to MITM.                |
+| `--insecure`              | Skip TLS verification entirely. Prints a warning. DEV ONLY — vulnerable to MITM.                |
 
 `--cafile` and `--capath` are mutually exclusive (matching `ssl.create_default_context` semantics). Both can be combined with the system trust store; they do not replace it.
 

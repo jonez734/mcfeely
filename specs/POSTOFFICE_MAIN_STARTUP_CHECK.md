@@ -71,7 +71,7 @@ Please verify:
   3. Network connectivity to the IMAP server
   4. Firewall rules allow connections to the IMAP port
 
-Run 'python -m postoffice imap-check -v' for more diagnostics
+Run 'python -m postoffice imap-check --verbose' for more diagnostics
 
 Continue without IMAP connection? [Y/N]: _
 ```
@@ -144,7 +144,7 @@ If users see the IMAP error, they can:
 
 ### Option 1: Run diagnostic tool
 ```bash
-python -m postoffice imap-check -v
+python -m postoffice imap-check --verbose
 ```
 
 Shows detailed IMAP connectivity information.

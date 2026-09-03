@@ -69,7 +69,7 @@ python -m postoffice imap-check --cafile /etc/pki/cyrus-imapd/cyrus-imapd-ca.pem
 python -m postoffice imap-check --capath /etc/pki/tls/certs
 
 # Skip TLS verification entirely (DEV ONLY — prints a warning)
-python -m postoffice imap-check -k
+python -m postoffice imap-check --insecure
 ```
 
 See [`specs/POSTOFFICE_IMAP_CHECKER_README.md`](./specs/POSTOFFICE_IMAP_CHECKER_README.md)

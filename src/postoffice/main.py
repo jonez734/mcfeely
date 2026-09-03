@@ -87,7 +87,7 @@ def main(args, **kw):
         io.echo("  4. Firewall rules allow connections to the IMAP port", level="error")
         io.echo("", level="error")
         io.echo(
-            "Run 'python -m postoffice imap-check -v' for more diagnostics",
+            "Run 'python -m postoffice imap-check --verbose' for more diagnostics",
             level="error",
         )
         io.echo("", level="error")
