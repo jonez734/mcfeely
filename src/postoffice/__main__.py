@@ -84,12 +84,13 @@ def _notify_run(args, current_user):
 # ============================================================================
 
 
-def init_postoffice(args: Any) -> bool:
+def init(args: Any, **kwargs) -> bool | None:
     """
     Initialize postoffice module.
 
     Args:
         args: bbsengine6 args object
+        **kwargs: framework-supplied keyword arguments (ignored).
 
     Returns:
         True if initialization successful
@@ -108,12 +109,16 @@ def init_postoffice(args: Any) -> bool:
     return True
 
 
-def access_postoffice(args: Any) -> bool:
+def access(args: Any, op: str, **kwargs) -> bool | None:
     """
     Check if postoffice module is accessible.
 
     Args:
         args: bbsengine6 args object
+        op: Operation name (the bbsengine6 access-check op string;
+            required to match the ``_stub_access`` signature, even
+            though ``access`` ignores it).
+        **kwargs: framework-supplied keyword arguments (ignored).
 
     Returns:
         True if module is ready
@@ -1166,8 +1171,14 @@ def handle_install_postoffice(args: argparse.Namespace) -> int:
         return 1
 
 
-def main():
-    """Main entry point for postoffice module."""
+def _build_parser() -> argparse.ArgumentParser:
+    """Construct the argparse parser for the postoffice CLI.
+
+    Returns:
+        The fully-configured ArgumentParser. Split out from ``main`` so
+        that :func:`buildargs` (the bbsengine6 module-API hook) can hand
+        the same parser back to ``bbsengine6.module.run``.
+    """
     parser = argparse.ArgumentParser(
         prog="python -m postoffice",
         description="mistermcfeely password management system",
@@ -1273,13 +1284,81 @@ Examples:
     }
     database.buildargdatabasegroup(parser, defaults)
 
-    args = parser.parse_args()
-    args.debug = False  # Ensure debug attribute exists for bbsengine6 functions
+    return parser
+
+
+def buildargs(args: Any, **kwargs) -> argparse.ArgumentParser | None:
+    """bbsengine6 module-API hook: build the postoffice CLI parser.
+
+    Required by ``bbsengine6.module.check`` (see bbsengine6/module.py).
+    The ``args`` and ``**kwargs`` parameters follow the standard
+    ``init/access/buildargs/main`` 4-function module signature so the
+    function passes ``bbsengine6.module._check_func_signature`` against
+    the ``_stub_buildargs`` stub.
+
+    Args:
+        args: bbsengine6 args object (unused; the parser is module-static).
+        **kwargs: framework-supplied keyword arguments (ignored).
+
+    Returns:
+        The postoffice ArgumentParser.
+    """
+    return _build_parser()
+
+
+def main(args: Any, **kwargs):
+    """Main entry point for the postoffice module.
+
+    Conforms to the bbsengine6 standard module interface
+    ``main(args, **kwargs) -> bool`` so the package can be dispatched
+    from a custom shell via
+    ``bbsengine6.module.runmodule(args, "postoffice")`` (or with an
+    explicit ``argv=[...]`` kwarg). The ``args`` parameter is required
+    (no default value) so the signature matches ``_stub_main``; callers
+    that previously invoked ``main()`` with no positional should pass
+    ``main(None)`` instead (the ``__main__`` block does this).
+
+    Three call shapes are supported:
+
+    1. ``main(None)`` or ``main(argv=[...])`` -- parse ``sys.argv[1:]``
+       (the ``python -m postoffice`` / ``bin/postoffice`` entry point)
+       or the supplied argv. Used when the caller hasn't parsed argv
+       itself.
+    2. ``main(args=argparse.Namespace(...), **kwargs)`` -- the caller
+       has already parsed argv (the bbsengine6 module runner case
+       after ``bbsengine6.module.run`` invoked ``buildargs`` and
+       parsed argv on our behalf).
+
+    For backward compatibility, a positional list is also treated as
+    argv, matching the previous ``main(["tui"])`` call shape.
+
+    Returns:
+        ``True`` for exit code 0, ``False`` for any non-zero outcome,
+        or ``None`` for success-but-uncertain (matches the
+        ``_stub_main`` ``bool | None`` contract).
+    """
+    argv = kwargs.pop("argv", None)
+
+    # Backward-compat: legacy callers passed a list positionally.
+    if argv is None and isinstance(args, list):
+        argv = args
+        args = None
+
+    if isinstance(args, argparse.Namespace):
+        parsed = args
+        if argv:
+            parsed = _build_parser().parse_args(argv)
+    else:
+        if argv is None:
+            argv = sys.argv[1:]
+        parsed = _build_parser().parse_args(argv)
+
+    parsed.debug = False  # Ensure debug attribute exists for bbsengine6 functions
 
     # Handle version
-    if args.version:
-        echo(version_postoffice(args))
-        return 0
+    if parsed.version:
+        echo(version_postoffice(parsed))
+        return True
 
     # Route commands
     command_map = {
@@ -1298,18 +1377,43 @@ Examples:
         "sasl-password": handle_sasl_password,
     }
 
-    handler = command_map.get(args.command)
+    handler = command_map.get(parsed.command)
     if not handler:
-        echo(f"Unknown command: {args.command}", level="error")
+        echo(f"Unknown command: {parsed.command}", level="error")
         echo()
-        echo(help_postoffice(args))
-        return 1
+        echo(help_postoffice(parsed))
+        return False
 
-    result = handler(args)
-    if result is True:
+    result = handler(parsed)
+    if result is True or result is None or result == 0:
+        return True
+    if result is False:
+        return False
+    return False
+
+
+def _coerce_main_exit(value: Any) -> int:
+    """Coerce ``main()``'s return value into an integer exit code."""
+    if value is True or value is None:
         return 0
+    if value is False:
+        return 1
+    if isinstance(value, int):
+        return value
     return 1
 
 
+# ---------------------------------------------------------------------------
+# Backward-compatibility aliases
+#
+# The canonical bbsengine6 module-API names are ``init`` and ``access``
+# (defined above). Earlier versions of this module exposed them as
+# ``init_postoffice`` and ``access_postoffice``; keep those names working
+# so external callers (custom shells, docs, tests) keep compiling.
+# ---------------------------------------------------------------------------
+init_postoffice = init
+access_postoffice = access
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(_coerce_main_exit(main(None)))
