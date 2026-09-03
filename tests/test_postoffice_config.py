@@ -17,19 +17,23 @@ class TestPostofficeConfig(unittest.TestCase):
     """Test postoffice configuration loading."""
 
     def setUp(self):
-        self.env_vars_to_clean = [
-            "POSTOFFICE_ENABLED",
-            "POSTOFFICE_POLL_INTERVAL",
-            "CASINO_DEBUG",
-        ]
-        for var in self.env_vars_to_clean:
-            if var in os.environ:
-                del os.environ[var]
+        self._saved_postoffice_env = {}
+        for k in list(os.environ):
+            if k.startswith("POSTOFFICE_"):
+                self._saved_postoffice_env[k] = os.environ.pop(k)
+        if "CASINO_DEBUG" in os.environ:
+            self._saved_casino_debug = os.environ.pop("CASINO_DEBUG")
+        else:
+            self._saved_casino_debug = None
 
     def tearDown(self):
-        for var in self.env_vars_to_clean:
-            if var in os.environ:
-                del os.environ[var]
+        for k in list(os.environ):
+            if k.startswith("POSTOFFICE_"):
+                del os.environ[k]
+        for k, v in self._saved_postoffice_env.items():
+            os.environ[k] = v
+        if self._saved_casino_debug is not None:
+            os.environ["CASINO_DEBUG"] = self._saved_casino_debug
 
     def test_get_postoffice_config_default(self):
         """Test getting postoffice config with no defaults."""

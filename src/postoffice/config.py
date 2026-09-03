@@ -26,18 +26,16 @@ def load_postoffice_defaults() -> Dict[str, Any]:
 
 
 def get_postoffice_config(config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """Get postoffice configuration from bed.json.
-    
-    Args:
-        config: Optional config dict to use instead of loading from file/env
-        
-    Returns:
-        Dict with postoffice configuration
+    """Get postoffice configuration from explicit sources.
+
+    When ``config`` is provided, returns its ``postoffice`` sub-dict.
+    Otherwise loads explicit configuration (env vars, env-derived
+    mailboxes, overrides) without merging bed.json defaults.
     """
     if config is not None:
         return config.get("postoffice", {})
-    
-    return load_config().get("postoffice", {})
+
+    return load_explicit_config().get("postoffice", {})
 
 
 def _parse_dsn(dsn: str) -> dict[str, str]:
@@ -205,3 +203,27 @@ def _merge_config(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, A
 def reload_config() -> Dict[str, Any]:
     """Reload configuration from postoffice.json, ignoring any overrides."""
     return load_postoffice_defaults()
+
+
+def load_explicit_config(
+    env_prefix: str = "POSTOFFICE_",
+    **overrides: Any,
+) -> Dict[str, Any]:
+    """
+    Load postoffice configuration from explicit sources only:
+    environment variables (POSTOFFICE_*), POSTOFFICE_MAILBOX(ES) DSNs,
+    and keyword overrides. Unlike load_config(), this does NOT merge
+    bed.json defaults, so an unset environment yields {"postoffice": {}}.
+    """
+    config: Dict[str, Any] = {}
+    env_config = _load_from_env(env_prefix)
+    if env_config:
+        config["postoffice"] = env_config
+    mailboxes = _load_mailboxes_from_env()
+    if mailboxes:
+        if "postoffice" not in config:
+            config["postoffice"] = {}
+        config["postoffice"]["mailboxes"] = mailboxes
+    if overrides:
+        config = _merge_config(config, overrides)
+    return config
