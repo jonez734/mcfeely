@@ -167,7 +167,7 @@ class TestModuleAPIFunctions(unittest.TestCase):
         with patch.object(postoffice_main, "startup") as mock_startup:
             mock_startup.initialize_password_system.return_value = True
 
-            result = postoffice_main.init_postoffice(self.args)
+            result = postoffice_main.init(self.args)
             self.assertTrue(result)
 
     def test_init_postoffice_returns_false_on_key_error(self):
@@ -175,7 +175,7 @@ class TestModuleAPIFunctions(unittest.TestCase):
         with patch.object(postoffice_main, "startup") as mock_startup:
             mock_startup.initialize_password_system.return_value = False
 
-            result = postoffice_main.init_postoffice(self.args)
+            result = postoffice_main.init(self.args)
             self.assertFalse(result)
 
     def test_access_postoffice_returns_true(self):
@@ -183,7 +183,7 @@ class TestModuleAPIFunctions(unittest.TestCase):
         with patch.object(postoffice_main, "startup") as mock_startup:
             mock_startup.get_encryption_key.return_value = b"key"
 
-            result = postoffice_main.access_postoffice(self.args)
+            result = postoffice_main.access(self.args, "run")
             self.assertTrue(result)
 
     def test_access_postoffice_returns_false_on_no_key(self):
@@ -191,7 +191,7 @@ class TestModuleAPIFunctions(unittest.TestCase):
         with patch.object(postoffice_main, "startup") as mock_startup:
             mock_startup.get_encryption_key.return_value = None
 
-            result = postoffice_main.access_postoffice(self.args)
+            result = postoffice_main.access(self.args, "run")
             self.assertFalse(result)
 
     def test_help_postoffice_returns_string(self):
@@ -205,6 +205,38 @@ class TestModuleAPIFunctions(unittest.TestCase):
         result = postoffice_main.version_postoffice(self.args)
         self.assertIsInstance(result, str)
         self.assertIn("postoffice", result.lower())
+
+    def test_canonical_module_api_names_exist(self):
+        """The canonical bbsengine6 module-API names are exposed on the module."""
+        for name in ("init", "access", "buildargs", "main"):
+            self.assertTrue(
+                hasattr(postoffice_main, name),
+                f"postoffice.__main__ missing canonical module-API name {name!r}",
+            )
+            self.assertTrue(callable(getattr(postoffice_main, name)))
+
+    def test_legacy_module_api_names_are_aliases(self):
+        """Legacy ``init_postoffice``/``access_postoffice`` keep working."""
+        self.assertIs(postoffice_main.init_postoffice, postoffice_main.init)
+        self.assertIs(postoffice_main.access_postoffice, postoffice_main.access)
+
+    def test_module_api_signatures_accept_kwargs(self):
+        """Each canonical module-API function accepts ``**kwargs`` for framework compat."""
+        import inspect
+        for name in ("init", "access", "buildargs", "main"):
+            sig = inspect.signature(getattr(postoffice_main, name))
+            self.assertIn(
+                "args", sig.parameters,
+                f"{name}() must accept a positional 'args' parameter",
+            )
+            has_var_kw = any(
+                p.kind is inspect.Parameter.VAR_KEYWORD
+                for p in sig.parameters.values()
+            )
+            self.assertTrue(
+                has_var_kw,
+                f"{name}() must accept **kwargs for bbsengine6 module-API compat",
+            )
 
 
 class TestImapCheckerIntegration(unittest.TestCase):
