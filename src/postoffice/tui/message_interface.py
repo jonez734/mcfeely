@@ -48,9 +48,9 @@ class MessageInterface:
 
             choice = inputchoice(
                 "Choose action: ",
-                "nlx",
+                "nlxq",
                 default="l",
-                help="(n)ew message, (l)ist messages, e(x)it",
+                help="(n)ew message, (l)ist messages, e(x)it, (q)uit postoffice",
             )
 
             if choice == "N":
@@ -60,12 +60,15 @@ class MessageInterface:
             elif choice == "X":
                 echo("Goodbye!")
                 return 0
+            elif choice == "Q":
+                echo("Goodbye!")
+                return 2
 
     def _compose_new_message(self) -> None:
         """Handle composing a new message."""
         echo("")
         echo("=== New Message ===", level="info")
-        echo("(Not yet implemented)")
+        echo("Coming soon.")
 
     def _list_messages(self) -> None:
         """List messages from IMAP and allow management."""
