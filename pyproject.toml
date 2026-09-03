@@ -18,6 +18,9 @@ postoffice-authd = "mcfeely_authd.mcfeely_authd:main"
 
 [tool.setuptools]
 packages = ["postoffice", "mcfeely_authd"]
+script-files = [
+    "bin/postoffice-tui",
+]
 
 [tool.setuptools.package-dir]
 "postoffice" = "src/postoffice"
