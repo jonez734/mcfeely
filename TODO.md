@@ -233,6 +233,20 @@ restructure + import update lands:
   - Problem: `mistermcfeely/Makefile` `install-venv` target ran `python -m build` twice — against `$(BBSENGINE_DIR)` and `$(CURDIR)`. There was no `PREPARE_BUILD` macro before either of them, so a foreign-owned `build/` in any of those trees EPERM'd on setuptools' `chown` when populating `dist-info/`.
   - Solution: `PREPARE_BUILD` macro added to `mistermcfeely/Makefile` mirroring `bed/Makefile:163-185` and called on each of the two dirs before the corresponding `python -m build` line.
 
+## JSON config loader for database params
+
+- [ ] Load database params from a JSON config file (likely
+  `/etc/postoffice/postoffice.json` with `~/.postoffice.json` override,
+  mirroring the existing `_load_imap_config()` pattern in
+  `src/postoffice/__main__.py`). When an entry is missing from the JSON,
+  default it to the literal sentinel string `"NEEDINFO"` so missing values
+  are obvious in logs and downstream code can detect them. Precedence:
+  CLI flag > JSON config > `"NEEDINFO"`. Affected fields: `databasename`
+  (already dropped from `__main__.py` defaults; the loader is the
+  remaining work), and as candidates `databasehost`, `databaseport`,
+  `databaseuser`, `databasepassword`, `databaseschema`,
+  `bbsengineschema`. Spec target: `specs/POSTOFFICE_CONFIG.md` (TBD).
+
 ## Documentation
 
 - [ ] MCFEELY_AUTH_SETUP.md is stale on the operator-venv layout

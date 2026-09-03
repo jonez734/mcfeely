@@ -1330,7 +1330,10 @@ Examples:
     )
 
     defaults = {
-        "databasename": "zoid6test",
+        # TODO(postoffice-config): databasename intentionally has no
+        # default here. Long-term, postoffice should load DB params
+        # from a JSON config file and default missing entries to the
+        # literal sentinel "NEEDINFO". See TODO.md entry.
         "databasehost": "localhost",
         "databaseport": 5432,
     }
