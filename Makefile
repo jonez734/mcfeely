@@ -6,7 +6,13 @@ VERSION = $(shell date +%Y%m%d%H%M)
 PYTHON ?= python3.12
 PIP ?= $(PYTHON) -m pip
 
-OUTDIR = /srv/repo/$(PROJECT)/
+# Local wheel output directory. Defaults to `dist/` (relative to the
+# project root) so wheels land in the project's own tree and the
+# operator doesn't need to be in the `repo` group to write them.
+# Override with OUTDIR= on the make command line or in the shell env
+# to write elsewhere (e.g. the cross-project /srv/repo/mistermcfeely/
+# location used by bed/casino/zoid6/bbsengine6).
+OUTDIR ?= dist/
 WHEEL_PACKAGES := bbsengine6 mistermcfeely
 
 DEPLOY_EDITABLE ?=
@@ -20,7 +26,7 @@ OPERATOR_PYTHON ?= $(if $(VIRTUAL_ENV),$(VIRTUAL_ENV)/bin/python,$(PYTHON))
 WHEEL_DIR = /tmp/$(PROJECT)-$$
 BBSENGINE_DIR = $(CURDIR)/../bbsengine6/py
 
-.PHONY: all help clean backup version build
+.PHONY: all help clean deep-clean backup version build
 .PHONY: install uninstall
 .PHONY: install-sysusers uninstall-sysusers
 .PHONY: install-tmpfiles uninstall-tmpfiles
@@ -39,9 +45,11 @@ help:
 	@echo "  uninstall          Full uninstall"
 	@echo "  deploy-tui         Operator-side (no sudo): install into \$$VIRTUAL_ENV (active venv)"
 	@echo "  deploy-prod        Sudo umbrella: sysusers + tmpfiles + systemd + etc + wheel install"
-	@echo "  build              Build bbsengine6 + mistermcfeely wheels into \$$(OUTDIR)"
+	@echo "  build              Build bbsengine6 + mistermcfeely wheels into \$$(OUTDIR) (default: dist/)"
 	@echo "  version            Stamp src/postoffice/_version.py with date + git hash"
-	@echo "  clean              Remove build artifacts"
+	@echo "  clean              Remove build artifacts (operator-owned only; safe, non-interactive)"
+	@echo "  deep-clean         Like clean, plus renames foreign-owned build/ to build.to_remove.<pid>"
+	@echo "                     (operator can't rm-rf foreign-owned trees; needs privileged cleanup)"
 	@echo "  backup             Rsync project to $(MEDIA)"
 	@echo ""
 	@echo "  install-sysusers   Create postoffice user and group via systemd-sysusers"
@@ -57,6 +65,9 @@ help:
 	@echo "  uninstall-etc      Remove installed config files"
 	@echo ""
 	@echo "Environment variables:"
+	@echo "  OUTDIR=/path/to/   Wheel output directory (default: dist/, i.e. local project tree)."
+	@echo "                     Override to write to the cross-project /srv/repo/mistermcfeely/"
+	@echo "                     location when /srv/repo/ is writable (e.g. operator in repo group)."
 	@echo "  DEPLOY_EDITABLE=1  deploy-tui installs editable from src/ (set by 'deploytool --editable')"
 	@echo "  DEPLOY_WITH_DEPS=1 precheck-editable warns instead of hard-failing (set by 'deploytool --with-deps')"
 	@echo "  DEPLOY_UPGRADE=1   pass --upgrade to pip install (default; set by 'deploytool --upgrade')"
@@ -71,9 +82,17 @@ version:
 # Make sure $(1)/build/ exists with mode 1775 (sticky + rwxrwxr-x) before
 # invoking `python -m build`. Mirrors bed/Makefile PREPARE_BUILD; see
 # TODO.md for the cross-project standardization rationale.
+#
+# When the existing `build/` is foreign-owned, rename it to a unique
+# `build.stale.XXXXXX` suffix (each invocation gets its own suffix via
+# `mktemp -u`) so the `mv` is a rename (atomic, only needs write on
+# the parent — works through a foreign-owned sticky bit) rather than
+# a move-into (which fails on the second run because the first run
+# created the destination dir).
 PREPARE_BUILD = \
 	if [ -d $(1)/build ] && [ ! -O $(1)/build ]; then \
-		mv $(1)/build $(1)/build.stale.$$ 2>/dev/null || true; \
+		STALE_SUFFIX=$$(mktemp -u -p $(1) build.stale.XXXXXX) && \
+			mv $(1)/build "$$STALE_SUFFIX" 2>/dev/null || true; \
 	fi; \
 	mkdir -p $(1)/build && chmod g-s,+t $(1)/build
 
@@ -324,8 +343,28 @@ clean:
 	-find . -type d -name .pytest_cache -exec rm -rf {} +
 	-find . -type d -name .ruff_cache -exec rm -rf {} +
 	-find . -type d -name .mypy_cache -exec rm -rf {} +
+	-rm -rf build.stale.* build.old.*
+	-rm -rf *.egg-info.old.* *.egg-info.stale.*
 	$(MAKE) -C src clean
 	$(MAKE) -C sql clean
+
+# deep-clean: the same as `clean` PLUS tries to remove foreign-owned
+# build/ directories (those created by another user / under a
+# different login) that `clean` can't rm-rf because the files inside
+# are not owned by the operator. Each `build/` is renamed to
+# `build.to_remove.<pid>` first (cheap; rename only needs write on
+# the parent dir), and the actual rm-rf of the renamed tree is left
+# to a cron / cleanup script that runs as a privileged user. This
+# keeps the operator's `make` flow non-interactive while still
+# surfacing the foreign-owned dirs in a predictable place.
+deep-clean: clean
+	@for d in build build.stale.* build.old.*; do \
+		if [ -e "$$d" ] && [ ! -O "$$d" ]; then \
+			TARGET="$${d}.to_remove.$$$$"; \
+			echo "deep-clean: foreign-owned $$d, renaming to $$TARGET (operator can't rm-rf; needs privileged cleanup)"; \
+			mv "$$d" "$$TARGET" 2>/dev/null || true; \
+		fi; \
+	done
 
 backup:
 	rsync --recursive --verbose --exclude=.venv . $(MEDIA)
