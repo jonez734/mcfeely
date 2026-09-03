@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # bin/postoffice-tui
-# Thin wrapper that drops straight into the postoffice TUI
-# (equivalent to: python -m postoffice tui).
+# Thin wrapper around `python -m postoffice`. Forwards argv unchanged so
+# that all of postoffice's subcommands (menu, tui, accounts, imap-check,
+# startup-check, sasl-password, etc.) work transparently. With no args,
+# the postoffice parser's default kicks in and the operator is dropped
+# into the text-mode chooser (the same UX as `casino` with no args).
 #
 # Adopts the bbsengine6.util.safe_main bin-wrapper convention: argv is
 # validated, dangerous env vars are scrubbed, and the canonical exit
@@ -17,7 +20,7 @@ from bbsengine6.util import safe_main
 def _main():
     from postoffice.__main__ import main, _coerce_main_exit
 
-    result = main(None, argv=["tui", *sys.argv[1:]])
+    result = main(None, argv=sys.argv[1:])
     return _coerce_main_exit(result)
 
 
