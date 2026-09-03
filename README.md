@@ -75,6 +75,51 @@ python -m postoffice imap-check --insecure
 See [`specs/POSTOFFICE_IMAP_CHECKER_README.md`](./specs/POSTOFFICE_IMAP_CHECKER_README.md)
 for the full reference.
 
+### Self-signed certs at runtime (poller, TUI, services)
+
+The runtime IMAP code paths (the message poller daemon, the TUI reader,
+and the services helpers) connect to Cyrus using Python's default
+SSL context. Against a self-signed local Cyrus cert those connections
+fail with `CERTIFICATE_VERIFY_FAILED` unless one of the following is
+true:
+
+- the system's CA store already trusts the cert, or
+- the cert is installed as a system CA, or
+- the cert is pinned via `MailboxConfig.accept_self_signed = true` (the
+  default).
+
+`accept_self_signed` defaults to `true` so most local / dev setups
+"just work" without extra configuration. Each mailbox in your config
+(`bed.json` `postoffice.mailboxes[*]`, `POSTOFFICE_MAILBOX`, or
+`POSTOFFICE_MAILBOXES` DSNs) can override it:
+
+```json
+{
+  "postoffice": {
+    "mailboxes": [
+      {
+        "host": "cyrus.local",
+        "username": "support",
+        "password": "...",
+        "use_ssl": true,
+        "accept_self_signed": false
+      }
+    ]
+  }
+}
+```
+
+Or via the global CLI flag (applies to every connection in this
+process):
+
+```bash
+python -m postoffice --no-accept-self-signed ...
+# (default is --accept-self-signed)
+```
+
+Setting `accept_self_signed=false` (or `--no-accept-self-signed`)
+restores strict CA verification — recommended for production.
+
 ### User Detection
 
 The system automatically detects the current user by:

@@ -104,7 +104,10 @@ class MessageInterface:
                 echo("Could not get IMAP credentials", level="error")
                 return None
 
-            imap = imap_lib.connect_cyrus(creds)
+            imap = imap_lib.connect_cyrus(
+                creds,
+                accept_self_signed=getattr(self.args, "accept_self_signed", True),
+            )
             return imap
         except Exception as e:
             echo(f"IMAP connection error: {e}", level="error")

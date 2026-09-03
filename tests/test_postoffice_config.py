@@ -199,6 +199,100 @@ class TestPostofficeServiceConfig(unittest.TestCase):
         self.assertIsInstance(poller.mailboxes[0], MailboxConfig)
         self.assertEqual(poller.mailboxes[0].host, "imap.test.com")
 
+    def test_mailbox_config_accept_self_signed_default_true(self):
+        """MailboxConfig defaults accept_self_signed to True so self-signed
+        local Cyrus certs work without extra configuration."""
+        from postoffice.services import MailboxConfig
+
+        mb = MailboxConfig(host="h", username="u", password="p")
+        self.assertTrue(mb.accept_self_signed)
+
+    def test_mailbox_config_accept_self_signed_false(self):
+        """MailboxConfig honors explicit accept_self_signed=False."""
+        from postoffice.services import MailboxConfig
+
+        mb = MailboxConfig(
+            host="h", username="u", password="p", accept_self_signed=False
+        )
+        self.assertFalse(mb.accept_self_signed)
+
+    def test_load_mailboxes_accept_self_signed_from_dict(self):
+        """load_mailboxes propagates accept_self_signed from the dict."""
+        from postoffice.services import load_mailboxes
+
+        mbs = load_mailboxes({
+            "mailboxes": [
+                {
+                    "host": "h1",
+                    "username": "u",
+                    "password": "p",
+                    "accept_self_signed": False,
+                },
+                {
+                    "host": "h2",
+                    "username": "u",
+                    "password": "p",
+                    # omitted → default True
+                },
+            ]
+        })
+        self.assertEqual(len(mbs), 2)
+        self.assertFalse(mbs[0].accept_self_signed)
+        self.assertTrue(mbs[1].accept_self_signed)
+
+
+class TestPostofficeEnvMailboxConfig(unittest.TestCase):
+    """Test the POSTOFFICE_MAILBOX(ES) DSN loader's accept_self_signed handling."""
+
+    def setUp(self):
+        self._saved = {}
+        for k in ("POSTOFFICE_MAILBOXES", "POSTOFFICE_MAILBOX"):
+            if k in os.environ:
+                self._saved[k] = os.environ[k]
+                del os.environ[k]
+
+    def tearDown(self):
+        for k in ("POSTOFFICE_MAILBOXES", "POSTOFFICE_MAILBOX"):
+            if k in os.environ:
+                del os.environ[k]
+        for k, v in self._saved.items():
+            os.environ[k] = v
+
+    def test_env_single_mailbox_default_accept_self_signed(self):
+        """Omitted accept_self_signed in DSN defaults to True."""
+        from postoffice.config import _load_mailboxes_from_env
+
+        os.environ["POSTOFFICE_MAILBOX"] = (
+            "host=imap.example.com user=admin password=secret"
+        )
+        mbs = _load_mailboxes_from_env()
+        self.assertEqual(len(mbs), 1)
+        self.assertTrue(mbs[0]["accept_self_signed"])
+
+    def test_env_single_mailbox_accept_self_signed_false(self):
+        """accept_self_signed=false in DSN is honored."""
+        from postoffice.config import _load_mailboxes_from_env
+
+        os.environ["POSTOFFICE_MAILBOX"] = (
+            "host=imap.example.com user=admin password=secret accept_self_signed=false"
+        )
+        mbs = _load_mailboxes_from_env()
+        self.assertEqual(len(mbs), 1)
+        self.assertFalse(mbs[0]["accept_self_signed"])
+
+    def test_env_mailboxes_list_with_insecure_alias(self):
+        """insecure=true is accepted as an alias for accept_self_signed=true."""
+        from postoffice.config import _load_mailboxes_from_env
+
+        os.environ["POSTOFFICE_MAILBOXES"] = (
+            "host=imap1.example.com user=u1 password=p1 insecure=true,"
+            "host=imap2.example.com user=u2 password=p2 insecure=false"
+        )
+        mbs = _load_mailboxes_from_env()
+        self.assertEqual(len(mbs), 2)
+        self.assertTrue(mbs[0]["accept_self_signed"])
+        self.assertFalse(mbs[1]["accept_self_signed"])
+
 
 def run_tests():
     """Run all tests."""
@@ -207,6 +301,7 @@ def run_tests():
 
     suite.addTests(loader.loadTestsFromTestCase(TestPostofficeConfig))
     suite.addTests(loader.loadTestsFromTestCase(TestPostofficeServiceConfig))
+    suite.addTests(loader.loadTestsFromTestCase(TestPostofficeEnvMailboxConfig))
 
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)

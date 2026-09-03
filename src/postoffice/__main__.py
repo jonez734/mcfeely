@@ -1238,6 +1238,9 @@ Options:
   --cafile PATH                      PEM file of CAs to trust for IMAP TLS (for imap-check)
   --capath PATH                      Directory of CA certs to trust for IMAP TLS (for imap-check)
   --insecure                         Skip TLS cert verification for IMAP check (DEV ONLY)
+  --accept-self-signed / --no-accept-self-signed
+                                     Accept self-signed IMAP certs at runtime
+                                     (poller, TUI, services). Default: enabled.
 
 Examples:
   python -m postoffice                          (runs menu)
@@ -1292,6 +1295,17 @@ Examples:
         "--insecure",
         action="store_true",
         help="Skip TLS certificate verification for IMAP check (DEV ONLY)",
+    )
+    parser.add_argument(
+        "--accept-self-signed",
+        dest="accept_self_signed",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Accept self-signed IMAP certificates at runtime (poller, TUI, "
+            "services). Default: enabled. Set --no-accept-self-signed to "
+            "require strict CA verification."
+        ),
     )
     parser.add_argument(
         "--loginid",

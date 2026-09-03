@@ -16,6 +16,10 @@ from postoffice import imap_lib
 class TestConnectCyrus(unittest.TestCase):
     """Tests for connect_cyrus function."""
 
+    def setUp(self):
+        # Reset module-level one-shot warn flag so each test gets a clean slate.
+        imap_lib._insecure_warned = False
+
     def test_connect_cyrus_success(self):
         """Test successful connection to Cyrus IMAP server."""
         mock_args = MagicMock()
@@ -23,6 +27,7 @@ class TestConnectCyrus(unittest.TestCase):
         mock_args.imapport = 993
         mock_args.imapuser = "testuser"
         mock_args.imappassword = "testpass"
+        mock_args.accept_self_signed = True
 
         with patch("imaplib.IMAP4_SSL") as mock_imap:
             mock_instance = MagicMock()
@@ -31,7 +36,13 @@ class TestConnectCyrus(unittest.TestCase):
             result = imap_lib.connect_cyrus(mock_args)
 
             self.assertIsNotNone(result)
-            mock_imap.assert_called_once_with("cyrus.example.com", 993, timeout=10)
+            # accept_self_signed=True (default) → unverified ssl_context is passed
+            self.assertEqual(mock_imap.call_count, 1)
+            args, kwargs = mock_imap.call_args
+            self.assertEqual(args, ("cyrus.example.com", 993))
+            self.assertIn("ssl_context", kwargs)
+            self.assertEqual(kwargs["ssl_context"].verify_mode, 0)
+            self.assertEqual(kwargs["timeout"], 10)
             mock_instance.login.assert_called_once_with("testuser", "testpass")
 
     def test_connect_cyrus_missing_host(self):
@@ -68,6 +79,7 @@ class TestConnectCyrus(unittest.TestCase):
         mock_args.imapuser = "baduser"
         mock_args.imappassword = "badpass"
         mock_args.debug = False
+        mock_args.accept_self_signed = False
 
         with patch("imaplib.IMAP4_SSL") as mock_imap:
             mock_instance = MagicMock()
@@ -85,6 +97,7 @@ class TestConnectCyrus(unittest.TestCase):
         mock_args.imapport = 993
         mock_args.imapuser = "testuser"
         mock_args.imappassword = "testpass"
+        mock_args.accept_self_signed = False
 
         with patch("imaplib.IMAP4_SSL") as mock_imap:
             mock_instance = MagicMock()
@@ -92,7 +105,7 @@ class TestConnectCyrus(unittest.TestCase):
 
             imap_lib.connect_cyrus(mock_args)
 
-            # Should use the port from args
+            # accept_self_signed=False → no ssl_context kwarg (default verify)
             mock_imap.assert_called_once_with("cyrus.example.com", 993, timeout=10)
 
     def test_connect_cyrus_with_creds_dict(self):
@@ -102,6 +115,7 @@ class TestConnectCyrus(unittest.TestCase):
             "port": 993,
             "username": "dictuser",
             "password": "dictpass",
+            "accept_self_signed": False,
         }
 
         with patch("imaplib.IMAP4_SSL") as mock_imap:
@@ -121,6 +135,7 @@ class TestConnectCyrus(unittest.TestCase):
             "port": 143,
             "username": "user",
             "password": "pass",
+            "accept_self_signed": False,
         }
 
         with patch("imaplib.IMAP4_SSL") as mock_imap:
@@ -131,6 +146,70 @@ class TestConnectCyrus(unittest.TestCase):
 
             self.assertIsNotNone(result)
             mock_imap.assert_called_once_with("cyrus.example.com", 143, timeout=10)
+
+    def test_connect_cyrus_accept_self_signed_default_true(self):
+        """accept_self_signed defaults to True when not specified anywhere."""
+        mock_args = MagicMock(spec=["imaphost", "imapport", "imapuser", "imappassword"])
+        mock_args.imaphost = "cyrus.example.com"
+        mock_args.imapport = 993
+        mock_args.imapuser = "u"
+        mock_args.imappassword = "p"
+
+        with patch("imaplib.IMAP4_SSL") as mock_imap:
+            mock_imap.return_value = MagicMock()
+            imap_lib.connect_cyrus(mock_args)
+            kwargs = mock_imap.call_args.kwargs
+            self.assertIn("ssl_context", kwargs)
+            self.assertEqual(kwargs["ssl_context"].verify_mode, 0)
+
+    def test_connect_cyrus_accept_self_signed_false_explicit(self):
+        """accept_self_signed=False on args skips the unverified context."""
+        mock_args = MagicMock()
+        mock_args.imaphost = "cyrus.example.com"
+        mock_args.imapport = 993
+        mock_args.imapuser = "u"
+        mock_args.imappassword = "p"
+        mock_args.accept_self_signed = False
+
+        with patch("imaplib.IMAP4_SSL") as mock_imap:
+            mock_imap.return_value = MagicMock()
+            imap_lib.connect_cyrus(mock_args)
+            self.assertNotIn("ssl_context", mock_imap.call_args.kwargs)
+
+    def test_connect_cyrus_accept_self_signed_explicit_kwarg_overrides(self):
+        """Explicit accept_self_signed kwarg takes precedence over args."""
+        mock_args = MagicMock()
+        mock_args.imaphost = "cyrus.example.com"
+        mock_args.imapport = 993
+        mock_args.imapuser = "u"
+        mock_args.imappassword = "p"
+        mock_args.accept_self_signed = True
+
+        with patch("imaplib.IMAP4_SSL") as mock_imap:
+            mock_imap.return_value = MagicMock()
+            imap_lib.connect_cyrus(mock_args, accept_self_signed=False)
+            self.assertNotIn("ssl_context", mock_imap.call_args.kwargs)
+
+    def test_connect_cyrus_warn_emitted_once(self):
+        """The DEV-only warning is emitted at most once per process."""
+        mock_args = MagicMock()
+        mock_args.imaphost = "cyrus.example.com"
+        mock_args.imapport = 993
+        mock_args.imapuser = "u"
+        mock_args.imappassword = "p"
+        mock_args.accept_self_signed = True
+
+        with patch("imaplib.IMAP4_SSL") as mock_imap:
+            mock_imap.return_value = MagicMock()
+            with patch.object(imap_lib.io, "echo") as mock_echo:
+                imap_lib.connect_cyrus(mock_args)
+                imap_lib.connect_cyrus(mock_args)
+                imap_lib.connect_cyrus(mock_args)
+                warning_calls = [
+                    c for c in mock_echo.call_args_list
+                    if c.kwargs.get("level") == "warning"
+                ]
+                self.assertEqual(len(warning_calls), 1)
 
 
 class TestGetImapCredentials(unittest.TestCase):

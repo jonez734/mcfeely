@@ -190,10 +190,18 @@ class IMAPMonitor:
         Uses imap_lib to connect and returns connected IMAP4_SSL object.
         Gracefully returns None if connection fails (daemon continues polling).
 
+        Honors ``args.accept_self_signed`` (default True) so self-signed
+        local Cyrus certs work without per-process flags.
+
         Returns:
             Connected imaplib.IMAP4_SSL object, or None on error
         """
-        return imap_lib.connect_cyrus(self.args, readonly=True, timeout=10)
+        return imap_lib.connect_cyrus(
+            self.args,
+            readonly=True,
+            timeout=10,
+            accept_self_signed=getattr(self.args, "accept_self_signed", True),
+        )
 
     def _check_mailbox(self, imap_conn: imaplib.IMAP4_SSL, mailbox_name: str) -> None:
         """Check mailbox for new messages, flag changes, deletions."""

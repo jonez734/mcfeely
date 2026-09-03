@@ -4,11 +4,49 @@
 
 import email
 import imaplib
+import ssl
 from typing import Optional, Dict, Set, Tuple, Any
 
 from bbsengine6 import io
 
 from . import password_auth
+
+_insecure_warned = False
+
+
+def _warn_insecure_once(host: str) -> None:
+    """Emit the DEV-only warning the first time we build an unverified context."""
+    global _insecure_warned
+    if _insecure_warned:
+        return
+    _insecure_warned = True
+    io.echo(
+        f"WARNING: TLS certificate verification is disabled for IMAP "
+        f"connections to {host} (accept_self_signed=true). This is "
+        f"vulnerable to MITM attacks and should be turned off in production.",
+        level="warning",
+    )
+
+
+def _resolve_accept_self_signed(args_or_creds, explicit: Optional[bool]) -> bool:
+    """Resolve the accept_self_signed flag.
+
+    Precedence: explicit kwarg > args.accept_self_signed > True (default).
+    Accepts both args objects and dicts (callers may pass either).
+    """
+    if explicit is not None:
+        return explicit
+    if isinstance(args_or_creds, dict):
+        return args_or_creds.get("accept_self_signed", True)
+    return getattr(args_or_creds, "accept_self_signed", True)
+
+
+def _build_insecure_ssl_context() -> ssl.SSLContext:
+    """Build a client SSLContext that does not verify peer certificates."""
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    return ctx
 
 
 def get_imap_credentials(
@@ -80,6 +118,7 @@ def connect_cyrus(
     timeout: int = 10,
     member_moniker: Optional[str] = None,
     mailbox_id: Optional[int] = None,
+    accept_self_signed: Optional[bool] = None,
 ) -> Optional[imaplib.IMAP4_SSL]:
     """
     Connect to Cyrus IMAP server.
@@ -96,6 +135,10 @@ def connect_cyrus(
         timeout: Connection timeout in seconds
         member_moniker: Member moniker for password system lookup (optional)
         mailbox_id: Mailbox ID for shared mailbox lookup (optional)
+        accept_self_signed: If True, build an unverified SSL context so
+            self-signed Cyrus certs work. If None, falls back to
+            ``args.accept_self_signed`` (and ``True`` when absent). If
+            False, use Python's default-verifying context.
 
     Returns:
         Connected imaplib.IMAP4_SSL object, or None on error
@@ -103,6 +146,7 @@ def connect_cyrus(
     try:
         if isinstance(args_or_creds, dict):
             creds = args_or_creds
+            args = None
         else:
             args = args_or_creds
             creds = get_imap_credentials(
@@ -119,11 +163,17 @@ def connect_cyrus(
             return None
 
         host = creds["host"]
-        port = creds["port"]
+        port = int(creds["port"])
         username = creds["username"]
         password = creds["password"]
 
-        imap = imaplib.IMAP4_SSL(host, port, timeout=timeout)
+        insecure = _resolve_accept_self_signed(args_or_creds, accept_self_signed)
+        if insecure:
+            _warn_insecure_once(host)
+            ctx = _build_insecure_ssl_context()
+            imap = imaplib.IMAP4_SSL(host, port, ssl_context=ctx, timeout=timeout)
+        else:
+            imap = imaplib.IMAP4_SSL(host, port, timeout=timeout)
         imap.login(username, password)
 
         debug = (

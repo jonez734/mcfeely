@@ -51,17 +51,32 @@ def _parse_dsn(dsn: str) -> dict[str, str]:
     return params
 
 
+def _parse_accept_self_signed(params: dict[str, str]) -> bool:
+    """Resolve the accept_self_signed flag from a parsed DSN dict.
+
+    Accepts ``accept_self_signed=true|false`` (preferred) or
+    ``insecure=true|false`` as an alias. Defaults to ``True`` so
+    self-signed local Cyrus certs work out of the box.
+    """
+    raw = params.get("accept_self_signed", params.get("insecure", "true"))
+    return str(raw).lower() == "true"
+
+
 def _load_mailboxes_from_env() -> list:
     """Load mailbox configurations from environment variables.
-    
+
     DSN format (comma-separated for multiple mailboxes):
         POSTOFFICE_MAILBOXES=host=imap.example.com user=admin password=secret,host=imap2.example.com user=u2 pass=p2
-        
+
     Single mailbox shorthand:
         POSTOFFICE_MAILBOX=host=imap.example.com user=admin password=secret
+
+    ``accept_self_signed`` (alias: ``insecure``) defaults to ``true`` so
+    self-signed local Cyrus certs work without extra flags. Set to
+    ``false`` per mailbox to require strict CA verification.
     """
     mailboxes = []
-    
+
     dsn_list = os.environ.get("POSTOFFICE_MAILBOXES", "")
     if dsn_list:
         for dsn in dsn_list.split(","):
@@ -75,8 +90,9 @@ def _load_mailboxes_from_env() -> list:
                     "mailbox": params.get("mailbox", "INBOX"),
                     "use_ssl": params.get("ssl", params.get("use_ssl", "true")).lower() == "true",
                     "port": int(params["port"]) if "port" in params else None,
+                    "accept_self_signed": _parse_accept_self_signed(params),
                 })
-    
+
     single_dsn = os.environ.get("POSTOFFICE_MAILBOX", "")
     if single_dsn:
         params = _parse_dsn(single_dsn)
@@ -87,8 +103,9 @@ def _load_mailboxes_from_env() -> list:
             "mailbox": params.get("mailbox", "INBOX"),
             "use_ssl": params.get("ssl", params.get("use_ssl", "true")).lower() == "true",
             "port": int(params["port"]) if "port" in params else None,
+            "accept_self_signed": _parse_accept_self_signed(params),
         })
-    
+
     return mailboxes
 
 

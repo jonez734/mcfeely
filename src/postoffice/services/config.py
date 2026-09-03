@@ -16,6 +16,7 @@ class MailboxConfig:
         use_ssl: bool = True,
         port: Optional[int] = None,
         recipients: Optional[List[str]] = None,
+        accept_self_signed: bool = True,
     ):
         self.host = host
         self.username = username
@@ -23,6 +24,7 @@ class MailboxConfig:
         self.mailbox = mailbox
         self.use_ssl = use_ssl
         self.port = port or (993 if use_ssl else 143)
+        self.accept_self_signed = accept_self_signed
         # BBS monikers and/or "@<group>" strings that should receive a
         # notification when new mail arrives in this mailbox. None
         # means fall back to the default ("@everyone"); an empty list
@@ -37,10 +39,13 @@ def load_mailboxes(config: Optional[Dict[str, Any]] = None) -> List[MailboxConfi
     Args:
         config: Dict with a "mailboxes" key holding a list of dicts
             (each: host, username, password, mailbox?, use_ssl?,
-            port?, recipients?). ``recipients`` is optional; when
-            absent the MailboxConfig defaults to ``None`` (which
-            signals the notifier to use the @everyone fallback).
-            If None, returns an empty list.
+            port?, recipients?, accept_self_signed?). ``recipients`` is
+            optional; when absent the MailboxConfig defaults to ``None``
+            (which signals the notifier to use the @everyone fallback).
+            ``accept_self_signed`` defaults to ``True`` so self-signed
+            local Cyrus certs work out of the box; set it to ``False``
+            in production when you want strict CA verification. If
+            None, returns an empty list.
     """
     if not config:
         return []
@@ -61,6 +66,7 @@ def load_mailboxes(config: Optional[Dict[str, Any]] = None) -> List[MailboxConfi
                 use_ssl=mb.get("use_ssl", True),
                 port=mb.get("port"),
                 recipients=recipients,
+                accept_self_signed=mb.get("accept_self_signed", True),
             )
         )
     return mailboxes

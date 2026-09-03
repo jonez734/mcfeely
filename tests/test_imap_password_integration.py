@@ -122,6 +122,7 @@ class TestIMAPConnectionWithPasswordSystem(unittest.TestCase):
         self.args = Mock()
         self.args.debug = False
         self.args.issuperuser = False
+        imap_lib._insecure_warned = False
 
     def tearDown(self):
         """Clean up environment."""
@@ -138,6 +139,7 @@ class TestIMAPConnectionWithPasswordSystem(unittest.TestCase):
         self.args.imapport = 993
         self.args.imapuser = "mailuser"
         self.args.imappassword = "direct_password"
+        self.args.accept_self_signed = False
 
         result = imap_lib.connect_cyrus(self.args)
 
@@ -222,6 +224,7 @@ class TestIMAPConnectionFlow(unittest.TestCase):
         self.args = Mock()
         self.args.debug = False
         self.args.issuperuser = False
+        imap_lib._insecure_warned = False
 
     def tearDown(self):
         """Clean up environment."""

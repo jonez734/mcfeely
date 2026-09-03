@@ -5,6 +5,7 @@
 # with imaplib specifics directly.
 
 import imaplib
+import ssl
 from email.parser import BytesParser
 from email.policy import default
 from typing import Any, Dict, List, Optional, Tuple
@@ -14,13 +15,53 @@ from bbsengine6 import io
 from .. import message_client
 from .config import MailboxConfig
 
+_insecure_warned = False
+
+
+def _warn_insecure_once(host: str) -> None:
+    """Emit the DEV-only warning the first time we build an unverified context."""
+    global _insecure_warned
+    if _insecure_warned:
+        return
+    _insecure_warned = True
+    io.echo(
+        f"WARNING: TLS certificate verification is disabled for IMAP "
+        f"connections to {host} (accept_self_signed=true). This is "
+        f"vulnerable to MITM attacks and should be turned off in production.",
+        level="warning",
+    )
+
+
+def _build_insecure_ssl_context() -> ssl.SSLContext:
+    """Build a client SSLContext that does not verify peer certificates."""
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    return ctx
+
 
 def connect(mailbox: MailboxConfig, timeout: Optional[int] = None) -> imaplib.IMAP4:
     """Open an IMAP connection and log in. Caller is responsible for close/logout."""
     if mailbox.use_ssl:
-        conn = imaplib.IMAP4_SSL(mailbox.host, mailbox.port)
+        if mailbox.accept_self_signed:
+            _warn_insecure_once(mailbox.host)
+            ctx = _build_insecure_ssl_context()
+            if timeout is not None:
+                conn = imaplib.IMAP4_SSL(
+                    mailbox.host, mailbox.port, ssl_context=ctx, timeout=timeout
+                )
+            else:
+                conn = imaplib.IMAP4_SSL(mailbox.host, mailbox.port, ssl_context=ctx)
+        else:
+            if timeout is not None:
+                conn = imaplib.IMAP4_SSL(mailbox.host, mailbox.port, timeout=timeout)
+            else:
+                conn = imaplib.IMAP4_SSL(mailbox.host, mailbox.port)
     else:
-        conn = imaplib.IMAP4(mailbox.host, mailbox.port)
+        if timeout is not None:
+            conn = imaplib.IMAP4(mailbox.host, mailbox.port, timeout=timeout)
+        else:
+            conn = imaplib.IMAP4(mailbox.host, mailbox.port)
     conn.login(mailbox.username, mailbox.password)
     conn.select(mailbox.mailbox)
     return conn
