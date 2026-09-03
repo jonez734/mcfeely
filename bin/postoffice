@@ -1,3 +1,28 @@
-#!/usr/bin/sh
+#!/usr/bin/env python3
+# bin/postoffice
+# Thin wrapper around `python -m postoffice`. Forwards argv unchanged so
+# that all of postoffice's subcommands (menu, tui, accounts, imap-check,
+# startup-check, sasl-password, etc.) work transparently. With no args,
+# the postoffice parser's default kicks in and the operator is dropped
+# into the text-mode chooser (the same UX as `casino` with no args).
+#
+# Adopts the bbsengine6.util.safe_main bin-wrapper convention: argv is
+# validated, dangerous env vars are scrubbed, and the canonical exit
+# code is returned. The actual CLI dispatch is delegated to
+# postoffice.__main__.main, which conforms to the bbsengine6 standard
+# module interface main(args, **kwargs).
 
-python3 -W all -m postoffice "$@"
+import sys
+
+from bbsengine6.util import safe_main
+
+
+def _main():
+    from postoffice.__main__ import main, _coerce_main_exit
+
+    result = main(None, argv=sys.argv[1:])
+    return _coerce_main_exit(result)
+
+
+if __name__ == "__main__":
+    sys.exit(safe_main(_main))
