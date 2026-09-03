@@ -83,7 +83,7 @@ def _generate_postfix_config(args: Any, pool: Any, current_user: str) -> None:
     config_path = f"/etc/postfix/{_sanitize_domain(domain['name'])}_pgsql.cf"
 
     try:
-        dbname = getattr(args, "databasename", "zoid6")
+        dbname = getattr(args, "databasename", "postoffice")
         getattr(args, "databaseuser", "postfix")
         dbpass = getattr(args, "databasepassword", "")
         dbhost = getattr(args, "databasehost", "localhost")

@@ -475,7 +475,7 @@ class TestFireEvent(unittest.TestCase):
 
     def test_fire_event_success(self):
         """Fire event successfully sends via bbsengine6.message.send."""
-        args = Mock(debug=False, databasename="zoid6")
+        args = Mock(debug=False, databasename="postoffice")
         conn = Mock()
 
         event_data = {
@@ -564,7 +564,7 @@ class TestFireEvent(unittest.TestCase):
 
     def test_fire_event_multiple_rules(self):
         """Test fire_event with multiple routing rules."""
-        args = Mock(debug=False, databasename="zoid6")
+        args = Mock(debug=False, databasename="postoffice")
         conn = Mock()
 
         with (

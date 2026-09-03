@@ -91,7 +91,7 @@ When creating/updating addresses, the system validates destinations:
 Each domain generates a pgsql.cf file at `/etc/postfix/{domain}_pgsql.cf`:
 
 ```
-dbname = zoid6
+dbname = mistermcfeely
 user = postfix
 password = <password>
 host = 127.0.0.1

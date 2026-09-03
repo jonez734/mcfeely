@@ -208,86 +208,41 @@ restructure + import update lands:
   - [ ] `gpg_sign` - sign message with user's GPG key
   - [ ] `gpg_verify` - verify GPG signature on message
 
-## Deploy targets and venv layout (per-service, like bed)
+## Deploy targets and venv layout
 
-[ ] Add the `prod` target that `bed` has for sudo installs. `bed/Makefile:202-205`
-    defines `deploy-prod: install` as an explicit umbrella target for the production
-    install path (sysusers + tmpfiles + venv + systemd + etc — all the things that
-    need `sudo`). `mistermcfeely/Makefile:16` currently only has `deploy: install`,
-    which does the same thing but lacks the explicit naming.
+[X] Add the `tui` / `prod` split that `deploytool postoffice.{tui,prod}` resolves
+    to. Operator-side `deploy-tui` (no sudo, installs into `$VIRTUAL_ENV`) and
+    sudo-umbrella `deploy-prod` (sysusers + tmpfiles + systemd + etc + wheel
+    install). The two sub-targets share the same `install-venv` step; both end
+    in the operator's active venv (`$(OPERATOR_VENV)`).
 
-    Add to `mistermcfeely/Makefile` (alongside the existing `deploy`):
+    `deploytool/src/deploytool/lib.py:133` already declares
+    `"mistermcfeely": ["tui", "prod"]` and the Makefile shape (build target +
+    precheck-editable + verify-install + `WHEEL_PACKAGES := bbsengine6 mistermcfeely`)
+    is pinned by `tests/test_deploy_shadow_install.py` in the deploytool submodule.
 
-    ```
-    # Umbrella prod install: includes everything that needs sudo.
-    # Mirrors bed/Makefile:202-205. Reuses the existing install target.
-    deploy-prod: install
-    	@echo "$(PROJECT) installed (production)"
-    ```
-
-    And register in `TARGETS` at `deploytool/src/deploytool/lib.py:96-106`:
-
-    ```
-    "mistermcfeely": ["tui", "venv", "prod"],
-    ```
-
-    …with a `MAKE_TARGET_ALIASES` entry that maps `("mistermcfeely", "tui")` → `"venv"`
-    (same pattern as `bed` — `mistermcfeely` has no separate tui wheel build, the tui
-    alias just points at the same non-sudo venv install that `deploy-venv` would).
-
-[ ] Companion: also add `mistermcfeely/Makefile`'s `deploy-venv` (the non-sudo install
-    into the active venv), mirroring `bed/Makefile:186-200`. **Decision:** per-service
-    venv, not shared — `mistermcfeely` gets its own `/var/lib/mistermcfeely/venv`
-    owned by a `mistermcfeely` user, matching `bed`'s layout (`/var/lib/bed/venv`
-    owned by `bed`). This means the `prod` change above is NOT just an alias rename —
-    it triggers a broader refactor:
-
-    1. `mistermcfeely/Makefile:73-76` — change defaults:
-       ```
-       VENV_DIR    ?= /var/lib/mistermcfeely/venv
-       VENV_OWNER  ?= mistermcfeely
-       VENV_GROUP  ?= mistermcfeely
-       ```
-       Drop `VENV_SHARED` entirely (the shared-venv guard at
-       `mistermcfeely/Makefile:101-107` becomes unnecessary once the venv is
-       per-service).
-
-    2. `mistermcfeely/Makefile` — add `deploy-venv` (non-sudo, active-venv install)
-       mirroring `bed/Makefile:186-200`. Drops the `sudo -u $(VENV_OWNER)` switch
-       and the per-service venv bootstrap; just builds wheels for `bbsengine6` +
-       `mistermcfeely` into a user-owned `$(WHEEL_DIR)` and `pip install`s them
-       into `$VIRTUAL_ENV`. (`getdate_next` is no longer in this set — pip
-       resolves it as a transitive runtime dep of bbsengine6 via
-       `bbsengine6/py/pyproject.toml`.)
-
-    3. `deploytool/src/deploytool/lib.py:55-70` — `VENV_LAYOUT` for `mistermcfeely`
-       changes from `"/var/lib/zoid6/venv"` to `"/var/lib/mistermcfeely/venv"` to
-       match the new `mistermcfeely/Makefile` default.
-
-    The `prod` alias alone (just adding `deploy-prod: install` and the `TARGETS` /
-    `MAKE_TARGET_ALIASES` entries, without the venv refactor) is still safe — it
-    does not change install behavior, only adds the name. But the venv refactor IS
-    the right follow-up once `prod` is in.
-
-    Verification after `prod` lands:
-    - `deploy --dry-run mistermcfeely` → `make -C mistermcfeely deploy-venv`
-      (via the tui→venv alias).
-    - `deploy --dry-run mistermcfeely.venv` → same.
-    - `deploy --dry-run mistermcfeely.prod` → `make -C mistermcfeely deploy-prod`
-      (which runs `install`).
-    - `mistermcfeely/Makefile:help` block (lines 20-42) gains a `deploy-prod` entry.
-
-    Note: `postoffice` is an alias for `mistermcfeely` (see
-    `deploytool/src/deploytool/lib.py:41-43`), so `deploy postoffice` and
-    `deploy postoffice.prod` route through the same `mistermcfeely` Makefile
+[X] Operator-venv layout (no shared `/var/lib/<other>/venv` ownership). The
+    shared-foreign-venv layout was dropped in favor of the operator's active venv
+    so mistermcfeely has no cross-project install coupling. The
+    `VENV_DIR`/`VENV_OWNER`/`VENV_GROUP`/`VENV_SHARED` block at
+    `mistermcfeely/Makefile:73-76` (old) was removed.
 
 ## Build infrastructure
 
-- [ ] PREPARE_BUILD protection for in-tree `build/` (@since 20260820)
-  - Problem: `mistermcfeely/Makefile` `install-venv` target (lines 89-91) runs `python -m build` twice — against `$(BBSENGINE_DIR)` and `$(CURDIR)`. There is no `PREPARE_BUILD` macro before either of them, so a foreign-owned `build/` in any of those trees (e.g. the existing `mistermcfeely/build/` which is `jam:opencode 2775` — foreign-owned AND setgid, both problematic) causes setuptools to EPERM on the `chown` it does when populating `dist-info/`. (`$(GETDATE_DIR)` is no longer built here — getdate_next is a transitive pip dep of bbsengine6.)
-  - Solution: add a `PREPARE_BUILD` macro to `mistermcfeely/Makefile` mirroring `bed/Makefile:163-185` and call it on each of the two dirs before the corresponding `python -m build` line:
-    - `$(call PREPARE_BUILD,$(BBSENGINE_DIR))` before line 89
-    - `$(call PREPARE_BUILD,$(CURDIR))` before line 91
-    The first is redundant once `bbsengine6` adds its own PREPARE_BUILD (tracked separately in bbsengine6's TODO), but calling it here is safe and matches the `bed/Makefile:178-183` pattern.
-  - Cross-ref: `bed/Makefile:163-185`, `getdate_next/Makefile:32` (needs upgrade), `bbsengine6/TODO.md`, `zoid6/TODO.md` "PREPARE_BUILD standardization".
-    targets after this change.
+- [X] PREPARE_BUILD protection for in-tree `build/` (@since 20260820)
+  - Problem: `mistermcfeely/Makefile` `install-venv` target ran `python -m build` twice — against `$(BBSENGINE_DIR)` and `$(CURDIR)`. There was no `PREPARE_BUILD` macro before either of them, so a foreign-owned `build/` in any of those trees EPERM'd on setuptools' `chown` when populating `dist-info/`.
+  - Solution: `PREPARE_BUILD` macro added to `mistermcfeely/Makefile` mirroring `bed/Makefile:163-185` and called on each of the two dirs before the corresponding `python -m build` line.
+
+## Documentation
+
+- [ ] MCFEELY_AUTH_SETUP.md is stale on the operator-venv layout
+  - Problem: `docs/MCFEELY_AUTH_SETUP.md` lines 75-98, 305-306 reference
+    a shared foreign-owned venv and the old shared-venv install path.
+    Since mistermcfeely now installs into `$VIRTUAL_ENV` (operator's active
+    venv), those instructions are wrong.
+  - Action: rewrite the "full install manually" section to drop the
+    cross-project `cd ... && sudo make install-sysusers ...` and the
+    multi-project deploytool invocation; replace with
+    `deploytool postoffice.prod` (the new sudo-umbrella target).
+    Same for the SELinux `restorecon` lines (they target the foreign
+    venv, not the operator venv).

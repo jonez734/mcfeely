@@ -2,7 +2,7 @@
 # Primary source for virtual alias mappings
 # Postfix queries this file to resolve project addresses to destinations
 
-dbname = zoid6
+dbname = mistermcfeely
 user = postfix
 password = CHANGEME
 host = 127.0.0.1

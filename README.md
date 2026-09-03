@@ -96,7 +96,7 @@ export MCFEELY_OBFUSCATE_SECRET="your-shared-secret-key-here"
 Default database is `zoid6test` (testing mode). Override with:
 
 ```bash
-python -m postoffice --databasename zoid6 --databasehost localhost
+python -m postoffice --databasename postoffice --databasehost localhost
 ```
 
 ## Architecture
