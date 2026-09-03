@@ -312,6 +312,8 @@ def handle_sasl_password(args: argparse.Namespace) -> int:
         except Exception:
             echo_traceback("Error getting current user")
             return 1
+
+    if current_user is None:
         echo("Error: Could not determine current user", level="error")
         return 1
 
@@ -704,6 +706,23 @@ def handle_tui(args: argparse.Namespace) -> int:
         )
         return 1
 
+    pool = None
+    current_user = getattr(args, "loginid", None)
+
+    if current_user is None:
+        try:
+            pool = database.getpool(args)
+            current_user = member.getcurrentmoniker(args, pool=pool)
+        except Exception:
+            echo_traceback("Error getting current user")
+            return 1
+
+    if current_user is None:
+        echo("Error: Could not determine current user", level="error")
+        return 1
+
+    args.loginid = current_user
+
     from bbsengine6 import screen
 
     try:
@@ -712,7 +731,7 @@ def handle_tui(args: argparse.Namespace) -> int:
         pass
 
     try:
-        result = _message_interface_run(args, args.loginid)
+        result = _message_interface_run(args, current_user, pool=pool)
         return result
     except KeyboardInterrupt:
         echo("{/all}*INTR*")
