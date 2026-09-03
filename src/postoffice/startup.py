@@ -27,30 +27,36 @@ def _read_key_file(path: str) -> Optional[bytes]:
     try:
         stat_info = os.stat(path)
         if stat_info.st_mode & 0o077:
-            echo(f"ERROR: {path} has insecure permissions (should be 0600)")
-            echo(f"  Fix with: chmod 600 {path}")
+            echo(
+                f"WARNING: {path} has insecure permissions (should be 0600)",
+                level="warning",
+            )
+            echo(f"  Fix with: chmod 600 {path}", level="warning")
             return None
         with open(path, "r") as f:
             key_b64 = f.read().strip()
     except OSError as e:
         # PermissionError, IsADirectoryError, race-condition FileNotFoundError, etc.
-        echo(f"ERROR: Failed to read {path}: {e}")
+        echo(f"WARNING: Failed to read {path}: {e}", level="warning")
         return None
     except UnicodeDecodeError as e:
         # File is not valid UTF-8 (e.g. raw binary garbage, not a base64 string).
-        echo(f"ERROR: {path} is not a text file: {e}")
+        echo(f"WARNING: {path} is not a text file: {e}", level="warning")
         return None
 
     if not key_b64:
-        echo(f"ERROR: {path} is empty")
+        echo(f"WARNING: {path} is empty", level="warning")
         return None
     try:
         key_bytes = base64.b64decode(key_b64)
     except binascii.Error as e:
-        echo(f"ERROR: {path} is not valid base64: {e}")
+        echo(f"WARNING: {path} is not valid base64: {e}", level="warning")
         return None
     if len(key_bytes) != 32:
-        echo(f"ERROR: {path} must contain 32 bytes (got {len(key_bytes)})")
+        echo(
+            f"WARNING: {path} must contain 32 bytes (got {len(key_bytes)})",
+            level="warning",
+        )
         return None
     return key_bytes
 
@@ -81,10 +87,14 @@ def get_encryption_key() -> Optional[bytes]:
             if len(key_bytes) == 32:
                 return key_bytes
             echo(
-                f"ERROR: POSTOFFICE_PASSWORD_KEY must be 32 bytes (got {len(key_bytes)})"
+                f"WARNING: POSTOFFICE_PASSWORD_KEY must be 32 bytes (got {len(key_bytes)})",
+                level="warning",
             )
         except Exception as e:
-            echo(f"ERROR: POSTOFFICE_PASSWORD_KEY is not valid base64: {e}")
+            echo(
+                f"WARNING: POSTOFFICE_PASSWORD_KEY is not valid base64: {e}",
+                level="warning",
+            )
         # fall through to file sources
 
     # Try system-wide key file (production)

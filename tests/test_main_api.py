@@ -513,5 +513,159 @@ class TestGetEncryptionKeyFallthrough(unittest.TestCase):
         self.assertEqual(result, self.expected_bytes)
 
 
+class TestReadKeyFileWarningLevel(unittest.TestCase):
+    """Verify _read_key_file failures emit WARNING at level='warning' (not ERROR)."""
+
+    def setUp(self):
+        from postoffice import startup
+        self.startup = startup
+        self.tmpdir = tempfile.mkdtemp()
+        self.expected_bytes = os.urandom(32)
+        self.expected_b64 = base64.b64encode(self.expected_bytes).decode()
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+        self.startup.get_encryption_key.__dict__.pop("_verbose", None)
+
+    def _write(self, name, content, mode=0o600):
+        path = os.path.join(self.tmpdir, name)
+        with open(path, "wb") as f:
+            if isinstance(content, str):
+                content = content.encode()
+            f.write(content)
+        os.chmod(path, mode)
+        return path
+
+    def _assert_warning_calls(self, mock_echo):
+        """Every echo call must use level='warning', no ERROR: prefix, and at
+        least one call must use the WARNING: prefix (the lead message)."""
+        self.assertTrue(mock_echo.called, "expected echo() to be called")
+        warned = False
+        for call in mock_echo.call_args_list:
+            args, kwargs = call
+            text = args[0] if args else kwargs.get("text", "")
+            self.assertEqual(
+                kwargs.get("level"), "warning",
+                f"echo call missing level='warning': {call!r}",
+            )
+            self.assertNotIn(
+                "ERROR:", text,
+                f"echo call still uses ERROR: prefix: {text!r}",
+            )
+            if "WARNING:" in text:
+                warned = True
+        self.assertTrue(
+            warned,
+            f"no echo call uses WARNING: prefix; calls={mock_echo.call_args_list!r}",
+        )
+
+    def test_insecure_permissions_emits_warning(self):
+        path = self._write("loose.key", self.expected_b64, mode=0o644)
+        with patch.object(self.startup, "echo") as mock_echo:
+            self.assertIsNone(self.startup._read_key_file(path))
+        self._assert_warning_calls(mock_echo)
+
+    def test_empty_file_emits_warning(self):
+        path = self._write("empty.key", "")
+        with patch.object(self.startup, "echo") as mock_echo:
+            self.assertIsNone(self.startup._read_key_file(path))
+        self._assert_warning_calls(mock_echo)
+
+    def test_non_utf8_file_emits_warning(self):
+        path = self._write("binary.key", os.urandom(64))
+        with patch.object(self.startup, "echo") as mock_echo:
+            self.assertIsNone(self.startup._read_key_file(path))
+        self._assert_warning_calls(mock_echo)
+
+    def test_invalid_base64_emits_warning(self):
+        path = self._write("bad.key", "not-valid-base64!!!")
+        with patch.object(self.startup, "echo") as mock_echo:
+            self.assertIsNone(self.startup._read_key_file(path))
+        self._assert_warning_calls(mock_echo)
+
+    def test_wrong_length_emits_warning(self):
+        path = self._write("short.key", base64.b64encode(b"too-short").decode())
+        with patch.object(self.startup, "echo") as mock_echo:
+            self.assertIsNone(self.startup._read_key_file(path))
+        self._assert_warning_calls(mock_echo)
+
+    def test_missing_file_emits_no_warning(self):
+        # Missing file is silent (caller will fall through to next source).
+        path = os.path.join(self.tmpdir, "does-not-exist")
+        with patch.object(self.startup, "echo") as mock_echo:
+            self.assertIsNone(self.startup._read_key_file(path))
+        mock_echo.assert_not_called()
+
+
+class TestGetEncryptionKeyEnvVarWarning(unittest.TestCase):
+    """Verify get_encryption_key env-var fall-through emits WARNING (not ERROR)."""
+
+    def setUp(self):
+        from postoffice import startup
+        self.startup = startup
+        self.tmpdir = tempfile.mkdtemp()
+        self.expected_bytes = os.urandom(32)
+        self.expected_b64 = base64.b64encode(self.expected_bytes).decode()
+        self._saved_env = os.environ.pop("POSTOFFICE_PASSWORD_KEY", None)
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+        if self._saved_env is not None:
+            os.environ["POSTOFFICE_PASSWORD_KEY"] = self._saved_env
+        self.startup.get_encryption_key.__dict__.pop("_verbose", None)
+
+    def test_env_var_wrong_length_emits_warning(self):
+        os.environ["POSTOFFICE_PASSWORD_KEY"] = base64.b64encode(b"too-short").decode()
+        user_path = os.path.join(self.tmpdir, "user.key")
+        with open(user_path, "w") as f:
+            f.write(self.expected_b64)
+        os.chmod(user_path, 0o600)
+
+        with patch.object(self.startup, "echo") as mock_echo, \
+             patch.object(self.startup.os.path, "expanduser", return_value=user_path), \
+             patch.object(self.startup.os.path, "exists", lambda p: p == user_path):
+            result = self.startup.get_encryption_key()
+        self.assertEqual(result, self.expected_bytes)
+        # First call(s) are the env-var warning; verify at least one WARNING call.
+        warning_calls = [
+            c for c in mock_echo.call_args_list
+            if c.kwargs.get("level") == "warning"
+        ]
+        self.assertTrue(
+            warning_calls,
+            f"expected at least one level='warning' echo call, got {mock_echo.call_args_list!r}",
+        )
+        # And no ERROR: prefix anywhere.
+        for call in mock_echo.call_args_list:
+            text = call.args[0] if call.args else call.kwargs.get("text", "")
+            self.assertNotIn("ERROR:", text, f"residual ERROR prefix in: {text!r}")
+
+    def test_env_var_invalid_base64_emits_warning(self):
+        os.environ["POSTOFFICE_PASSWORD_KEY"] = "not-valid-base64!!!"
+        user_path = os.path.join(self.tmpdir, "user.key")
+        with open(user_path, "w") as f:
+            f.write(self.expected_b64)
+        os.chmod(user_path, 0o600)
+
+        with patch.object(self.startup, "echo") as mock_echo, \
+             patch.object(self.startup.os.path, "expanduser", return_value=user_path), \
+             patch.object(self.startup.os.path, "exists", lambda p: p == user_path):
+            result = self.startup.get_encryption_key()
+        self.assertEqual(result, self.expected_bytes)
+        warning_calls = [
+            c for c in mock_echo.call_args_list
+            if c.kwargs.get("level") == "warning"
+        ]
+        self.assertTrue(
+            warning_calls,
+            f"expected at least one level='warning' echo call, got {mock_echo.call_args_list!r}",
+        )
+        for call in mock_echo.call_args_list:
+            text = call.args[0] if call.args else call.kwargs.get("text", "")
+            self.assertNotIn("ERROR:", text, f"residual ERROR prefix in: {text!r}")
+
+
 if __name__ == "__main__":
     unittest.main()
