@@ -13,6 +13,48 @@ from bbsengine6.io import echo
 import binascii
 
 
+def _read_key_file(path: str) -> Optional[bytes]:
+    """
+    Read a 32-byte base64-encoded key from a file.
+
+    Returns the key bytes on success. Returns None (after printing a
+    one-line ERROR) if the file is missing, unreadable (OSError including
+    PermissionError), has insecure permissions, is empty, contains
+    invalid base64, or has the wrong byte length. Does not raise.
+    """
+    if not os.path.exists(path):
+        return None
+    try:
+        stat_info = os.stat(path)
+        if stat_info.st_mode & 0o077:
+            echo(f"ERROR: {path} has insecure permissions (should be 0600)")
+            echo(f"  Fix with: chmod 600 {path}")
+            return None
+        with open(path, "r") as f:
+            key_b64 = f.read().strip()
+    except OSError as e:
+        # PermissionError, IsADirectoryError, race-condition FileNotFoundError, etc.
+        echo(f"ERROR: Failed to read {path}: {e}")
+        return None
+    except UnicodeDecodeError as e:
+        # File is not valid UTF-8 (e.g. raw binary garbage, not a base64 string).
+        echo(f"ERROR: {path} is not a text file: {e}")
+        return None
+
+    if not key_b64:
+        echo(f"ERROR: {path} is empty")
+        return None
+    try:
+        key_bytes = base64.b64decode(key_b64)
+    except binascii.Error as e:
+        echo(f"ERROR: {path} is not valid base64: {e}")
+        return None
+    if len(key_bytes) != 32:
+        echo(f"ERROR: {path} must contain 32 bytes (got {len(key_bytes)})")
+        return None
+    return key_bytes
+
+
 def get_encryption_key() -> Optional[bytes]:
     """
     Get encryption key from various sources in priority order.
@@ -21,10 +63,15 @@ def get_encryption_key() -> Optional[bytes]:
     1. POSTOFFICE_PASSWORD_KEY environment variable
     2. /etc/postoffice/password.key file
     3. ~/.postoffice/password.key file
-    4. None (error)
+    4. None (not found in any source)
+
+    Each source is tried in order; a failure in one (invalid content,
+    missing file, unreadable file, etc.) falls through to the next.
+    The env var is treated as a hint, not a hard override: if it is set
+    but invalid, the file sources are still tried.
 
     Returns:
-        32-byte key, or None if not found
+        32-byte key, or None if no source yielded a valid key
     """
     # Try environment variable first (fastest, development)
     key_b64 = os.environ.get("POSTOFFICE_PASSWORD_KEY")
@@ -33,98 +80,27 @@ def get_encryption_key() -> Optional[bytes]:
             key_bytes = base64.b64decode(key_b64)
             if len(key_bytes) == 32:
                 return key_bytes
-            else:
-                echo(
-                    f"ERROR: POSTOFFICE_PASSWORD_KEY must be 32 bytes (got {len(key_bytes)})"
-                )
-                return None
-        except Exception as e:
             echo(
-                f"ERROR: POSTOFFICE_PASSWORD_KEY is not valid base64: {e}"
+                f"ERROR: POSTOFFICE_PASSWORD_KEY must be 32 bytes (got {len(key_bytes)})"
             )
-            return None
+        except Exception as e:
+            echo(f"ERROR: POSTOFFICE_PASSWORD_KEY is not valid base64: {e}")
+        # fall through to file sources
 
     # Try system-wide key file (production)
-    system_key_file = "/etc/postoffice/password.key"
-    if os.path.exists(system_key_file):
-        try:
-            # Check file permissions (should be 0600 or 0400)
-            stat_info = os.stat(system_key_file)
-            mode = stat_info.st_mode
-            if mode & 0o077:  # Group or other can read
-                echo(
-                    f"ERROR: {system_key_file} has insecure permissions (should be 0600)"
-                )
-                echo(
-                    f"  Fix with: sudo chmod 600 {system_key_file}"
-                )
-                return None
-
-            with open(system_key_file, "r") as f:
-                key_b64 = f.read().strip()
-
-            if not key_b64:
-                echo(f"ERROR: {system_key_file} is empty")
-                return None
-
-            key_bytes = base64.b64decode(key_b64)
-            if len(key_bytes) != 32:
-                echo(
-                    f"ERROR: {system_key_file} must contain 32 bytes (got {len(key_bytes)})"
-                )
-                return None
-
-            if getattr(get_encryption_key, "_verbose", False):
-                echo(f"Loaded encryption key from {system_key_file}", level="debug")
-            return key_bytes
-        except binascii.Error as e:
-            echo(f"ERROR: {system_key_file} is not valid base64: {e}")
-            return None
-        except Exception as e:
-            echo(f"ERROR: Failed to read {system_key_file}: {e}")
-            return None
+    key = _read_key_file("/etc/postoffice/password.key")
+    if key is not None:
+        if getattr(get_encryption_key, "_verbose", False):
+            echo("Loaded encryption key from /etc/postoffice/password.key", level="debug")
+        return key
 
     # Try user key file (personal development)
-    user_key_file = os.path.expanduser("~/.postoffice/password.key")
-    if os.path.exists(user_key_file):
-        try:
-            # Check file permissions (should be 0600 or 0400)
-            stat_info = os.stat(user_key_file)
-            mode = stat_info.st_mode
-            if mode & 0o077:  # Group or other can read
-                echo(
-                    f"ERROR: {user_key_file} has insecure permissions (should be 0600)"
-                )
-                echo(
-                    f"  Fix with: chmod 600 {user_key_file}"
-                )
-                return None
+    key = _read_key_file(os.path.expanduser("~/.postoffice/password.key"))
+    if key is not None:
+        if getattr(get_encryption_key, "_verbose", False):
+            echo("Loaded encryption key from ~/.postoffice/password.key", level="debug")
+        return key
 
-            with open(user_key_file, "r") as f:
-                key_b64 = f.read().strip()
-
-            if not key_b64:
-                echo(f"ERROR: {user_key_file} is empty")
-                return None
-
-            key_bytes = base64.b64decode(key_b64)
-            if len(key_bytes) != 32:
-                echo(
-                    f"ERROR: {user_key_file} must contain 32 bytes (got {len(key_bytes)})"
-                )
-                return None
-
-            if getattr(get_encryption_key, "_verbose", False):
-                echo(f"Loaded encryption key from {user_key_file}", level="debug")
-            return key_bytes
-        except binascii.Error as e:
-            echo(f"ERROR: {user_key_file} is not valid base64: {e}")
-            return None
-        except Exception as e:
-            echo(f"ERROR: Failed to read {user_key_file}: {e}")
-            return None
-
-    # Not found anywhere
     return None
 
 

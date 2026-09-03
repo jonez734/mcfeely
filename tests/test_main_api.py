@@ -5,6 +5,7 @@
 import os
 import sys
 import base64
+import tempfile
 import unittest
 from unittest.mock import Mock, MagicMock, patch
 from argparse import Namespace
@@ -395,6 +396,121 @@ class TestPasswordManagement(unittest.TestCase):
         """Test shared_mailbox_password module is importable."""
         from postoffice import shared_mailbox_password
         self.assertTrue(hasattr(shared_mailbox_password, "set_shared_mailbox_password"))
+
+
+class TestReadKeyFile(unittest.TestCase):
+    """Test postoffice.startup._read_key_file helper."""
+
+    def setUp(self):
+        from postoffice import startup
+        self.startup = startup
+        self.tmpdir = tempfile.mkdtemp()
+        # Use a known good 32-byte key for round-trip checks.
+        self.expected_bytes = os.urandom(32)
+        self.expected_b64 = base64.b64encode(self.expected_bytes).decode()
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+        # Clear the verbose hook if a test set it.
+        self.startup.get_encryption_key.__dict__.pop("_verbose", None)
+
+    def _write(self, name, content, mode=0o600):
+        path = os.path.join(self.tmpdir, name)
+        with open(path, "wb") as f:
+            if isinstance(content, str):
+                content = content.encode()
+            f.write(content)
+        os.chmod(path, mode)
+        return path
+
+    def test_missing_file_returns_none(self):
+        path = os.path.join(self.tmpdir, "does-not-exist")
+        self.assertIsNone(self.startup._read_key_file(path))
+
+    def test_valid_file_returns_key(self):
+        path = self._write("good.key", self.expected_b64)
+        self.assertEqual(self.startup._read_key_file(path), self.expected_bytes)
+
+    def test_empty_file_returns_none(self):
+        path = self._write("empty.key", "")
+        self.assertIsNone(self.startup._read_key_file(path))
+
+    def test_non_utf8_file_returns_none(self):
+        # Raw binary, not valid base64 text.
+        path = self._write("binary.key", os.urandom(64))
+        self.assertIsNone(self.startup._read_key_file(path))
+
+    def test_insecure_permissions_returns_none(self):
+        path = self._write("loose.key", self.expected_b64, mode=0o644)
+        self.assertIsNone(self.startup._read_key_file(path))
+
+    def test_invalid_base64_returns_none(self):
+        path = self._write("bad.key", "not-valid-base64!!!")
+        self.assertIsNone(self.startup._read_key_file(path))
+
+    def test_wrong_length_returns_none(self):
+        # Valid base64, but decodes to a non-32-byte value.
+        path = self._write("short.key", base64.b64encode(b"too-short").decode())
+        self.assertIsNone(self.startup._read_key_file(path))
+
+    def test_unreadable_file_returns_none(self):
+        path = self._write("unreadable.key", self.expected_b64, mode=0o600)
+        os.chmod(path, 0o000)
+        try:
+            # Skip the test if running as root (root can read anything).
+            if os.geteuid() == 0:
+                self.skipTest("running as root; PermissionError not reachable")
+            self.assertIsNone(self.startup._read_key_file(path))
+        finally:
+            os.chmod(path, 0o600)
+
+
+class TestGetEncryptionKeyFallthrough(unittest.TestCase):
+    """Test that get_encryption_key falls through to the next source on failure."""
+
+    def setUp(self):
+        from postoffice import startup
+        self.startup = startup
+        self.tmpdir = tempfile.mkdtemp()
+        self.expected_bytes = os.urandom(32)
+        self.expected_b64 = base64.b64encode(self.expected_bytes).decode()
+        # Ensure env var does not interfere.
+        self._saved_env = os.environ.pop("POSTOFFICE_PASSWORD_KEY", None)
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+        if self._saved_env is not None:
+            os.environ["POSTOFFICE_PASSWORD_KEY"] = self._saved_env
+        self.startup.get_encryption_key.__dict__.pop("_verbose", None)
+
+    def test_falls_through_when_system_file_missing(self):
+        # No env var, no system file, valid user file -> should return user key.
+        user_path = os.path.join(self.tmpdir, "user.key")
+        with open(user_path, "w") as f:
+            f.write(self.expected_b64)
+        os.chmod(user_path, 0o600)
+
+        with patch.object(self.startup.os.path, "expanduser", return_value=user_path), \
+             patch.object(self.startup.os.path, "exists",
+                          lambda p: p == user_path):
+            result = self.startup.get_encryption_key()
+        self.assertEqual(result, self.expected_bytes)
+
+    def test_env_var_invalid_falls_through_to_files(self):
+        # Bad env var, no system file, valid user file -> should still return user key.
+        os.environ["POSTOFFICE_PASSWORD_KEY"] = "not-valid-base64!!!"
+        user_path = os.path.join(self.tmpdir, "user.key")
+        with open(user_path, "w") as f:
+            f.write(self.expected_b64)
+        os.chmod(user_path, 0o600)
+
+        with patch.object(self.startup.os.path, "expanduser", return_value=user_path), \
+             patch.object(self.startup.os.path, "exists",
+                          lambda p: p == user_path):
+            result = self.startup.get_encryption_key()
+        self.assertEqual(result, self.expected_bytes)
 
 
 if __name__ == "__main__":
