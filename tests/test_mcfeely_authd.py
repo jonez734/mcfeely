@@ -232,8 +232,8 @@ class TestConfig(unittest.TestCase):
         from mcfeely_authd.config import Config, load_config
 
         cfg = Config(config_file="/nonexistent/config.conf")
-        self.assertEqual(cfg["socket_path"], "/var/run/postoffice-authd/mux")
-        self.assertEqual(cfg["pid_file"], "/var/run/postoffice-authd/mcfeely-authd.pid")
+        self.assertEqual(cfg["socket_path"], "/run/postoffice-authd/mux")
+        self.assertEqual(cfg["pid_file"], "/run/postoffice-authd/mcfeely-authd.pid")
         self.assertEqual(cfg["log_file"], "/var/log/postoffice-authd.log")
         self.assertEqual(cfg["log_level"], "INFO")
         self.assertTrue(cfg["log_syslog"])
@@ -293,7 +293,7 @@ class TestConfig(unittest.TestCase):
         from mcfeely_authd.config import Config, load_config
 
         cfg = Config(config_file="/does/not/exist.conf")
-        self.assertEqual(cfg["socket_path"], "/var/run/postoffice-authd/mux")
+        self.assertEqual(cfg["socket_path"], "/run/postoffice-authd/mux")
 
     def test_validate_ok(self):
         from mcfeely_authd.config import Config, load_config
@@ -351,7 +351,7 @@ class TestConfig(unittest.TestCase):
 
         cfg = Config(config_file="/nonexistent")
         self.assertIn("socket_path", cfg)
-        self.assertEqual(cfg["socket_path"], "/var/run/postoffice-authd/mux")
+        self.assertEqual(cfg["socket_path"], "/run/postoffice-authd/mux")
         cfg["socket_path"] = "/tmp/custom"
         self.assertEqual(cfg["socket_path"], "/tmp/custom")
 
@@ -367,7 +367,7 @@ class TestConfig(unittest.TestCase):
         from mcfeely_authd.config import Config, load_config
 
         cfg = Config(config_file="/nonexistent")
-        self.assertEqual(cfg.get("socket_path"), "/var/run/postoffice-authd/mux")
+        self.assertEqual(cfg.get("socket_path"), "/run/postoffice-authd/mux")
         self.assertEqual(cfg.get("nonexistent_key", "default"), "default")
         self.assertIsNone(cfg.get("nonexistent_key"))
 

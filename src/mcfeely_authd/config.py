@@ -28,8 +28,8 @@ KNOWN_SECTIONS: frozenset[str] = frozenset(
 )
 
 HARDCODED_DEFAULTS: dict[str, Any] = {
-    "socket_path": "/var/run/postoffice-authd/mux",
-    "pid_file": "/var/run/postoffice-authd/mcfeely-authd.pid",
+    "socket_path": "/run/postoffice-authd/mux",
+    "pid_file": "/run/postoffice-authd/mcfeely-authd.pid",
     "log_file": "/var/log/postoffice-authd.log",
     "log_level": "INFO",
     "log_syslog": True,

@@ -106,7 +106,7 @@ def _verify_pam(username: str, password: str) -> Tuple[bool, str]:
                 "-a",
                 "pam",
                 "-p",
-                "/var/run/saslauthd/mux",
+                "/run/saslauthd/mux",
                 "-n",
                 "1",
             ],
