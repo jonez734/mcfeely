@@ -200,7 +200,7 @@ DIRECTORY STRUCTURE AFTER DEPLOYMENT
     └── shared/
         └── support@localhost/
 
-/var/run/cyrus/                 <- Runtime socket files
+/run/cyrus/                 <- Runtime socket files
 └── master/pid
 
 ================================================================================

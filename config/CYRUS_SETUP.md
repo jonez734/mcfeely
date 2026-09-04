@@ -128,9 +128,9 @@ Create saslauthd configuration:
 
 ```bash
 # Create saslauthd directory
-sudo mkdir -p /var/run/saslauthd
-sudo chown cyrus:cyrus /var/run/saslauthd
-sudo chmod 710 /var/run/saslauthd
+sudo mkdir -p /run/saslauthd
+sudo chown cyrus:cyrus /run/saslauthd
+sudo chmod 710 /run/saslauthd
 
 # Or use Makefile:
 make install-auth
@@ -528,7 +528,7 @@ systemctl status saslauthd
 echo "testpass" | testsaslauthd -u testuser -r localhost
 
 # Check socket permissions
-ls -la /var/run/saslauthd/mux
+ls -la /run/saslauthd/mux
 # Should be readable by cyrus user
 ```
 

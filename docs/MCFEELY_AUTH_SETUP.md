@@ -108,7 +108,7 @@ Update `/etc/saslauthd.conf`:
 ```bash
 # Use authdaemond mechanism
 MECHANISMS = authdaemond
-AUTHDAEMOND_PATH = /var/run/postoffice-authd/mux
+AUTHDAEMOND_PATH = /run/postoffice-authd/mux
 
 # Realm merging flag
 FLAGS = "-r"
@@ -317,7 +317,7 @@ ausearch -m avc --recent | grep mcfeely
 Check that postoffice-authd is running:
 ```bash
 ps aux | grep postoffice-authd
-ls -la /var/run/postoffice-authd/mux
+ls -la /run/postoffice-authd/mux
 ```
 
 ### Authentication Fails

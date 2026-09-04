@@ -76,7 +76,7 @@ annotation_definitions: /etc/postoffice/imapd.annotations
 **Key Settings:**
 ```conf
 MECHANISMS = pam
-SOCKETDIR = /var/run/saslauthd
+SOCKETDIR = /run/saslauthd
 PAM_SERVICE = imap
 ```
 
@@ -86,7 +86,7 @@ PAM_SERVICE = imap
 
 **Key Settings:**
 ```conf
-SOCKETDIR=/var/run/saslauthd
+SOCKETDIR=/run/saslauthd
 MECH=pam
 FLAGS="-r"
 ```
