@@ -712,7 +712,70 @@ class TestNotificationConfigQueries(unittest.TestCase):
 
             query = cursor.execute.call_args[0][0]
             self.assertIn("mailbox_name", query)
-            self.assertIn("message_config", query)
+            self.assertIn("postoffice.mailbox", query)
+
+    def test_is_enabled_per_member_override(self):
+        """Per-member row in postoffice.mailbox_member wins over mailbox default."""
+        args = Mock(debug=False)
+        conn = MagicMock()
+        cursor = MagicMock()
+        # First fetchone: per-member override row exists.
+        # Second fetchone (fallback): should not be reached because row is truthy.
+        member_row = (True, False, False, False)
+        cursor.fetchone.return_value = member_row
+        cursor.__enter__ = MagicMock(return_value=cursor)
+        cursor.__exit__ = MagicMock(return_value=False)
+        conn.cursor.return_value = cursor
+
+        with patch("postoffice.message_client.lib.get_db_connection") as mock_get_conn:
+            mock_get_conn.return_value = (conn, False)
+
+            result = message_client.is_event_enabled(
+                args,
+                "shared/support@example.com",
+                "message-new",
+                member_moniker="jam",
+            )
+
+            self.assertTrue(result)
+            # The first executed query should hit the mailbox_member view.
+            first_query = cursor.execute.call_args_list[0][0][0]
+            self.assertIn("postoffice.mailbox_member", first_query)
+            self.assertIn("member_moniker", first_query)
+
+    def test_is_enabled_falls_back_to_mailbox_default(self):
+        """No per-member row -> fall back to postoffice.mailbox defaults."""
+        args = Mock(debug=False)
+        conn = MagicMock()
+        cursor = MagicMock()
+        # First fetchone: per-member row absent (None). Second: mailbox default.
+        default_row = (False, True, False, False)
+        cursor.fetchone.side_effect = [None, default_row]
+        cursor.__enter__ = MagicMock(return_value=cursor)
+        cursor.__exit__ = MagicMock(return_value=False)
+        conn.cursor.return_value = cursor
+
+        with patch("postoffice.message_client.lib.get_db_connection") as mock_get_conn:
+            mock_get_conn.return_value = (conn, False)
+
+            result = message_client.is_event_enabled(
+                args,
+                "shared/support@example.com",
+                "message-claimed",
+                member_moniker="jam",
+            )
+
+            self.assertTrue(result)
+            # The second executed query should hit the per-mailbox view.
+            queries = [c[0][0] for c in cursor.execute.call_args_list]
+            self.assertTrue(
+                any("postoffice.mailbox_member" in q for q in queries),
+                "expected a mailbox_member query in the fallback path",
+            )
+            self.assertTrue(
+                any("postoffice.mailbox\"" in q or "postoffice.mailbox " in q or q.strip().endswith("FROM postoffice.mailbox\nWHERE mailbox_name = %s") for q in queries),
+                "expected a postoffice.mailbox fallback query",
+            )
 
 
 class TestConnectionCleanup(unittest.TestCase):
