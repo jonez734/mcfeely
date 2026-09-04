@@ -306,7 +306,7 @@ If a user accesses the server via SSH key only (no password), PAM auth will fail
    ```sql
    postoffice.mailbox_password (
        memberid     -- FK to engine.__member
-       address      -- FK to postoffice.mailbox
+       address      -- FK to postoffice.__address
        password     -- encrypted password
        kind         -- 'inbound', 'outbound', or 'imap'
    )

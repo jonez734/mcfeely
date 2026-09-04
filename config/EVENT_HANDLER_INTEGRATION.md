@@ -67,7 +67,7 @@ This tells Cyrus to send events to an external handler script instead of just lo
                        │
 ┌──────────────────────▼──────────────────────────────────────┐
 │ Step 6: message_client.py Processing                        │
-│ • Checks message_config (enabled?)                     │
+│ • Checks mailbox (enabled?)                     │
 │ • Queries message_routing (pattern match)              │
 │ • Obfuscates actor moniker (HMAC-SHA256)                    │
 │ • Constructs event payload JSON                             │
@@ -193,8 +193,9 @@ To enable event routing, configure the database:
 ### 1. Create Notification Config
 
 ```sql
-INSERT INTO postoffice.message_config
+INSERT INTO postoffice.__mailbox
 (mailbox_name, enable_new_message_events, imap_poll_interval_seconds)
+   -- writes go to the underlying table; reads use postoffice.mailbox (view)
 VALUES 
   ('shared/%', TRUE, 5),
   ('shared/support@%', TRUE, 2);

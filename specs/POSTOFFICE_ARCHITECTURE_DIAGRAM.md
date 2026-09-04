@@ -180,7 +180,7 @@ DATABASE LAYER
 │   ├─ inbound_password (encrypted)                           │
 │   └─ outbound_password (encrypted)                          │
 │                                                              │
-│ postoffice.mailbox                                          │
+│ postoffice.__address                                          │
 │   ├─ id                                                     │
 │   ├─ address (email address)                                │
 │   ├─ enabled                                                │
@@ -211,7 +211,7 @@ DATABASE LAYER
 │   ├─ condition                                              │
 │   └─ action                                                 │
 │                                                              │
-│ postoffice.message_config                              │
+│ postoffice.__address                              │
 │   ├─ mailbox_id                                             │
 │   └─ poll_interval_seconds                                  │
 │                                                              │

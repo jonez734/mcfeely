@@ -24,7 +24,7 @@ A basic IMAP client for shared Cyrus mailboxes, integrated with bbsengine6's not
 
 | Table | Schema | Purpose |
 |-------|--------|---------|
-| `postoffice.mailbox` | postoffice | Individual user mailboxes (user.jam) |
+| `postoffice.__address` | postoffice | Individual user mailboxes (user.jam) |
 | `postoffice.mailbox_password` | postoffice | Mailbox authentication passwords |
 | `postoffice.shared_mailbox` | postoffice | Shared team mailboxes (shared/support) |
 | `public.__message` | public | Message metadata and claim tracking |
@@ -242,7 +242,7 @@ For comprehensive documentation including SQL schema, implementation notes, and 
 - User detection from OS login via `getcurrentmoniker()`
 - SYSOP flag detection from `engine.map_member_flag`
 - Interactive prompt for admin access
-- Account creation (engine.__member + postoffice.mailbox)
+- Account creation (engine.__member + postoffice.__address)
 - Shared mailbox management
 - Message claim tracking in `public.__message`
 - Screen initialization with termios error handling

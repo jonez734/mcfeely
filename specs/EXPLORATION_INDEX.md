@@ -110,12 +110,13 @@ This index provides a roadmap to all analysis documents created during the explo
 4. **Member passwords** - Handled by bbsengine6 auth system
 
 ### Database Tables (6 Core)
-1. `postoffice.mailbox` - Define shared mailboxes
+1. `postoffice.__address` - Define per-user mailboxes
 2. `postoffice.mailbox_password` - User credentials (ENCRYPTED)
 3. `postoffice.__message` - Message claim tracking
 4. `postoffice.virtual` - Virtual mailbox rules
 5. `postoffice.message_routing` - Event routing rules
-6. `postoffice.message_config` - Per-mailbox settings
+6. `postoffice.mailbox` (view) / `postoffice.__mailbox` (table) - Per-mailbox settings
+7. `postoffice.mailbox_member` (view) / `postoffice.__mailbox_member` (table) - Per-member overrides
 
 ### Authentication Flows (3 Levels)
 1. **System-level:** bbsengine6 member authentication
@@ -174,7 +175,7 @@ Database Schema:
     - message.sql
     - virtual.sql
     - message_routing.sql
-    - message_config.sql
+    - mailbox_view.sql
     - schema.sql
 
 Tests:

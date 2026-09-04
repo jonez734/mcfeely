@@ -50,7 +50,7 @@ User action (claim/unclaim message)
 imap_client.claim_message() / unclaim_message()
     ├─ Set Cyrus flag
     └─ Call message_client.fire_event()
-        ├─ Check if enabled (postoffice.message_config)
+        ├─ Check if enabled (postoffice.__address)
         ├─ Get routing rules (postoffice.message_routing - SQL LIKE)
         └─ For each recipient:
             └─ Call notify.send() (bbsengine6)
@@ -194,7 +194,7 @@ notify.send(
 
 **Database Schema (UNCHANGED)**
 - `postoffice.message_routing` - Still used for pattern matching
-- `postoffice.message_config` - Still used for per-mailbox settings
+- `postoffice.__address` - Still used for per-mailbox settings
 - `engine.__notify` - Same table (now shared with other systems)
 
 **Behavior (PRESERVED)**
@@ -262,7 +262,7 @@ VALUES
 ### Step 3: Configure Per-Mailbox Settings
 
 ```sql
-INSERT INTO postoffice.message_config
+INSERT INTO postoffice.__address
 (mailbox_name, enable_claimed_events, imap_poll_interval_seconds)
 VALUES
     ('shared/support@machine1.example.com', TRUE, 30);

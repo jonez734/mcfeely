@@ -338,7 +338,7 @@ Invoked from bbsengine6 menu system with standard args object.
 ```python
 # postoffice/lib.py
 def runmodule(args, modulename, **kw):
-    """Run submodule like 'postoffice.virtual' or 'postoffice.mailbox'"""
+    """Run submodule like 'postoffice.virtual' or 'postoffice.__address'"""
     x = f"postoffice.{modulename}"
     return module.runmodule(args, x, **kw)
 ```
@@ -346,7 +346,7 @@ def runmodule(args, modulename, **kw):
 **Main menu (main.py) uses:**
 ```python
 lib.runmodule(args, "virtual")    # Run postoffice.virtual
-lib.runmodule(args, "mailbox")    # Run postoffice.mailbox
+lib.runmodule(args, "mailbox")    # Run postoffice.__address
 ```
 
 ### 5.3 CLI Entry Points
@@ -735,7 +735,7 @@ Database
 │   └─ Default passwords for shared mailboxes
 ├─ postoffice.member_mailbox_password
 │   └─ Per-member overrides
-├─ postoffice.mailbox
+├─ postoffice.__address
 │   └─ Mailbox metadata
 ├─ postoffice.virtual
 │   └─ Virtual mailbox patterns
@@ -758,12 +758,12 @@ The POSTOFFICE_PASSWORD_KEY **must be identical** across:
 ### Database Schema
 
 Requires postoffice tables:
-- `postoffice.mailbox`
+- `postoffice.__address`
 - `postoffice.mailbox_password`
 - `postoffice.member_mailbox_password`
 - `postoffice.virtual`
 - `postoffice.message_routing`
-- `postoffice.message_config` (for monitoring intervals)
+- `postoffice.__address` (for monitoring intervals)
 
 ### Permissions
 

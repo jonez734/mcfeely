@@ -145,7 +145,7 @@ Core Components:
 
 Database Schema:
 - message_routing: Pattern-based routing rules
-- message_config: Per-mailbox configuration
+- mailbox: Per-mailbox configuration
 - notification_history: VIEW over engine.__notify
 
 Event Types:

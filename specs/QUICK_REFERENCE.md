@@ -29,11 +29,12 @@
 
 | File | Table(s) | Purpose |
 |------|----------|---------|
-| `mailbox.sql` | `postoffice.mailbox`, `postoffice.mailbox_password` | Define mailboxes & user access |
+| `mailbox.sql` | `postoffice.__address`, `postoffice.mailbox_password` | Define mailboxes & user access |
 | `message.sql` | `postoffice.__message` | Track claimed messages |
 | `virtual.sql` | `postoffice.virtual` | Virtual mailbox expansion rules |
 | `message_routing.sql` | `postoffice.message_routing` | Who gets notified for what events |
-| `message_config.sql` | `postoffice.message_config` | Per-mailbox event settings |
+| `mailbox_view.sql` | `postoffice.mailbox` (view) / `postoffice.__mailbox` (table) | Per-mailbox event settings |
+| `mailbox_member.sql` | `postoffice.mailbox_member` (view) / `postoffice.__mailbox_member` (table) | Per-member overrides |
 
 ---
 
@@ -122,7 +123,7 @@ imap_client.claim_message(
 
 ## Database Tables Summary
 
-### `postoffice.mailbox` - Shared Mailboxes
+### `postoffice.__address` - Per-User Mailboxes
 ```sql
 address TEXT PRIMARY KEY          -- "shared/support@machine1.example.com"
 maillocation TEXT                 -- Maildir location
@@ -151,7 +152,8 @@ enabled BOOLEAN
 
 **Example:** "When alice claims in shared/support%, notify bob as IMPORTANT"
 
-### `postoffice.message_config` - Per-Mailbox Settings
+### `postoffice.mailbox` - Per-Mailbox Settings (view)
+Backing table: `postoffice.__mailbox`.
 ```sql
 mailbox_name TEXT UNIQUE          -- Specific mailbox (no patterns)
 enable_new_message_events BOOLEAN -- Fire on new arrivals?
@@ -159,6 +161,18 @@ enable_claimed_events BOOLEAN     -- Fire on claim/unclaim?
 enable_flag_change_events BOOLEAN -- Fire on flag changes?
 enable_delete_events BOOLEAN      -- Fire on deletion?
 imap_poll_interval_seconds INT    -- How often to check (default 30)
+```
+
+### `postoffice.mailbox_member` - Per-Member Overrides (view)
+Backing table: `postoffice.__mailbox_member`. Coalesced against the parent
+mailbox defaults; members with no row here inherit the per-mailbox toggles.
+```sql
+mailbox_name TEXT                 -- FK -> __mailbox(mailbox_name)
+member_moniker CITEXT             -- FK -> engine.__member(moniker)
+enable_new_message_events BOOLEAN -- Override per-member
+enable_claimed_events BOOLEAN
+enable_flag_change_events BOOLEAN
+enable_delete_events BOOLEAN
 ```
 
 ---
@@ -219,7 +233,7 @@ BBS Menu → postoffice → mailbox → add
 └── Confirm: yes
 ```
 
-Result: Mailbox added to `postoffice.mailbox` and `postoffice.mailbox_password`
+Result: Mailbox added to `postoffice.__address` and `postoffice.mailbox_password`
 
 ### Add a Notification Route
 
@@ -235,17 +249,18 @@ Result: Bob gets notified (IMPORTANT) when Alice claims in shared/support
 ### Disable Event Type for a Mailbox
 
 ```sql
-UPDATE postoffice.message_config
+UPDATE postoffice.mailbox
 SET enable_new_message_events = FALSE
 WHERE mailbox_name = 'shared/support@machine1.example.com';
 ```
 
-Result: Stop firing message-new events for that mailbox (too noisy)
+Result: Stop firing message-new events for that mailbox (too noisy).
+Members can override via `postoffice.mailbox_member`.
 
 ### Change Polling Interval
 
 ```sql
-UPDATE postoffice.message_config
+UPDATE postoffice.mailbox
 SET imap_poll_interval_seconds = 60
 WHERE mailbox_name = 'shared/support@machine1.example.com';
 ```
@@ -341,7 +356,7 @@ imap_monitor.start_monitor()
 ```
 
 ### Events Not Firing
-1. Check `message_config.enabled = TRUE` for mailbox
+1. Check `mailbox (per-mailbox default).enabled = TRUE` for mailbox
 2. Check `message_routing` rules match mailbox pattern
 3. Check `message_routing.enabled = TRUE`
 4. Verify actor/recipient monikers exist in `engine.__member`

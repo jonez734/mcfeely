@@ -61,7 +61,7 @@ The address manager provides a generic system for managing email addresses acros
 ```
 1. User enters destination (e.g., jam@zoidtechnologies.com)
 2. System checks if destination exists:
-   - IMAP: Query postoffice.mailbox table
+   - IMAP: Query postoffice.__address table
    - Mailman: Check Mailman list exists (or skip if not configured)
 3. If destination NOT found:
    a. Display warning message
@@ -69,7 +69,7 @@ The address manager provides a generic system for managing email addresses acros
    c. If user declines: Abort Create/Update operation
    d. If user accepts:
       - Prompt for maillocation (default: INBOX)
-      - Create mailbox in postoffice.mailbox
+      - Create mailbox in postoffice.__address
       - If creation fails: Abort operation
 4. If destination found: Continue with Create/Update
 ```

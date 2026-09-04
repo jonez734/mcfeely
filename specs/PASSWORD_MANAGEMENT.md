@@ -36,7 +36,7 @@ CREATE TABLE postoffice.member_mailbox_password (
     set_by_moniker TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT fk_mailbox FOREIGN KEY (mailbox_id) REFERENCES postoffice.mailbox(id),
+    CONSTRAINT fk_mailbox FOREIGN KEY (mailbox_id) REFERENCES postoffice.__address(address),
     CONSTRAINT fk_member FOREIGN KEY (member_moniker) REFERENCES engine.__member(moniker),
     CONSTRAINT chk_password_type CHECK (password_type IN ('inbound', 'outbound')),
     UNIQUE(mailbox_id, member_moniker, password_type)

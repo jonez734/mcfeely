@@ -104,7 +104,7 @@ Errors: 0
 - ✅ sql/mailbox.sql - Mailbox tables
 - ✅ sql/message.sql - Message tables
 - ✅ sql/virtual.sql - Virtual mailbox tables
-- ✅ sql/message_config.sql - Notification configuration
+- ✅ sql/mailbox_view.sql - Notification configuration
 - ✅ sql/message_routing.sql - Notification routing
 
 ### Git Status

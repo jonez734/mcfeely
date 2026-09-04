@@ -404,12 +404,12 @@ SELECT * FROM engine.__member WHERE moniker='alice';
 -- Columns: ..., inbound_password, outbound_password, ...
 ```
 
-### postoffice.mailbox
+### postoffice.__address
 
 Mailbox metadata
 
 ```sql
-SELECT * FROM postoffice.mailbox;
+SELECT * FROM postoffice.__address;
 -- id, address, enabled, maillocation, memberid
 ```
 

@@ -260,7 +260,7 @@ inbound_password VARCHAR(ENCRYPTED)
 outbound_password VARCHAR(ENCRYPTED)
 ```
 
-### postoffice.mailbox
+### postoffice.__address
 Mailbox metadata
 ```sql
 id INT PRIMARY KEY

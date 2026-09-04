@@ -35,7 +35,7 @@
 │   ├── virtual.sql                   # Virtual mailbox rules
 │   ├── message.sql                   # Message claim tracking
 │   ├── message_routing.sql      # Event routing rules
-│   └── message_config.sql       # Per-mailbox event config
+│   └── mailbox_view.sql       # Per-mailbox event config
 ├── tests/                             # Test suite
 │   ├── test_imap_lib.py              # IMAP utility tests
 │   ├── test_imap_monitor.py          # Monitor daemon tests
@@ -71,7 +71,7 @@ User claims message in shared mailbox
     ↓
 imap_client.claim_message() sets Cyrus custom flag
     ↓
-message_client.fire_event() checks message_config
+message_client.fire_event() checks postoffice.__address (per-member: mailbox_member)
     ↓
 SQL pattern matching in message_routing table
     ↓
@@ -89,7 +89,7 @@ Other bbsengine6 systems consume: email, chat, in-app, webhooks, etc.
 **Threading Model:**
 - IMAP monitor runs as background daemon thread (started in startup.py)
 - Thread-safe state tracking with `threading.Lock()`
-- Configurable per-mailbox poll intervals via `message_config` table
+- Configurable per-mailbox poll intervals via `mailbox` table
 
 ---
 
@@ -107,9 +107,9 @@ Mistermcfeely uses **bbsengine6's member system** as the user/account model:
 
 Users connect to mistermcfeely through **multiple relation types**:
 
-#### A. Mailbox Ownership (`postoffice.mailbox`)
+#### A. Mailbox Ownership (`postoffice.__address`)
 ```sql
-CREATE TABLE postoffice.mailbox (
+CREATE TABLE postoffice.__address (
     address TEXT PRIMARY KEY,          -- e.g., "shared/support@machine1.example.com"
     maillocation TEXT NOT NULL,        -- e.g., "maildir:~jam"
     enabled BOOLEAN DEFAULT 't'
@@ -121,8 +121,8 @@ CREATE TABLE postoffice.mailbox (
 CREATE TABLE postoffice.mailbox_password (
     memberid BIGINT NOT NULL           -- FK: engine.__member(id)
         REFERENCES engine.__member(id),
-    address TEXT NOT NULL              -- FK: postoffice.mailbox(address)
-        REFERENCES postoffice.mailbox(address),
+    address TEXT NOT NULL              -- FK: postoffice.__address(address)
+        REFERENCES postoffice.__address(address),
     password TEXT NOT NULL,            -- Encrypted password
     enabled BOOLEAN DEFAULT 't',
     kind TEXT NOT NULL                 -- 'inbound' or 'outbound'
@@ -189,9 +189,9 @@ CREATE TABLE postoffice.message_routing (
 
 **Grant Structure:**
 ```sql
-GRANT SELECT ON postoffice.message_config TO web, term;
-GRANT SELECT, INSERT, UPDATE, DELETE ON postoffice.message_config TO sysop;
-GRANT SELECT ON postoffice.mailbox TO imapd;
+GRANT SELECT ON postoffice.__address TO web, term;
+GRANT SELECT, INSERT, UPDATE, DELETE ON postoffice.__address TO sysop;
+GRANT SELECT ON postoffice.__address TO imapd;
 ```
 
 ---
@@ -313,7 +313,7 @@ def obfuscate_moniker(moniker: str, secret: Optional[str] = None) -> str:
 
 ### Core Tables
 
-#### `postoffice.mailbox` - Shared Mailbox Definitions
+#### `postoffice.__address` - Shared Mailbox Definitions
 ```sql
 address TEXT PRIMARY KEY              -- e.g., "shared/support@machine1.example.com"
 maillocation TEXT NOT NULL            -- Maildir location, e.g., "maildir:~jam"
@@ -324,7 +324,7 @@ enabled BOOLEAN DEFAULT 't'           -- Enable/disable mailbox
 #### `postoffice.mailbox_password` - User-Mailbox Credentials
 ```sql
 memberid BIGINT NOT NULL              -- FK to engine.__member(id)
-address TEXT NOT NULL                 -- FK to postoffice.mailbox(address)
+address TEXT NOT NULL                 -- FK to postoffice.__address(address)
 password TEXT NOT NULL                -- Encrypted password
 enabled BOOLEAN DEFAULT 't'           -- Enable/disable this credential
 kind TEXT NOT NULL                    -- 'inbound' or 'outbound'
@@ -377,7 +377,7 @@ INSERT INTO postoffice.message_routing
 VALUES (NULL, 'shared/support%', 'message-claimed', 'bob', 'alice', NULL, 'IMPORTANT', 'engine', TRUE);
 ```
 
-#### `postoffice.message_config` - Per-Mailbox Event Settings
+#### `postoffice.__address` - Per-Mailbox Event Settings
 ```sql
 id BIGSERIAL PRIMARY KEY
 mailbox_name TEXT NOT NULL UNIQUE     -- Specific mailbox name (no patterns)
@@ -502,7 +502,7 @@ Access granted to shared mailbox
 
 **Role-Based Access Control (RBAC):**
 
-| Role | postoffice.mailbox | postoffice.message_routing | postoffice.message_config | postoffice.virtual |
+| Role | postoffice.__address | postoffice.message_routing | postoffice.__address | postoffice.virtual |
 |------|---|---|---|---|
 | **web** | SELECT | SELECT | SELECT | SELECT |
 | **term** | SELECT | SELECT | SELECT | SELECT |
@@ -512,7 +512,7 @@ Access granted to shared mailbox
 **Functional Authorization:**
 
 1. **Mailbox Listing**
-   - UI shows mailboxes (SELECT on postoffice.mailbox)
+   - UI shows mailboxes (SELECT on postoffice.__address)
    - Restricted to authenticated bbsengine6 users
 
 2. **Notification Routing**
