@@ -614,6 +614,17 @@ def startup_main(args, **kwargs) -> bool:
     return _work(conn)
 
 
+def main(args, **kwargs) -> bool:
+    """bbsengine6 module-conventional main entry.
+
+    Delegates to startup_main. Required so the bbsengine6 startup chain
+    can dispatch into postoffice.startup via runmodule(args, "startup",
+    package="postoffice") -- same shape as casino's startup chain
+    dispatching into casino.startup.checkcasino.
+    """
+    return startup_main(args, **kwargs)
+
+
 __all__ = [
     "get_encryption_key",
     "validate_encryption_key",
@@ -626,4 +637,5 @@ __all__ = [
     "access",
     "buildargs",
     "startup_main",
+    "main",
 ]

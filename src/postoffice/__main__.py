@@ -1419,6 +1419,15 @@ def main(args: Any, **kwargs):
         echo(version_postoffice(parsed))
         return True
 
+    # bbsengine6 startup chain (mirrors casino.__main__._run_direct).
+    # Runs the bbsengine6 stage_zero/stage_one startup which in turn
+    # chains into postoffice.startup.startup_main via the postoffice
+    # module's startup hook. Same shape as bin/casino.
+    from bbsengine6 import module as bbsengine6_module
+    if bbsengine6_module.runmodule(parsed, "startup", package="bbsengine6") is False:
+        echo("bbsengine6 startup failed", level="error")
+        return False
+
     # Route commands
     command_map = {
         "menu": handle_menu,
