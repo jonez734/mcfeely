@@ -7,8 +7,11 @@ create schema if not exists postoffice;
 -- User Mailboxes
 -- ============================================================================
 
--- Individual user mailboxes (e.g., user.jam, user.alice)
-create table if not exists postoffice.mailbox (
+-- Individual user mailboxes (e.g., user.jam, user.alice).
+-- Renamed postoffice.mailbox -> postoffice.__address as part of the
+-- "tables get __ prefix, views don't" convention; see mailbox_view.sql
+-- for the user-facing `mailbox` view.
+create table if not exists postoffice.__address (
     address text primary key unique not null,
     maillocation text not null,
     enabled boolean default true
@@ -28,9 +31,9 @@ create table if not exists postoffice.mailbox_password (
         foreign key (member_moniker) 
         references engine.__member(moniker) 
         on update cascade on delete cascade,
-    constraint fk_postoffice_map_mailbox_address 
-        foreign key (address) 
-        references postoffice.mailbox(address) 
+    constraint fk_postoffice_map_mailbox_address
+        foreign key (address)
+        references postoffice.__address(address)
         on update cascade on delete cascade
 );
 
@@ -87,10 +90,10 @@ create index if not exists idx_sasl_password_enabled
 -- ============================================================================
 
 -- Grant permissions to postoffice role
-grant all on postoffice.mailbox to postoffice;
+grant all on postoffice.__address to postoffice;
 grant all on postoffice.mailbox_password to postoffice;
 grant all on postoffice.shared_mailbox to postoffice;
 grant all on postoffice.sasl_password to postoffice;
 
 -- Grant read access to imapd role
-grant select on postoffice.mailbox to imapd;
+grant select on postoffice.__address to imapd;
