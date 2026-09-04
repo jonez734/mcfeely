@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=forking
 ExecStart=/usr/sbin/saslauthd -a pam -r
-PIDFile=/var/run/saslauthd/saslauthd.pid
+PIDFile=/run/saslauthd/saslauthd.pid
 RuntimeDirectory=saslauthd
 
 [Install]

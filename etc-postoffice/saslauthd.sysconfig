@@ -2,7 +2,7 @@
 # Location: /etc/sysconfig/saslauthd (RHEL/CentOS) or /etc/default/saslauthd (Debian)
 
 # Socket directory for saslauthd communication
-SOCKETDIR=/var/run/saslauthd
+SOCKETDIR=/run/saslauthd
 
 # Run as this user (create cyrus user first)
 # MECH=pam will use PAM for authentication
