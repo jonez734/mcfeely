@@ -23,7 +23,7 @@ IMAP Client → Cyrus IMAP → saslauthd → postoffice-authd → PostgreSQL (sa
 ### Components
 
 1. **postoffice-authd** - Custom SASL auth daemon
-   - Listens on `/var/run/postoffice-authd/mux` (UNIX socket)
+   - Listens on `/run/postoffice-authd/mux` (UNIX socket)
    - Queries `postoffice.sasl_password` for SHA-512 crypt hashes
    - Falls back to PAM if user not in database
 
@@ -33,7 +33,7 @@ IMAP Client → Cyrus IMAP → saslauthd → postoffice-authd → PostgreSQL (sa
 
 3. **saslauthd** - Routes auth to postoffice-authd
    - Mechanism: `authdaemond`
-   - Path: `/var/run/postoffice-authd/mux`
+   - Path: `/run/postoffice-authd/mux`
 
 ### Configuration Files
 
@@ -148,8 +148,8 @@ tls_key: /etc/pki/cyrus/imapd.pem
 ### Create necessary directories
 
 ```bash
-mkdir -p /var/lib/imap /var/spool/imap /var/run/cyrus
-chown cyrus:cyrus /var/lib/imap /var/spool/imap /var/run/cyrus
+mkdir -p /var/lib/imap /var/spool/imap /run/cyrus
+chown cyrus:cyrus /var/lib/imap /var/spool/imap /run/cyrus
 chmod 750 /var/lib/imap /var/spool/imap
 ```
 

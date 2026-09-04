@@ -151,7 +151,7 @@ fallback_pam = yes
 pam_service = imap
 
 [socket]
-path = /var/run/postoffice-authd/mux
+path = /run/postoffice-authd/mux
 
 [logging]
 level = INFO
@@ -159,7 +159,7 @@ syslog = yes
 ```
 
 #### 3.4 Daemon Behavior
-1. Listen on UNIX socket (`/var/run/postoffice-authd/mux`)
+1. Listen on UNIX socket (`/run/postoffice-authd/mux`)
 2. For each request (fork-per-request):
    - Parse authdaemon protocol
    - Query `postoffice.sasl_password` for user's crypt hash
@@ -184,7 +184,7 @@ syslog = yes
 MECHANISMS = authdaemond
 
 # Path to postoffice-authd socket
-AUTHDAEMOND_PATH = /var/run/postoffice-authd/mux
+AUTHDAEMOND_PATH = /run/postoffice-authd/mux
 
 # Fallback to PAM if user not in database
 FLAGS = "-r"
@@ -201,7 +201,7 @@ FLAGS = "-r"
 ```conf
 # SASL authentication
 sasl_pwcheck_method: saslauthd
-saslauthd_path: /var/run/saslauthd/mux
+saslauthd_path: /run/saslauthd/mux
 ```
 
 #### 4.3 Update `etc-postoffice/pam.d-imap`
