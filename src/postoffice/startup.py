@@ -567,13 +567,15 @@ def startup_main(args, **kwargs) -> bool:
 
         # --- classes in dependency order ---
         classes = (
-            ("postoffice.mailbox", "mailbox.sql"),
+            ("postoffice.__address", "mailbox.sql"),
             ("postoffice.shared_mailbox", "shared_mailbox.sql"),
             ("postoffice.virtual", "virtual.sql"),
             ("postoffice.__message", "message.sql"),
             ("postoffice.member_mailbox_password", "member_mailbox_password.sql"),
             ("postoffice.message_routing", "message_routing.sql"),
-            ("postoffice.message_config", "message_config.sql")
+            ("postoffice.__mailbox", "mailbox_config.sql"),
+            ("postoffice.mailbox", "mailbox_view.sql"),
+            ("postoffice.__mailbox_member", "mailbox_member.sql")
         )
 
         failcount = 0

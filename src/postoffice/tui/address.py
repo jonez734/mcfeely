@@ -97,7 +97,7 @@ def _create_mailbox(args: Any, pool: Any, address: str) -> bool:
     maillocation = inputstring("Mail location (default: INBOX): ", args=args) or "INBOX"
 
     sql = """
-        INSERT INTO postoffice.mailbox (address, maillocation, enabled, datecreated, dateupdated)
+        INSERT INTO postoffice.__address (address, maillocation, enabled, datecreated, dateupdated)
         VALUES (%s, %s, true, NOW(), NOW())
         ON CONFLICT (address) DO UPDATE SET
             maillocation = EXCLUDED.maillocation,
@@ -128,7 +128,7 @@ def _mailbox_exists(args: Any, pool: Any, destination: str) -> bool:
         return False
 
     sql = (
-        "SELECT 1 FROM postoffice.mailbox WHERE address = %s AND enabled = true LIMIT 1"
+        "SELECT 1 FROM postoffice.__address WHERE address = %s AND enabled = true LIMIT 1"
     )
 
     try:

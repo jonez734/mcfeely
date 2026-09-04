@@ -79,15 +79,29 @@ def verify_claim_flag(flag: str, moniker: str, secret: Optional[str] = None) -> 
 # --- Event Configuration ---
 
 
-def is_event_enabled(args, mailbox_name: str, event_type: str, **kwargs) -> bool:
+def is_event_enabled(
+    args,
+    mailbox_name: str,
+    event_type: str,
+    member_moniker: Optional[str] = None,
+    **kwargs,
+) -> bool:
     """
-    Check if event is enabled for mailbox via postoffice.notification_config.
-    Defaults to True if no config exists (no config = all events enabled).
+    Check if event is enabled for (mailbox, member) via postoffice.mailbox_member
+    with fallback to postoffice.mailbox defaults. Defaults to True when no
+    config exists (no config = all events enabled).
+
+    Resolution:
+      * If member_moniker is provided, prefer the per-member override row
+        from postoffice.mailbox_member.
+      * If no override row exists, or member_moniker is None, fall back to
+        the per-mailbox default in postoffice.mailbox.
 
     Args:
         args: bbsengine6 args object
         mailbox_name: Mailbox name
         event_type: Event type
+        member_moniker: Member whose config to check (None -> mailbox default)
         **kwargs: Optional - conn (database connection), pool (connection pool)
     """
     use_conn, should_close = lib.get_db_connection(args, **kwargs)
@@ -97,18 +111,31 @@ def is_event_enabled(args, mailbox_name: str, event_type: str, **kwargs) -> bool
 
     try:
         with database.cursor(use_conn) as cur:
-            cur.execute(
-                """
-                SELECT enable_new_message_events, enable_claimed_events,
-                       enable_flag_change_events, enable_delete_events
-                FROM postoffice.message_config
-                WHERE mailbox_name = %s
-                """,
-                [mailbox_name],
-            )
-            row = cur.fetchone()
+            row = None
+            if member_moniker:
+                cur.execute(
+                    """
+                    SELECT enable_new_message_events, enable_claimed_events,
+                           enable_flag_change_events, enable_delete_events
+                    FROM postoffice.mailbox_member
+                    WHERE mailbox_name = %s AND member_moniker = %s
+                    """,
+                    [mailbox_name, member_moniker],
+                )
+                row = cur.fetchone()
             if not row:
-                return True  # Default to enabled
+                cur.execute(
+                    """
+                    SELECT enable_new_message_events, enable_claimed_events,
+                           enable_flag_change_events, enable_delete_events
+                    FROM postoffice.mailbox
+                    WHERE mailbox_name = %s
+                    """,
+                    [mailbox_name],
+                )
+                row = cur.fetchone()
+            if not row:
+                return True  # No config at all -> default to enabled
 
             enable_new, enable_claimed, enable_flagged, enable_deleted = row
 
@@ -343,8 +370,14 @@ def fire_event(
         return False
 
     try:
-        # Check if event is enabled for this mailbox
-        if not is_event_enabled(args, mailbox_name, event_type, conn=use_conn):
+        # Check if event is enabled for this mailbox (per-member override if actor_moniker)
+        if not is_event_enabled(
+            args,
+            mailbox_name,
+            event_type,
+            member_moniker=actor_moniker,
+            conn=use_conn,
+        ):
             if getattr(args, "debug", False):
                 io.echo(
                     f"message_client.fire_event: event disabled: {mailbox_name} / {event_type}",

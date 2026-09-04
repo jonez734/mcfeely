@@ -292,7 +292,7 @@ def _phase_mailboxes(args, pool) -> bool:
         with database.connect(args, pool=pool) as conn:
             with database.cursor(conn) as cur:
                 cur.execute(
-                    "SELECT address FROM postoffice.mailbox WHERE address=%s",
+                    "SELECT address FROM postoffice.__address WHERE address=%s",
                     (moniker,),
                 )
                 row = cur.fetchone()
@@ -305,7 +305,7 @@ def _phase_mailboxes(args, pool) -> bool:
                     address = moniker
                     cur.execute(
                         """
-                        INSERT INTO postoffice.mailbox (address, maillocation, enabled)
+                        INSERT INTO postoffice.__address (address, maillocation, enabled)
                         VALUES (%s, %s, %s)
                         """,
                         (address, f"maildir:~{moniker}/Maildir", True),

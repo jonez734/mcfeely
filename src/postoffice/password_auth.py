@@ -115,7 +115,7 @@ def _get_shared_mailbox_default_password(
 
     sql = """
         SELECT password FROM postoffice.mailbox_password
-        WHERE address = (SELECT address FROM postoffice.mailbox WHERE id = %s)
+        WHERE address = (SELECT address FROM postoffice.__address WHERE address = %s)
         AND kind = %s
     """
     dat = (mailbox_id, kind_value)

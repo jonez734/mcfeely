@@ -143,7 +143,7 @@ def _editmailbox(args, mailbox, mode="NEEDINFO"):
 
 
 def summary(args):
-    sql = "select * from postoffice.mailbox"
+    sql = "select * from postoffice.__address"
     dat = ()
     dbh = database.connect(args)
     cur = dbh.cursor()
@@ -182,7 +182,7 @@ def add(args):
             del _mailbox["password"]
             dbh = database.connect(args)
             address = database.insert(
-                args, "postoffice.mailbox", _mailbox, primarykey="address", mogrify=True
+                args, "postoffice.__address", _mailbox, primarykey="address", mogrify=True
             )
             encryptedpassword = util.getencryptedpassword(args, plaintextpassword)
 

@@ -263,7 +263,7 @@ def get_member_mailboxes(args: Any, member_moniker: str) -> List[Dict[str, Any]]
     """
     sql = """
         SELECT DISTINCT mb.address, COUNT(mmp.id) as password_count
-        FROM postoffice.mailbox mb
+        FROM postoffice.__address mb
         INNER JOIN postoffice.member_mailbox_password mmp
             ON mb.address = mmp.mailbox_address
         WHERE mmp.member_moniker = %s

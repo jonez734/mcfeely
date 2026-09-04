@@ -47,7 +47,7 @@ class IMAPMonitor:
 
     Design:
     - Run as background thread or periodic task
-    - Poll at intervals defined in postoffice.message_config
+    - Poll at intervals defined in postoffice.mailbox
     - Track UIDs and flags per mailbox
     - Handle UID validity changes (mailbox reset)
     - Graceful error handling (continue on connection errors)
@@ -403,7 +403,7 @@ class IMAPMonitor:
                     cur.execute(
                         """
                         SELECT imap_poll_interval_seconds
-                        FROM postoffice.message_config
+                        FROM postoffice.mailbox
                         WHERE mailbox_name = %s
                         """,
                         [mailbox_name],
