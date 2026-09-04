@@ -630,7 +630,7 @@ def handle_menu(args: argparse.Namespace) -> int:
                 echo_traceback("Terminal error during message interface")
             try:
                 result = _message_interface_run(args, current_user, pool=pool)
-                if result != 0:
+                if result not in (0, 2):
                     return result
             except KeyboardInterrupt:
                 echo("{/all}*INTR*")
