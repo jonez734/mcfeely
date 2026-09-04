@@ -6,4 +6,6 @@
 \i virtual.sql
 \i message.sql
 \i message_routing.sql
-\i message_config.sql
+\i mailbox_config.sql
+\i mailbox_view.sql
+\i mailbox_member.sql
