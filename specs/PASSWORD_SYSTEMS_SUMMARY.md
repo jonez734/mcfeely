@@ -1,5 +1,30 @@
 # Password Systems Summary
 
+> **Note [2026-10-09]:** This is the surviving `PASSWORD_*` spec
+> in this repo. The following sibling specs were deleted on
+> 2026-10-09 because they were duplicates or historical
+> migration notes superseded by `ARCHITECTURE_MIGRATION.md`
+> and the live code:
+> - `specs/PASSWORD_FUNCTIONS_MOVED.md` (135 lines, migration
+>   note superseded by `ARCHITECTURE_MIGRATION.md`)
+> - `specs/PASSWORD_SYSTEMS_EXPLAINED.md` (307 lines, "two
+>   systems" overview, outdated; this file has the post-SHA-512
+>   "three systems" view)
+> - `specs/PASSWORD_MANAGEMENT.md` (490 lines, had stale
+>   `postoffice.member_mailbox_password` table name)
+> - `specs/PLUGGABLE_ARCHITECTURE.md` (391 lines, Strategy
+>   pattern description superseded by live code)
+> - `specs/REFACTORING_SUMMARY.md` (312 lines, 2026-05
+>   refactoring summary; content is in the per-topic
+>   live code and `ARCHITECTURE_MIGRATION.md`)
+> - `specs/FINAL_SUMMARY.md` (367 lines, "complete
+>   implementation" title was wrong; the system has been
+>   refactored twice since)
+>
+> The table-name fix in this pass: `postoffice.member_mailbox_password`
+> is renamed to `postoffice.mailbox_password` + `postoffice.mailbox_member`
+> per commit `9df06ac` (the 2026-09 mailbox_config split).
+
 ## Three-System Architecture
 
 The system now uses **three complementary password systems**:
@@ -123,7 +148,11 @@ ALTER TABLE engine.__member ADD COLUMN outbound_password TEXT;
 ### Shared Mailbox Credentials (AES-256-GCM)
 
 ```sql
-CREATE TABLE postoffice.member_mailbox_password (
+-- Renamed from postoffice.member_mailbox_password in commit 9df06ac;
+-- the table was split into mailbox_password (per-moniker credentials)
+-- + mailbox_member (per-mailbox membership). See sql/mailbox_config.sql.
+CREATE TABLE postoffice.mailbox_password (
+    moniker TEXT PRIMARY KEY,
     encrypted_password TEXT NOT NULL,  -- base64(nonce + cipher + tag)
     -- ... other columns
 );
