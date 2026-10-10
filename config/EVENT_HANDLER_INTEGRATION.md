@@ -76,7 +76,7 @@ This tells Cyrus to send events to an external handler script instead of just lo
 ┌──────────────────────▼──────────────────────────────────────┐
 │ Step 7: Route to Recipients                                 │
 │ For each matching rule in message_routing:             │
-│ • Insert into engine.__notify (async)                       │
+│ • Call bbsengine6.message.send (async)                       │
 │ • Set urgency, recipient_moniker, etc.                      │
 └──────────────────────┬──────────────────────────────────────┘
                        │
@@ -329,7 +329,7 @@ When a message is claimed, the event payload contains:
 }
 ```
 
-This is inserted into `bbsengine6.engine.__notify` for distribution to:
+This is delivered via `bbsengine6.message` for distribution to:
 - Email notifier
 - Chat/Slack integration
 - Dashboard updates
@@ -360,7 +360,7 @@ The script integrates with:
 1. **Non-blocking**: Handler is called asynchronously by notifyd
 2. **Graceful degradation**: Errors in handler don't crash Cyrus
 3. **Filtered**: Only shared/* mailboxes are processed
-4. **Async insertion**: Events inserted into engine.__notify asynchronously
+4. **Async delivery**: Events sent via bbsengine6.message asynchronously
 5. **Syslog buffering**: Log messages are buffered by syslog daemon
 
 ## Security
@@ -422,7 +422,7 @@ The script integrates with:
 The Cyrus IMAPd configuration now provides **real-time event routing** from mailbox changes directly to mistermcfeely's notification system. This enables:
 
 1. **Real-time notifications** when messages are claimed/unclaimed
-2. **Integration with bbsengine6.__notify** for multi-channel distribution
+2. **Integration with bbsengine6.message** for multi-channel distribution
 3. **Flexible routing** based on message_routing database rules
 4. **Secure event handling** with obfuscated actor identity
 5. **Graceful degradation** if mistermcfeely unavailable

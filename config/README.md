@@ -304,7 +304,7 @@ User "alice" claims message UID 423:
   │
   ├─ Cyrus stores annotation in /var/lib/imap/annotation.db
   │
-  ├─ notifyd fires event to bbsengine6.__notify
+  ├─ notifyd fires event via bbsengine6.message.send
   │  └─ event_type: "message-claimed"
   │     mailbox_name: "shared/support@example.com"
   │     message_uid: 423

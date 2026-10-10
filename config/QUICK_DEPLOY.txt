@@ -237,7 +237,7 @@ WHAT HAPPENS WHEN YOU SEND A MESSAGE
   8. mcfeely-notify calls message_client.fire_event()
   9. message_client checks postoffice.mailbox (per-member: mailbox_member)
   10. message_client loads message_routing rules
-  11. For each matching rule, inserts into engine.__notify
+  11. For each matching rule, calls bbsengine6.message.send
   12. External systems (email, chat, dashboard) consume event
 
 

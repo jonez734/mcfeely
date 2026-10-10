@@ -413,7 +413,7 @@ The imapd.conf has been UPDATED to use external notifier for mistermcfeely:
   event_notifier_path: /usr/local/bin/mcfeely-notify
 
 This integrates Cyrus's built-in notifyd with mistermcfeely's message_client.py,
-enabling real-time event routing to bbsengine6.__notify.
+enabling real-time event routing via bbsengine6.message.
 
 ════════════════════════════════════════════════════════════════════════════
 
@@ -456,7 +456,7 @@ After deploying Cyrus configuration, install the event handler script:
         ↓
   Converts Cyrus event class to mistermcfeely event type
         ↓
-  Fires event to bbsengine6.__notify via message_client.fire_event()
+  Fires event via bbsengine6.message.send through message_client.fire_event()
         ↓
   Routes to recipients based on postoffice.message_routing
         ↓
@@ -500,7 +500,7 @@ How it works:
   4. Filters events (only processes shared/* mailboxes)
   5. Converts Cyrus event class to mistermcfeely event type
   6. Calls mistermcfeely.message_client.fire_event()
-  7. Routes to recipients via bbsengine6.__notify
+  7. Routes to recipients via bbsengine6.message
   8. Logs all events to syslog
 
 Error Handling:
@@ -559,12 +559,12 @@ With these changes, Cyrus IMAPd now:
 
   ✓ Generates real-time events for shared mailbox changes
   ✓ Routes events to mistermcfeely via external handler
-  ✓ Integrates with bbsengine6.__notify for event distribution
+  ✓ Integrates with bbsengine6.message for event distribution
   ✓ Supports all mistermcfeely event types
   ✓ Logs events to syslog for monitoring
   ✓ Gracefully handles errors and missing dependencies
 
 This enables complete end-to-end event flow:
-  Cyrus Event → mcfeely-notify → message_client → bbsengine6.__notify → subscribers
+  Cyrus Event → mcfeely-notify → message_client → bbsengine6.message → subscribers
 
 ════════════════════════════════════════════════════════════════════════════
