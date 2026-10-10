@@ -339,7 +339,7 @@ python -m pytest tests/
 ### Test Coverage
 - **29 IMAP lib tests** - Connection, header parsing, flag detection
 - **20 IMAP monitor tests** - Polling, message detection, state tracking
-- **20 NotifyD tests** - Event routing, obfuscation, rendering
+- **20 message client integration tests** - Event routing, obfuscation, rendering (renamed from test_notifyd_integration.py per 5ca992e)
 - **24 Integration tests** - End-to-end workflows
 
 **Result:** 93/93 passing (100%)

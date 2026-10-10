@@ -34,7 +34,12 @@ imap        cmd="imapd -U 30" listen="imap" prefork=0 maxchild=100
 imaps       cmd="imapd -s -U 30" listen="imaps" prefork=0 maxchild=100
 lmtp        cmd="lmtpd -U 30" listen="lmtp" prefork=0 maxchild=20
 sieve       cmd="timsieved" listen="sieve" prefork=0 maxchild=10
-notify      cmd="notifyd" listen="/var/lib/imap/notify" prefork=1
+# notifyd is commented out in the deployed etc-postoffice/cyrus.conf:35
+# (mcfeely's live deployment polls via the in-process mailbox_poller
+# in src/postoffice/services/mailbox_poller.py; the event-bridge
+# notifyd path is not deployed. See MCFEELY_CYRUS_IMAP.md for the
+# alternative architecture.)
+# notify      cmd="notifyd" listen="/var/lib/imap/notify" prefork=1
 ```
 
 #### 2. **imapd.conf** - IMAP Daemon Configuration
@@ -304,7 +309,12 @@ User "alice" claims message UID 423:
   │
   ├─ Cyrus stores annotation in /var/lib/imap/annotation.db
   │
-  ├─ notifyd fires event via bbsengine6.message.send
+  ├─ mail_poller picks up flag change (in-process polling;
+  │  the Cyrus notifyd event-bridge is NOT used in the live
+  │  deployment; see etc-postoffice/cyrus.conf:35 where the
+  │  `notify` service is commented out and
+  │  etc-postoffice/imapd.conf where event_notifier is not
+  │  set to external)
   │  └─ event_type: "message-claimed"
   │     mailbox_name: "shared/support@example.com"
   │     message_uid: 423

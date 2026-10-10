@@ -109,7 +109,12 @@ Services {
   imaps       cmd="imapd -s" listen="imaps" prefork=0
   sieve       cmd="timsieved" listen="sieve" prefork=0
   lmtp        cmd="lmtpd" listen="lmtp" prefork=0
-  notify      cmd="notifyd" listen="/var/lib/imap/notify" prefork=1
+  # notifyd is commented out in the deployed etc-postoffice/cyrus.conf:35;
+  # the live deployment polls via the in-process mailbox_poller in
+  # src/postoffice/services/mailbox_poller.py. The notifyd event-bridge
+  # is the alternative architecture documented in 'Real-time Events with
+  # notifyd' below; it is not deployed in the production mcfeely setup.
+  # notify      cmd="notifyd" listen="/var/lib/imap/notify" prefork=1
 }
 
 # Event daemon for annotations
@@ -415,6 +420,18 @@ setacl user.help charlie lrsdwa
 See [MCFEELY_SIEVE.md](../MCFEELY_SIEVE.md) for detailed Sieve configuration and claim header insertion strategies.
 
 ## Real-time Events with notifyd
+
+> **Note [2026-10-09]:** The architecture below describes the
+> `mcfeely-notify` event-bridge alternative. The production
+> mcfeely deployment does **not** use this architecture; the
+> live system polls via the in-process `mailbox_poller` in
+> `src/postoffice/services/mailbox_poller.py`, and the
+> `notify` service is commented out in
+> `etc-postoffice/cyrus.conf:35`. The `event_notifier: external`
+> line in `etc-postoffice/imapd.conf:224` is also not used by
+> the live mailbox_poller. This section is preserved as a
+> reference for the alternative architecture and for operators
+> who want to switch.
 
 Cyrus's `notifyd` can be used for real-time event notifications when messages change in the mailbox. This is an alternative to polling the mcfeely daemon API.
 
