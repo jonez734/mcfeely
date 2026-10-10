@@ -58,7 +58,7 @@ help:
 	@echo ""
 	@echo "  install-sysusers   Create postoffice user and group via systemd-sysusers"
 	@echo "  uninstall-sysusers Remove sysusers.d/postoffice.conf"
-	@echo "  install-tmpfiles   Create /var/lib/postoffice and /var/run/postoffice-authd via systemd-tmpfiles"
+	@echo "  install-tmpfiles   Create /var/lib/postoffice and /run/postoffice-authd via systemd-tmpfiles"
 	@echo "  uninstall-tmpfiles Remove tmpfiles.d/postoffice.conf"
 	@echo "  install-venv       Build bbsengine6 + $(DIST_NAME) wheels and pip install into \$$VIRTUAL_ENV"
 	@echo "  uninstall-venv     N/A — wheel installs are removed by 'pip uninstall' (no shared venv)"
