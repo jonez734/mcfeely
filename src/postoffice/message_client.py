@@ -188,9 +188,9 @@ def get_routing_rules(
 
     Returns list of dicts with:
     - recipient_moniker: who gets notified
-    - notification_type: template type for engine.__notify
+    - notification_type: template type for bbsengine6.message
     - urgency: ROUTINE, IMPORTANT, URGENT, CRITICAL
-    - delivery_method: 'engine' (engine.__notify) or future: 'email', 'chat'
+    - delivery_method: 'message' (bbsengine6.message) or future: 'email', 'chat'
     """
     use_conn, should_close = lib.get_db_connection(args, **kwargs)
 
@@ -301,8 +301,8 @@ def _fire_event_fallback(
     """
     Fallback event firing if the bbsengine6.message transport is unavailable.
 
-    Routes through bbsengine6.message.send (post-migration; the legacy
-    engine.__notify schema is gone). The rendered message is passed as
+    Routes through bbsengine6.message.send (the post-migration transport;
+    the legacy engine.__notify schema is gone). The rendered message is passed as
     the template body; the message system stores it as ``content``
     after rendering.
     """
@@ -407,7 +407,7 @@ def fire_event(
             try:
                 # Route through bbsengine6.message (the unified message
                 # transport; the post-migration replacement for the
-                # deleted bbsengine6.notify package). The rendered
+                # legacy bbsengine6.notify package). The rendered
                 # message is used as the template body so the message
                 # system stores it as content after rendering.
                 _message_send(

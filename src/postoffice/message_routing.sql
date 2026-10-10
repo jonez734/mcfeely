@@ -13,7 +13,7 @@ CREATE TABLE postoffice.message_routing (
     recipient_moniker CITEXT NOT NULL,       -- Who gets notified
     notification_type TEXT,                -- Template type (optional, auto-generated if NULL)
     urgency TEXT DEFAULT 'ROUTINE',        -- ROUTINE, IMPORTANT, URGENT, CRITICAL
-    delivery_method TEXT DEFAULT 'engine', -- 'engine' (engine.__notify) or future: 'email', 'chat'
+    delivery_method TEXT DEFAULT 'message', -- 'message' (bbsengine6.message) or future: 'email', 'chat'
     enabled BOOLEAN DEFAULT TRUE,
     datecreated TIMESTAMPTZ DEFAULT NOW(),
     dateupdated TIMESTAMPTZ DEFAULT NOW(),
