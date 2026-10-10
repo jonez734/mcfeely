@@ -1,5 +1,28 @@
 # Postoffice TUI Quick Reference Guide
 
+> **Note [2026-10-09]:** This is the surviving `POSTOFFICE_TUI_*`
+> spec in this repo. The following sibling specs were deleted on
+> 2026-10-09 as duplicative or completed archaeology:
+> - `specs/POSTOFFICE_TUI_CODE_OVERVIEW.md` (229 lines, flow
+>   chart predates the 2026-09 startup.py rewrite)
+> - `specs/POSTOFFICE_TUI_ENHANCED_FEATURES.md` (329 lines,
+>   pre-`13bfa32` keybinding list)
+> - `specs/POSTOFFICE_TUI_IMPLEMENTATION.md` (144 lines,
+>   'initial implementation' record, pure archaeology)
+> - `specs/POSTOFFICE_TUI_CHECKLIST.md` (287 lines, all
+>   items checked off, pure archaeology)
+> - `specs/POSTOFFICE_TUI_METADATA_STORAGE.md` (333 lines,
+>   correct but the table-name rename to `mailbox_member` in
+>   `9df06ac` is the only change needed and that file
+>   correctly referenced the post-split schema)
+>
+> The post-`13bfa32` / `c509737` TUI adds the `(q)uit`
+> postoffice keybinding to the message interface and aligns
+> the non-sysop menu options with the help text. See
+> `src/postoffice/tui/message_interface.py` for the live
+> keybinding list; this quick reference is partially stale
+> on the menu options listed below.
+
 ## Quick Start
 
 ```bash
