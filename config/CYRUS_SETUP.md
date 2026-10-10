@@ -1,5 +1,35 @@
 # Cyrus IMAPd Configuration for Mistermcfeely
 
+> **Note [2026-10-09]:** This is the surviving config/ doc after
+> the 3-file event-handler consolidation. The following
+> sibling docs were deleted on 2026-10-09 as duplicative:
+> - `config/EVENT_HANDLER_INTEGRATION.md` (431 lines): a pure
+>   event-bridge description (Steps 1-8, ASCII diagram); content
+>   is preserved as the "Event Notification for Monitoring"
+>   section below.
+> - `config/INSTALLATION_SUMMARY.txt` (570 lines): a prose
+>   summary of the deploy; the "MISTERMCFEELY NOTIFYD_CLIENT
+>   INTEGRATION" section (lines 467-487) was the only
+>   event-bridge-specific content and is also covered below.
+> - `config/QUICK_DEPLOY.txt` (324 lines): a step-by-step
+>   deploy checklist; the notifyd-based deploy step is the
+>   only event-bridge-specific content and is also covered
+>   below.
+>
+> The "Event Notification for Monitoring" section below
+> describes the `mcfeely-notify` external-event-bridge
+> architecture. The production mcfeely deployment does
+> **not** use this architecture; the live system polls
+> via the in-process `mailbox_poller` in
+> `src/postoffice/services/mailbox_poller.py`, and the
+> `notify` service is commented out in
+> `etc-postoffice/cyrus.conf:35`. The
+> `event_notifier: external` line in
+> `etc-postoffice/imapd.conf:224` is also not used by the
+> live mailbox_poller. The section is preserved as a
+> reference for the alternative architecture and for
+> operators who want to switch.
+
 This directory contains complete Cyrus IMAPd configuration files for the mistermcfeely IMAP postoffice project.
 
 ## Files Included
@@ -274,6 +304,19 @@ global_sieve_scripts: /var/lib/imap/global_scripts
 ```
 
 ### Event Notification for Monitoring
+
+> **Note [2026-10-09]:** The architecture below describes the
+> `mcfeely-notify` external-event-bridge alternative. The
+> production mcfeely deployment does **not** use this
+> architecture; the live system polls via the in-process
+> `mailbox_poller` in
+> `src/postoffice/services/mailbox_poller.py`, and the
+> `notify` service is commented out in
+> `etc-postoffice/cyrus.conf:35`. The
+> `event_notifier: external` line in
+> `etc-postoffice/imapd.conf:224` is also not used by the
+> live mailbox_poller. This section is preserved as a
+> reference for the alternative architecture.
 
 To enable real-time event notifications for mistermcfeely monitoring:
 
