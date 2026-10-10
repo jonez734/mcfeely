@@ -81,8 +81,8 @@ All documentation and specifications have been created, updated, and saved.
 #### Existing Tests (5 files - ALL PASSING)
 - ✅ tests/test_imap_lib.py (12K) - 29 IMAP library tests
 - ✅ tests/test_imap_monitor.py (6.9K) - 20 IMAP monitor tests
-- ✅ tests/test_message_client.py (17K) - 11 notifyd client tests
-- ✅ tests/test_notifyd_integration.py (13K) - 20 notifyd integration tests
+- ✅ tests/test_message_client.py (17K) - 11 message client tests
+- ✅ tests/test_message_client_integration.py (13K) - 20 message client integration tests
 - ✅ tests/test_password_crypto.py (5.1K) - 14 password crypto tests
 
 **Test Summary**:

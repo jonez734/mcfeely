@@ -40,7 +40,7 @@
 │   ├── test_imap_lib.py              # IMAP utility tests
 │   ├── test_imap_monitor.py          # Monitor daemon tests
 │   ├── test_message_client.py        # Notification tests
-│   └── test_notifyd_integration.py   # Integration tests
+│   └── test_message_client_integration.py   # Integration tests
 ├── bin/                               # Executable scripts
 │   └── postoffice                    # Main CLI script
 └── docs/

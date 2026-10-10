@@ -72,7 +72,7 @@ src/postoffice/services/
 
 `claim.py` is a single combined module (not split into `claim.py` +
 `unclaim.py`) because the two functions are tightly coupled: they share
-`notifyd_client.format_claim_flag` and `notifyd_client.get_obfuscate_secret`,
+`message_client.format_claim_flag` and `message_client.get_obfuscate_secret`,
 and each is only ~30 lines. Splitting them across two files would be
 artificial.
 

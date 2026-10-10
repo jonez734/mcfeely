@@ -2,7 +2,7 @@
 
 **Mr. McFeely was the postman on Mr. Rogers' Neighborhood**
 
-A basic IMAP client for shared Cyrus mailboxes, integrated with bbsengine6's notifyd event system and member management. Enables real-time notifications when messages are claimed/unclaimed in shared mailboxes.
+A basic IMAP client for shared Cyrus mailboxes, integrated with bbsengine6.message and member management. Enables real-time notifications when messages are claimed/unclaimed in shared mailboxes.
 
 **⚠️ IMPORTANT:** All database functions in this project use the bbsengine6 **kwargs pattern for connection management. See [CONN_POOL_PATTERN.md](./CONN_POOL_PATTERN.md) for details.
 
@@ -16,7 +16,7 @@ A basic IMAP client for shared Cyrus mailboxes, integrated with bbsengine6's not
 - **SYSOP flag detection** - Auto-detect sysop users via `engine.map_member_flag`
 - **Message tracking** - Track message claims in PostgreSQL (`public.__message`)
 - **Shared mailboxes** - Multiple users can access team mailboxes
-- **NotifyD integration** - Events fire to `engine.__notify` for consumption by other systems
+- **Message routing** - events fire via `bbsengine6.message.send` for consumption by other systems
 
 ## Database Schema
 

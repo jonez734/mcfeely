@@ -183,7 +183,7 @@ Tests:
     - test_imap_lib.py
     - test_imap_monitor.py
     - test_message_client.py
-    - test_notifyd_integration.py
+    - test_message_client_integration.py
 
 Existing Documentation:
   /home/opencode/data/work/mistermcfeely/README.md

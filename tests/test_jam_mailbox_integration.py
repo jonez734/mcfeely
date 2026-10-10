@@ -1,5 +1,5 @@
 # test_jam_mailbox_integration.py
-# Integration tests for user.jam IMAP mailbox CRUD + notifyd events.
+# Integration tests for user.jam IMAP mailbox CRUD + message events.
 # Uses real Cyrus IMAP server on localhost:143.
 # - Cyrus admin credentials (cyrus/<password>) for create/delete operations
 # - Jam credentials (jam/<password>) for read/write IMAP operations

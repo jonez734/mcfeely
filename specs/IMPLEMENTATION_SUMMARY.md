@@ -231,7 +231,7 @@ EVENT_MESSAGE_TEMPLATES = {
 | `test_imap_lib.py` | New (294 lines) | 29 new tests |
 | `test_message_client.py` | -61 refactored | Ruff formatting |
 | `test_imap_monitor.py` | -83 refactored | Ruff formatting |
-| `test_notifyd_integration.py` | -141 refactored | Ruff formatting |
+| `test_message_client_integration.py` | -141 refactored | Ruff formatting |
 
 ---
 

@@ -70,7 +70,7 @@ Total Tests: 64 (ALL PASSING ✅)
 Breakdown:
 - test_message_client.py: 30 tests
 - test_imap_monitor.py: 14 tests
-- test_notifyd_integration.py: 20 tests
+- test_message_client_integration.py: 20 tests
 
 Coverage:
 ✅ Flag obfuscation (HMAC-SHA256)
@@ -187,7 +187,7 @@ GIT COMMIT HISTORY (This Session)
 2435938 Refactor: Use bbsengine6 **kwargs pattern for pool/conn parameters (REQUIRED)
 3388be7 Refactor: Use bbsengine6 CONN_POOL_PATTERN for database connections
 86c1c0c Phase 9: Code formatting and cleanup (ruff)
-0b29658 Phase 8: Comprehensive README documentation for notifyd sync
+0b29658 Phase 8: Comprehensive README documentation for message sync
 e9aed4f Phase 6: Add IMAP monitoring with embedded polling thread
 e5ac34a Phase 5: Enhance pattern-based routing with flexible actor_moniker matching
 
