@@ -532,16 +532,16 @@ This gives more control over event processing and format.
 1. **Real-time claim updates** - When user claims a message (via flag change), notify mcfeely daemon to update state
 2. **New message alerts** - When new message arrives in shared mailbox, notify team via webhook
 3. **UI refresh** - Push updates to TUI/GUI clients when mailbox state changes
-4. **BBS user notifications** - Integrate with bbsengine6.notify for user-to-user notifications
+4. **BBS user notifications** - Integrate with bbsengine6.message for user-to-user message events
 
-### Integration with bbsengine6.notify
+### Integration with bbsengine6.message
 
-bbsengine6 has its own notification system (`bbsengine6.notify`) for user-to-user BBS notifications. This can be integrated with notifyd events:
+bbsengine6's user-to-user message transport (`bbsengine6.message`) can surface mail events to BBS users. This can be integrated with notifyd events:
 
 #### How it works
 
 1. Cyrus notifyd triggers external script on mail events
-2. External script calls `bbsengine6.notify.send()` to alert BBS users
+2. External script calls `bbsengine6.message.send()` to alert BBS users
 3. Users receive real-time notifications in their active BBS sessions
 
 #### Use Cases
@@ -564,7 +564,7 @@ import os
 # Add bbsengine6 to path for import
 sys.path.insert(0, '/home/opencode/data/work/bbsengine6/py/src')
 
-from bbsengine6 import notify
+from bbsengine6 import message
 
 def main():
     args = {}
@@ -599,7 +599,7 @@ def main():
         from_addr = event_data.get('from', 'Unknown')
         
         try:
-            notify.send(
+            message.send(
                 notification_type='new_shared_mail',
                 recipients=[group],
                 template="New message in {mailbox}: {from_addr} - {subject}",
@@ -608,7 +608,7 @@ def main():
                     'from_addr': from_addr,
                     'subject': subject[:80]  # Truncate for notification
                 },
-                urgency=notify.NotificationUrgency.IMPORTANT
+                urgency=MessageUrgency.IMPORTANT
             )
         except Exception as e:
             print(f"Failed to send BBS notification: {e}", file=sys.stderr)
@@ -629,7 +629,7 @@ import sys
 import json
 
 sys.path.insert(0, '/home/opencode/data/work/bbsengine6/py/src')
-from bbsengine6 import notify
+from bbsengine6 import message
 
 # Map hashids to BBS monikers (configured separately)
 HASHID_TO_MONIKER = {
@@ -664,12 +664,12 @@ def main():
                     
                     if moniker:
                         subject = event_data.get('subject', 'Unknown')
-                        notify.send(
+                        message.send(
                             notification_type='claim_assigned',
                             recipients=[moniker],
                             template="Message assigned to you: {subject}",
                             template_vars={'subject': subject[:80]},
-                            urgency=notify.NotificationUrgency.ROUTINE
+                            urgency=MessageUrgency.ROUTINE
                         )
     
     return 0
@@ -689,7 +689,7 @@ event_groups: message
 event_extra_params: timestamp uid flagNames subject from
 ```
 
-**Note**: The bbsengine6 notify module requires database access and configured user sessions. Ensure the script runs with appropriate environment variables and database connectivity.
+**Note**: The bbsengine6.message module requires database access and configured user sessions. Ensure the script runs with appropriate environment variables and database connectivity.
 
 ### Practical Examples
 

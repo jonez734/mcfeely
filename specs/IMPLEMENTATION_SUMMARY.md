@@ -173,7 +173,7 @@ EVENT_MESSAGE_TEMPLATES = {
 │ NotifyD Client (message_client.py)                  │
 │ - Check if event enabled                            │
 │ - Get routing rules (SQL LIKE patterns)             │
-│ - Fire event to engine.__notify (JSON payload)      │
+│ - Fire event via bbsengine6.message.send (JSON payload)      │
 └──────────┬──────────────────────────────────────────┘
            │
            ↓
@@ -187,7 +187,7 @@ EVENT_MESSAGE_TEMPLATES = {
            │
            ↓
 ┌─────────────────────────────────────────────────────┐
-│ engine.__notify                                     │
+│ bbsengine6.message                                     │
 │ (consumed by: email, chat, webhooks, etc.)         │
 └─────────────────────────────────────────────────────┘
 ```
@@ -301,4 +301,4 @@ EVENT_MESSAGE_TEMPLATES = {
 
 This implementation delivers a **production-ready, thread-safe IMAP monitoring system** with clean, maintainable code. The functional design eliminates OOP overhead while providing comprehensive error handling, 100% test coverage on new code, and zero breaking changes to existing APIs.
 
-The system is ready for deployment and can detect message changes in Cyrus shared mailboxes in real-time (polling-based), fire notifications via bbsengine6's engine.__notify, and route events to email, chat, webhooks, and other delivery systems.
+The system is ready for deployment and can detect message changes in Cyrus shared mailboxes in real-time (polling-based), fire notifications via bbsengine6.message.send, and route events to email, chat, webhooks, and other delivery systems.

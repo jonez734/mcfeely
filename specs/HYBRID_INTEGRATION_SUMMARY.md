@@ -1,4 +1,4 @@
-# Hybrid bbsengine6.notify Integration - Implementation Summary
+# Hybrid bbsengine6.message Integration - Implementation Summary
 
 **Date:** May 20, 2026  
 **Status:** COMPLETE - All 93 tests passing  
@@ -31,13 +31,13 @@ Layer 1: Pattern Matching (mistermcfeely)
   - Per-mailbox config: enable/disable, poll intervals
 
 Layer 2: Transport Delegation (bbsengine6)
-  bbsengine6.notify.send()
+  bbsengine6.message.send()
   - Rate limiting: max_per_user_per_hour
   - Recipient expansion: groups, user lists
   - Template rendering: message formatting
 
-Layer 3: Unified Storage (engine.__notify)
-  - Single table for all notifications
+Layer 3: Unified Storage (bbsengine6.message)
+  - Single transport for all notifications
   - Shared event types and urgency levels
   - JSON payload support
 ```
@@ -53,11 +53,11 @@ imap_client.claim_message() / unclaim_message()
         ├─ Check if enabled (postoffice.__address)
         ├─ Get routing rules (postoffice.message_routing - SQL LIKE)
         └─ For each recipient:
-            └─ Call notify.send() (bbsengine6)
+            └─ Call bbsengine6.message.send()
                 ├─ Rate limiting check
                 ├─ Recipient expansion
                 ├─ Render message
-                └─ INSERT into engine.__notify
+                └─ bbsengine6.message.send(payload)
 ```
 
 ---
@@ -69,20 +69,20 @@ imap_client.claim_message() / unclaim_message()
 **Optional Import with Fallback**
 ```python
 try:
-    from bbsengine6 import notify as _notify_module
+    from bbsengine6 import message as _message_module
 except ImportError:
     _notify_module = None
 ```
 
-**fire_event() Now Delegates to notify.send()**
+**fire_event() Now Delegates to bbsengine6.message.send()**
 ```python
 def fire_event(...) -> bool:
     rules = get_routing_rules(...)  # Pattern-based, from postoffice
-    
+
     for rule in rules:
-        if _notify_module:
+        if _message_module:
             # Use standardized transport
-            notify.send(
+            message.send(
                 notification_type=rule["notification_type"],
                 recipients=[rule["recipient_moniker"]],
                 template=rule["notification_type"],
@@ -105,8 +105,8 @@ def fire_event(...) -> bool:
 
 **Notification Type Registration**
 ```sql
-INSERT INTO engine.__notify_type 
-(type_name, default_urgency, max_per_user_per_hour, persist_by_default)
+-- equivalent: bbsengine6.message.register_type(
+--   type_name, default_urgency, max_per_user_per_hour, persist_by_default)
 VALUES
     ('mcfeely-message-new', 'ROUTINE', 10, true),
     ('mcfeely-message-claimed', 'IMPORTANT', 5, true),
@@ -124,8 +124,8 @@ ON CONFLICT (type_name) DO NOTHING
 ### 3. Test Updates
 
 **Updated fire_event Test**
-- Mocks `_notify_module` to test fallback behavior
-- Verifies `_fire_event_fallback()` called when notify unavailable
+- Mocks `_message_module` to test fallback behavior
+- Verifies `_fire_event_fallback()` called when message unavailable
 - Tests graceful degradation
 
 ---
@@ -164,7 +164,7 @@ max_per_user_per_hour = {
 
 ### Standardized Transport (bbsengine6)
 ```python
-notify.send(
+message.send(
     notification_type="mcfeely-message-claimed",
     recipients=["alice"],
     template="mcfeely-message-claimed",
@@ -195,7 +195,7 @@ notify.send(
 **Database Schema (UNCHANGED)**
 - `postoffice.message_routing` - Still used for pattern matching
 - `postoffice.__address` - Still used for per-mailbox settings
-- `engine.__notify` - Same table (now shared with other systems)
+- `bbsengine6.message` - same transport, shared with other systems
 
 **Behavior (PRESERVED)**
 - Event firing works identically
@@ -203,8 +203,8 @@ notify.send(
 - Cyrus flag operations unchanged
 
 **Fallback (TRANSPARENT)**
-- If bbsengine6.notify not available, uses legacy direct INSERT
-- Same event reaches engine.__notify table
+- If bbsengine6.message not available, uses legacy direct send
+- Same event reaches bbsengine6.message transport
 - No visible difference to end users
 
 ---
@@ -233,7 +233,7 @@ notify.send(
 
 ### Mocking Strategy
 
-- `bbsengine6.notify` mocked in tests
+- `bbsengine6.message` mocked in tests
 - IMAP operations mocked (no real Cyrus needed)
 - Database operations mocked
 - Full test coverage without external dependencies
@@ -245,7 +245,7 @@ notify.send(
 ### Step 1: Ensure Notification Types Registered
 
 On startup, `postoffice.startup.main()` automatically:
-- Registers mcfeely notification types in `engine.__notify_type`
+- Registers mcfeely message types in `bbsengine6.message`
 - Sets appropriate urgency levels
 - Configures rate limits
 
@@ -284,11 +284,11 @@ VALUES
 
 ## Migration Path (Optional)
 
-If desired, can gradually migrate from legacy direct INSERT to full notify integration:
+If desired, can gradually migrate from legacy direct INSERT to full bbsengine6.message integration:
 
 ### Phase 1: Hybrid (Current)
 - Pattern routing: `postoffice.message_routing`
-- Transport: `bbsengine6.notify.send()` or fallback
+- Transport: `bbsengine6.message.send()` or fallback
 - Status: Both code paths work
 
 ### Phase 2: Monitoring
@@ -298,12 +298,12 @@ If desired, can gradually migrate from legacy direct INSERT to full notify integ
 
 ### Phase 3: Deprecation
 - Remove fallback code
-- Log warning if notify not available
-- Require bbsengine6.notify module
+- Log warning if message not available
+- Require bbsengine6.message module
 
 ### Phase 4: Full Integration
 - Remove direct INSERT code entirely
-- Use only bbsengine6.notify
+- Use only bbsengine6.message
 - Leverage full feature set
 
 ---
@@ -317,7 +317,7 @@ If desired, can gradually migrate from legacy direct INSERT to full notify integ
 - ✅ Same notification backend as other systems
 
 ### For Developers
-- ✅ Single code path (notify.send)
+- ✅ Single code path (bbsengine6.message.send)
 - ✅ No API duplications
 - ✅ Shared testing and debugging
 - ✅ Backward compatible (no breaking changes)
@@ -335,7 +335,7 @@ If desired, can gradually migrate from legacy direct INSERT to full notify integ
 **Database Changes:** None (all tables pre-existing)  
 **API Changes:** None (all signatures preserved)  
 **Breaking Changes:** None  
-**Fallback Behavior:** Transparent (automatic if notify unavailable)  
+**Fallback Behavior:** Transparent (automatic if bbsengine6.message unavailable)  
 **Performance Impact:** Negligible (one additional function call per event)  
 **Resource Usage:** Minimal (no additional connections or memory)  
 
@@ -362,7 +362,7 @@ If desired, can gradually migrate from legacy direct INSERT to full notify integ
 The hybrid integration successfully merges mistermcfeely's IMAP-specific pattern routing with bbsengine6's standardized notification system. This provides:
 
 1. **Flexibility** - Keep pattern-based routing for mailbox contexts
-2. **Standardization** - Use bbsengine6.notify for consistency
+2. **Standardization** - Use bbsengine6.message for consistency
 3. **Reliability** - Rate limiting prevents flood attacks
 4. **Compatibility** - No breaking changes, automatic fallback
 5. **Maintainability** - Single code path for event delivery

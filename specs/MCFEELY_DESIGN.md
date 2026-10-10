@@ -151,7 +151,7 @@ mcfeely unclaim --force --uid 12345
   - When message claim state changes, all clients receive immediate notification
   - Eliminates stale data between polling intervals
 - **Cyrus notifyd**: Alternative: receive real-time events via Cyrus `notifyd` (see [MCFEELY_CYRUS_IMAP.md](MCFEELY_CYRUS_IMAP.md))
-  - Can integrate with **bbsengine6.notify** for user-facing BBS notifications on mail events
+  - Can integrate with **bbsengine6.message** for user-facing BBS notifications on mail events
 - **HTTP API**: `localhost:8080` for CLI and future integrations
 - **WebSocket endpoint**: `ws://localhost:8080/ws` for real-time TUI/GUI clients
 - **Event hooks**: Run scripts on claim/unclaim (e.g., notify Slack, update dashboard)

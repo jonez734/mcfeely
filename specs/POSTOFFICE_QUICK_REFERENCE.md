@@ -450,13 +450,13 @@ SELECT * FROM postoffice.message_routing;
 -- event_type, condition, action
 ```
 
-### engine.__notify
+### bbsengine6.message transport
 
-Event log
+Message log
 
 ```sql
-SELECT * FROM engine.__notify;
--- event_type, mailbox_name, event_data, created_at
+-- use the bbsengine6.message API to inspect queued messages
+-- (e.g. bbsengine6.message.get_pending_messages(...))
 ```
 
 ---

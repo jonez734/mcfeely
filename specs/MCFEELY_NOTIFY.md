@@ -2,12 +2,12 @@
 
 ## Overview
 
-Create a simple, extensible system for sending notifications from external systems (IMAP, zoidoffice, empyre, murdermotel) to bbsengine6 users, using the existing notify infrastructure.
+Create a simple, extensible system for sending notifications from external systems (IMAP, zoidoffice, empyre, murdermotel) to bbsengine6 users, using the bbsengine6.message transport.
 
 ## Current State
 
-The existing `bbsengine6.notify` system provides:
-- `notify.send()` - sends notifications with auto-registration of types
+The current `bbsengine6.message` transport provides:
+- `message.send()` - sends notifications with auto-registration of types
 - Urgency levels: `ROUTINE`, `IMPORTANT`, `URGENT`, `CRITICAL`
 - Rate limiting per sender/type
 - Blocking (recipient can block sender)
@@ -34,10 +34,10 @@ The existing `bbsengine6.notify` system provides:
 Example in empyre's init:
 ```python
 # empyre/src/empyre/__init__.py or init.py
-from bbsengine6.notify import register_type, NotificationUrgency
+from bbsengine6.message import register_type, MessageUrgency
 
-register_type("empyre.combat", NotificationUrgency.URGENT, max_per_hour=10)
-register_type("empyre.turn", NotificationUrgency.ROUTINE, max_per_hour=60)
+register_type("empyre.combat", MessageUrgency.URGENT, max_per_hour=10)
+register_type("empyre.turn", MessageUrgency.ROUTINE, max_per_hour=60)
 ```
 
 ### Step 2: Create template files in bbsengine6 skin
@@ -53,24 +53,24 @@ Location: `bbsengine6/skin/tmpl/notify/`
 ### Step 3: Send notifications from each system
 
 ```python
-from bbsengine6 import notify
+from bbsengine6 import message
 
 # In empyre combat
-notify.send(
+message.send(
     notification_type="empyre.combat",
     recipients=[player.moniker],
     template="empyre-combat",  # references template file
     template_vars={"attacker": "Barbarian", "result": "won"},
-    urgency=NotificationUrgency.URGENT
+    urgency=MessageUrgency.URGENT
 )
 
 # In murdermotel when player dies
-notify.send(
+message.send(
     notification_type="mm.died",
     recipients=[player.moniker],
     template="mm-died",
     template_vars={"killer": "Rabid Wolf", "score": player.score},
-    urgency=NotificationUrgency.CRITICAL
+    urgency=MessageUrgency.CRITICAL
 )
 ```
 
@@ -102,9 +102,9 @@ bbsengine6/skin/tmpl/notify/
 
 ## Template Resolution
 
-The `notify.send()` function needs to resolve `template="empyre-combat"` to the file `notify-empyre-combat.tmpl`. This requires either:
+The `message.send()` function needs to resolve `template="empyre-combat"` to the file `notify-empyre-combat.tmpl`. This requires either:
 
-1. **Modify `_render_template()`** in notify.py to check for template file first, then fall back to string substitution
+1. **Modify `_render_template()`** in bbsengine6.message to check for template file first, then fall back to string substitution
 2. **Add template lookup** in the calling code to pass the rendered message directly
 
 ---
@@ -192,7 +192,7 @@ from dataclasses import dataclass
 from typing import Optional
 import logging
 
-from . import notify
+from . import message
 
 logger = logging.getLogger("bbsengine6.imapnotify")
 
@@ -268,7 +268,7 @@ class IMAPPoller(threading.Thread):
                     recipients = self.account.notify_monikers or []
 
                 for moniker in recipients:
-                    notify.send(
+                    message.send(
                         notification_type="imap.message",
                         recipients=[moniker],
                         template="imap-message",
@@ -400,7 +400,7 @@ The existing notification system in `getch()` already:
 - Emits bell when notifications exist
 - Shows pending notifications on F2
 
-The IMAP poller simply adds more notifications to the same queue via `notify.send()`.
+The IMAP poller simply adds more notifications to the same queue via `message.send()`.
 
 ---
 
@@ -410,7 +410,7 @@ The IMAP poller simply adds more notifications to the same queue via `notify.sen
 
 2. **Missing templates**: If a type is sent but no template file exists, fall back to simple string substitution
 
-3. **Template storage**: Template names stored in DB (`engine.__notify.template` field), template files on disk
+3. **Template storage**: Template names stored in DB (`bbsengine6.message` payload field), template files on disk
 
 4. **Existing types**: Do not migrate existing notification types (like `link-approved`) to new dot notation
 

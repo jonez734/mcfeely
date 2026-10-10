@@ -132,7 +132,7 @@ EVENT/NOTIFICATION LAYER
 │ message_client.py - Event Firing & Routing                  │
 ├─────────────────────────────────────────────────────────────┤
 │ fire_event(mailbox, event_type, event_data)                 │
-│   ├─ Write to engine.__notify table                         │
+│   ├─ Call bbsengine6.message.send()                        │
 │   └─ Route via postoffice.message_routing rules        │
 │                                                              │
 │ Event Types (events.py):                                    │
@@ -215,7 +215,7 @@ DATABASE LAYER
 │   ├─ mailbox_id                                             │
 │   └─ poll_interval_seconds                                  │
 │                                                              │
-│ engine.__notify                                             │
+│ bbsengine6.message transport                                │
 │   ├─ event_type                                             │
 │   ├─ mailbox_name                                           │
 │   ├─ event_data (JSON)                                      │
@@ -362,17 +362,12 @@ IMAPMonitor._run_loop() (background thread)
        }
    )
     ↓
-8. fire_event() writes to engine.__notify:
-    INSERT INTO engine.__notify (
-        event_type, 
-        mailbox_name, 
-        event_data, 
-        created_at
-    ) VALUES (
-        "message-new",
-        "shared/support@example.com",
-        '{"event_type":"message-new",...}',
-        NOW()
+8. fire_event() calls bbsengine6.message.send:
+    bbsengine6.message.send(
+        notification_type="message-new",
+        recipients=[...],
+        data={"event_type":"message-new",...},
+        urgency="ROUTINE"
     )
     ↓
 9. Notification routing (postoffice.message_routing):
@@ -437,7 +432,7 @@ TUI calls: imap_client.claim_message(
         actor_moniker="alice"
     )
     ↓
-5. Write to engine.__notify + route
+5. Call bbsengine6.message.send() + route
     
 ✓ Message claimed by alice
 ```
@@ -474,7 +469,7 @@ def my_function(args, **kwargs):
 ### 4. Event-Driven Notifications
 Changes trigger events that route to notification handlers:
 - IMAP monitor detects changes
-- Fires events to engine.__notify
+- Fires events via bbsengine6.message.send
 - Notification routing rules determine actions
 
 ### 5. State-Based Change Detection

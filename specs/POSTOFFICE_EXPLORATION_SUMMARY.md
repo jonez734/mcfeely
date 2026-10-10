@@ -701,7 +701,7 @@ imap_monitor.py (BACKGROUND MONITORING)
 
 message_client.py (EVENT SYSTEM)
     ├─ fire_event()
-    │   ├─ Write to engine.__notify
+    │   ├─ Call bbsengine6.message.send()
     │   └─ Route via postoffice.message_routing rules
     │
     ├─ obfuscate_moniker() → HMAC-SHA256
@@ -739,8 +739,8 @@ Database
 │   └─ Mailbox metadata
 ├─ postoffice.virtual
 │   └─ Virtual mailbox patterns
-└─ engine.__notify
-    └─ Event log
+└─ bbsengine6.message
+    └─ Message log
 ```
 
 ---
@@ -799,7 +799,7 @@ Requires postoffice tables:
 4. **IMAP Integration:** Full support for claiming messages with obfuscated flags
 5. **Background Monitoring:** IMAPMonitor detects changes and fires events
 6. **TUI Interface:** Both member and sysop modes for password management
-7. **Event System:** Integrates with bbsengine6 notify for event routing
+7. **Event System:** Integrates with bbsengine6.message for event routing
 8. **Connection Pooling:** Flexible database access via CONN_POOL_PATTERN
 9. **Audit Logging:** All password operations logged via bbsengine6.logentry()
 10. **bbsengine6 Integration:** Follows module patterns and uses standard utilities

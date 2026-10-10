@@ -255,7 +255,7 @@ Source code:
 
 ### 6. Event System
 - message-new, message-claimed, message-unclaimed, message-flagged, message-deleted
-- Events written to engine.__notify
+- Events delivered via bbsengine6.message.send
 - Routed via postoffice.message_routing rules
 
 ### 7. TUI Interfaces

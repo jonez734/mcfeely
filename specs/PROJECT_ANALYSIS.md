@@ -75,7 +75,7 @@ message_client.fire_event() checks postoffice.__address (per-member: mailbox_mem
     ↓
 SQL pattern matching in message_routing table
     ↓
-insert into engine.__notify for each recipient
+call bbsengine6.message.send() for each recipient
     ↓
 Other bbsengine6 systems consume: email, chat, in-app, webhooks, etc.
 ```
@@ -361,7 +361,7 @@ actor_moniker TEXT                    -- Specific user or NULL (any user)
 recipient_moniker TEXT NOT NULL       -- Who gets notification
 notification_type TEXT                -- Template type, auto-generated if NULL
 urgency TEXT DEFAULT 'ROUTINE'        -- ROUTINE, IMPORTANT, URGENT, CRITICAL
-delivery_method TEXT DEFAULT 'engine' -- 'engine' (engine.__notify), future: 'email', 'chat'
+delivery_method TEXT DEFAULT 'message' -- 'message' (bbsengine6.message), future: 'email', 'chat'
 enabled BOOLEAN DEFAULT TRUE
 ```
 **Example Rules:**
@@ -393,7 +393,7 @@ updated_at TIMESTAMPTZ DEFAULT NOW()
 
 ### Event Types & Payloads
 
-Events are fired to `engine.__notify` table with JSON data:
+Events are fired via `bbsengine6.message.send` with JSON data:
 
 #### message-new
 ```json

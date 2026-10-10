@@ -146,7 +146,7 @@ Core Components:
 Database Schema:
 - message_routing: Pattern-based routing rules
 - mailbox: Per-mailbox configuration
-- notification_history: VIEW over engine.__notify
+- notification_history: VIEW over bbsengine6.message queue
 
 Event Types:
 - message-new: New message arrived

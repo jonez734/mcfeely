@@ -208,13 +208,13 @@ Check message_routing:
   - event_type = "message-new" or "*" ✓
   - actor_moniker = NULL or matches ✓
     ↓
-For each matching rule, insert into engine.__notify:
+For each matching rule, call bbsengine6.message.send():
   notification_type: "mcfeely-message-new"
   recipients: [routing.recipient_moniker]
   data: {event details as JSON}
   urgency: "ROUTINE"
     ↓
-bbsengine6 notify system consumes and delivers
+bbsengine6.message consumes and delivers
 (email, chat, in-app notification, webhook, etc.)
 ```
 

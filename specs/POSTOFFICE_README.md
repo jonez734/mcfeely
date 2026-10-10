@@ -163,7 +163,7 @@ Event Flow:
        ↓
   fire_event()
        ↓
-  Write to engine.__notify
+  Call bbsengine6.message.send()
        ↓
   Query postoffice.message_routing
        ↓
@@ -306,8 +306,8 @@ condition VARCHAR
 action VARCHAR
 ```
 
-### engine.__notify
-Event log
+### bbsengine6.message transport
+Message log
 ```sql
 event_type VARCHAR
 mailbox_name VARCHAR
@@ -573,7 +573,7 @@ Documentation:
 ### Events not firing
 - Verify IMAPMonitor is running
 - Check postoffice.message_routing rules
-- Review engine.__notify table for events
+- Review bbsengine6.message queue/audit for events
 
 ---
 
