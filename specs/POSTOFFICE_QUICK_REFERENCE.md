@@ -1,5 +1,28 @@
 # Postoffice Module Quick Reference
 
+> **Note [2026-10-09]:** This is the surviving `POSTOFFICE_*`
+> spec in this repo. The following sibling specs were deleted
+> on 2026-10-09 as duplicative:
+> - `specs/POSTOFFICE_README.md` (603 lines, "master overview")
+> - `specs/POSTOFFICE_EXPLORATION_SUMMARY.md` (806 lines,
+>   "complete technical reference"; the file structure listing
+>   predates the 2026-06-24 services/ package split and the
+>   2026-09 mailbox_config / mailbox_view SQL split)
+> - `specs/POSTOFFICE_ARCHITECTURE_DIAGRAM.md` (572 lines,
+>   pre-services/ architecture)
+> - `specs/POSTOFFICE_DOCUMENTATION_INDEX.md` (433 lines,
+>   "master index" of the other 5 POSTOFFICE_* docs)
+> - `specs/EXPLORATION_INDEX.md` (267 lines, 2026-05-20
+>   navigation guide)
+> - `specs/DOCUMENTATION_AUDIT.md` (264 lines, 2026-05 audit
+>   of pre-cleanup state)
+> - `specs/QUICKSTART.md` (301 lines, 2026-05 install guide;
+>   superseded by `config/QUICK_DEPLOY.txt`)
+>
+> The line counts and section references in this file are
+> updated to the 2026-10-09 state (services/ package,
+> mailbox_config split, postoffice-authd).
+
 ## File Locations
 
 ```
