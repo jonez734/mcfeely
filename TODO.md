@@ -48,16 +48,27 @@
 
 ## Restructure
 
-- [x] Restructure postoffice to match casino: instead of `postoffice.service`, use `postoffice.services.<something>`
+- [x] Restructure postoffice to match casino: instead of `postoffice.service`, use `postoffice.services.<something>` [2026-06-24, `280db83`]
 
-### Restructure plan (services package)
+### Restructure plan (services package) — historical, kept for reference
+
+The plan below described the intended 7-file layout. The actual
+shipped layout used 8 files (`__init__, check_mail, claim, config,
+mailbox_poller, message, postoffice_client`); the renames
+`notification.py` → `message.py` (commit `644e996`) and the addition
+of `postoffice_client.py` as a peer to the top-level `imap_client.py`
+(commit `79e675e`) diverged from the plan. The full migration map
+is now in `src/postoffice/services/__init__.py` lines 5-15.
+
+The plan below is retained as a historical record of the design
+intent; the work it describes has been completed.
 
 Replace `src/postoffice/service.py` with a `src/postoffice/services/` package
 that follows casino's `casino/services/{table,player,bank,game,poker}.py`
 pattern (one cohesive capability per module). Hard-cut over — no shim, no
 backward-compat re-exports of the old module path.
 
-#### Final layout
+#### Final layout (planned)
 
 ```
 src/postoffice/services/
@@ -76,7 +87,7 @@ src/postoffice/services/
 and each is only ~30 lines. Splitting them across two files would be
 artificial.
 
-#### Symbol migration map
+#### Symbol migration map (planned)
 
 | Old location                                       | New home                                 |
 |----------------------------------------------------|------------------------------------------|
@@ -90,13 +101,13 @@ artificial.
 | `service.py::_service_instance/get_postoffice_service/start_postoffice_service/stop_postoffice_service` | `services/__init__.py` |
 | `imap_client.py::claim_message/unclaim_message` (module-level funcs) | `services/claim.py::claim_message/unclaim_message` (thin wrappers) |
 
-#### Internal callers to update
+#### Internal callers to update (planned)
 
 - `src/postoffice/api/handler.py:17,134,136,138,155,160,176,195`
   → switch to `from postoffice.services import get_service, check_mail` and
   replace `service.handle_check_mail(moniker)` with `await check_mail(moniker)`.
 
-#### Tests to update
+#### Tests to update (planned)
 
 - `tests/test_postoffice_service.py` — `from postoffice.service import …` →
   `from postoffice.services import MailboxConfig, MailboxPoller, get_service`;
@@ -114,7 +125,7 @@ artificial.
   module-level `postoffice_module._service_instance = None` → `reset_service()`.
 - `tests/test_postoffice_channel.py` — `POSTOFFICE_CHANNEL` import path.
 
-#### Execution steps
+#### Execution steps (planned)
 
 1. Create `src/postoffice/services/` package (7 files).
 2. Update `src/postoffice/api/handler.py`.
@@ -131,14 +142,27 @@ artificial.
 
 ## Cross-project: casino ↔ postoffice coupling
 
-`casino/src/casino/api/handler.py:1281` hard-imports
+- [x] Short term (option 3 — smallest diff) [resolved 2026-06-24, `280db83`]
+  - `casino/src/casino/api/handler.py:1281` no longer hard-imports
+    `postoffice.service` (verified 2026-10-09: `grep -nE
+    "get_postoffice_service|postoffice\.service" casino/src/` returns
+    no live-source matches; only `casino/src/build/lib/...` matches
+    are stale build artifacts). The 40 `ModuleNotFoundError` failures
+    in `make test-unit` are gone.
+  - The `service.py` → `services/` split on the postoffice side
+    removed the import path that was being looked up. No casino
+    source change was required; the failures resolved automatically
+    when the postoffice side deleted `service.py`.
+- [ ] Long term (option 1 — preferred) — see below; deferred
+
+`casino/src/casino/api/handler.py:1281` previously hard-imported
 `postoffice.service.get_postoffice_service` so the casino BED
-`MessageRouter` can register a `check_mail` service that asks the
-IMAP poller "any new mail for this player?" This makes the casino
-test suite depend on a working postoffice install, and is the
+`MessageRouter` could register a `check_mail` service that asks the
+IMAP poller "any new mail for this player?" This made the casino
+test suite depend on a working postoffice install, and was the
 root cause of the 40 pre-existing `ModuleNotFoundError: No module
 named 'postoffice.service'` failures in `make test-unit` while the
-`## Restructure` work above is in flight.
+`## Restructure` work above was in flight.
 
 ### Short term (option 3 — smallest diff)
 
@@ -210,7 +234,7 @@ restructure + import update lands:
 
 ## Deploy targets and venv layout
 
-[X] Add the `tui` / `prod` split that `deploytool postoffice.{tui,prod}` resolves
+[x] Add the `tui` / `prod` split that `deploytool postoffice.{tui,prod}` resolves
     to. Operator-side `deploy-tui` (no sudo, installs into `$VIRTUAL_ENV`) and
     sudo-umbrella `deploy-prod` (sysusers + tmpfiles + systemd + etc + wheel
     install). The two sub-targets share the same `install-venv` step; both end
@@ -221,7 +245,7 @@ restructure + import update lands:
     precheck-editable + verify-install + `WHEEL_PACKAGES := bbsengine6 mistermcfeely`)
     is pinned by `tests/test_deploy_shadow_install.py` in the deploytool submodule.
 
-[X] Operator-venv layout (no shared `/var/lib/<other>/venv` ownership). The
+[x] Operator-venv layout (no shared `/var/lib/<other>/venv` ownership) [2026-09-04, `14154e2`]. The
     shared-foreign-venv layout was dropped in favor of the operator's active venv
     so mistermcfeely has no cross-project install coupling. The
     `VENV_DIR`/`VENV_OWNER`/`VENV_GROUP`/`VENV_SHARED` block at
@@ -249,7 +273,7 @@ restructure + import update lands:
 
 ## Documentation
 
-- [ ] MCFEELY_AUTH_SETUP.md is stale on the operator-venv layout
+- [x] MCFEELY_AUTH_SETUP.md is stale on the operator-venv layout [resolved 2026-09-04, `e271d84`]
   - Problem: `docs/MCFEELY_AUTH_SETUP.md` lines 75-98, 305-306 reference
     a shared foreign-owned venv and the old shared-venv install path.
     Since mistermcfeely now installs into `$VIRTUAL_ENV` (operator's active
