@@ -18,12 +18,28 @@ from . import config
 def _get_crypt_hash(username: str, cfg: config.Config) -> Optional[str]:
     """Get SHA-512 crypt hash from database.
 
+    Enforces the BBS auth gate (mirrors bbsengine6.auth.verify_member):
+      - engine.__member row exists with approved = true
+      - postoffice.sasl_password row exists with enabled = true
+      - engine.__member.accountexpires IS NULL OR > now()
+
+    Returns the SHA-512 crypt hash iff all three conditions hold.
+    Returns None otherwise.
+
+    Note: this path is the legacy Mode B (saslauthd). It accepts only
+    users with a row in postoffice.sasl_password. Users with only
+    engine.__member.password (BBS web password) are NOT authenticated
+    by this path -- they go through bbsengine6-auth-pam via the
+    auxprop-pam default. See specs/MCFEELY_CYRUS_IMAP.md for the
+    full design.
+
     Args:
         username: Username to look up
         cfg: Config instance (provides pool + args namespace)
 
     Returns:
-        Crypt hash string, or None if not found
+        Crypt hash string, or None if not found / not approved /
+        not enabled / expired
     """
     from bbsengine6 import database
 
@@ -33,8 +49,14 @@ def _get_crypt_hash(username: str, cfg: config.Config) -> Optional[str]:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT crypt_hash FROM postoffice.sasl_password
-                WHERE member_moniker = %s AND enabled = true
+                SELECT sp.crypt_hash
+                  FROM postoffice.sasl_password sp
+                  JOIN engine.__member m ON m.moniker = sp.member_moniker
+                 WHERE sp.member_moniker = %s
+                   AND sp.enabled = true
+                   AND m.approved = true
+                   AND (m.accountexpires IS NULL
+                        OR m.accountexpires > now())
                 """,
                 (username,),
             )
