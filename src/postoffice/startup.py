@@ -575,7 +575,9 @@ def startup_main(args, **kwargs) -> bool:
             ("postoffice.message_routing", "message_routing.sql"),
             ("postoffice.__mailbox", "mailbox_config.sql"),
             ("postoffice.mailbox", "mailbox_view.sql"),
-            ("postoffice.__mailbox_member", "mailbox_member.sql")
+            ("postoffice.__mailbox_member", "mailbox_member.sql"),
+            ("postoffice.__mailbox_address", "mailbox_address.sql"),
+            ("postoffice.mailbox_address", "mailbox_address_view.sql"),
         )
 
         failcount = 0
