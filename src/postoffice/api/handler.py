@@ -89,8 +89,8 @@ class AuthService(BaseService):
         bank_service = bank.BankService(self.args)
         balance = bank_service.get_balance(moniker)
 
-        if self.channel_state:
-            channel_subscribe(self.channel_state, session_id, f"member:{moniker}")
+        # Direct messages reach this client through bed's NOTIFY path; no
+        # per-member channel subscription (see casino/api/handler.py).
 
         pending_messages = []
         try:
