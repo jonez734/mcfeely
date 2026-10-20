@@ -16,7 +16,10 @@ PAM_ETCDIR := $(ETCDIR)/pam.d
 # Configuration files
 CONFIG_FILES := cyrus.conf imapd.conf imapd.annotations
 COPY_TO_ETC := cyrus.conf imapd.conf
-PAM_FILES := pam.d-imap
+PAM_FILES := pam.d-imap pam.d-bbsengine6
+# SASL2_FILES: libsasl2 auxprop-sql config (Mode C) and the empty 0600
+# placeholder for the dovecot Postgres role password.
+SASL2_FILES := sasl2-sql.conf sasl2-sql.dbnpass.template
 # MCFEELY_FILES lists config files that retain the historical 'mcfeely-'
 # name (config keys, not the user-facing daemon binary name).
 MCFEELY_FILES := mcfeely-authd.conf
@@ -40,11 +43,11 @@ help:
 	@echo "Example:"
 	@echo "  make install DESTDIR=/mnt/system"
 
-install: $(CONFIG_FILES) $(PAM_FILES) $(SYSTEMD_FILES)
+install: $(CONFIG_FILES) $(PAM_FILES) $(SASL2_FILES) $(SYSTEMD_FILES)
 	@echo "Installing Cyrus IMAP configuration files..."
 	@echo ""
 	@echo "Creating directories..."
-	@sudo mkdir -p "$(ETCDIR)" "$(POSTOFFICE)" "$(PAM_ETCDIR)" "$(SYSTEMD)"
+	@sudo mkdir -p "$(ETCDIR)" "$(POSTOFFICE)" "$(SASL_ETCDIR)" "$(PAM_ETCDIR)" "$(SYSTEMD)"
 	@echo ""
 	@echo "Copying cyrus.conf to /etc/..."
 	@install -o root -g mail -m 640 cyrus.conf "$(ETCDIR)/cyrus.conf"
@@ -69,6 +72,18 @@ install: $(CONFIG_FILES) $(PAM_FILES) $(SYSTEMD_FILES)
 	@echo "Installing pam.d-imap..."
 	@install -o root -g root -m 644 pam.d-imap "$(PAM_ETCDIR)/imap"
 	@echo "  -> $(PAM_ETCDIR)/imap"
+	@echo ""
+	@echo "Installing pam.d-bbsengine6..."
+	@install -o root -g root -m 644 pam.d-bbsengine6 "$(PAM_ETCDIR)/bbsengine6"
+	@echo "  -> $(PAM_ETCDIR)/bbsengine6"
+	@echo ""
+	@echo "Installing sasl2-sql.conf..."
+	@install -o root -g root -m 640 sasl2-sql.conf "$(SASL_ETCDIR)/sql.conf"
+	@echo "  -> $(SASL_ETCDIR)/sql.conf"
+	@echo ""
+	@echo "Installing sasl2-sql.dbnpass.template (placeholder, mode 0600)..."
+	@[ -f "$(SASL_ETCDIR)/sql.dbnpass" ] || install -o root -g root -m 600 sasl2-sql.dbnpass.template "$(SASL_ETCDIR)/sql.dbnpass"
+	@echo "  -> $(SASL_ETCDIR)/sql.dbnpass (operator must set the password)"
 	@echo ""
 	@echo "Installing cyrus-imapd.service..."
 	@install -o root -g root -m 644 cyrus-imapd.service "$(SYSTEMD)/cyrus-imapd.service"
@@ -122,6 +137,12 @@ uninstall:
 	@rm -f "$(POSTOFFICE)/imapd.annotations"
 	@echo "Removing pam.d/imap..."
 	@rm -f "$(PAM_ETCDIR)/imap"
+	@echo "Removing pam.d/bbsengine6..."
+	@rm -f "$(PAM_ETCDIR)/bbsengine6"
+	@echo "Removing /etc/sasl2/sql.conf..."
+	@rm -f "$(SASL_ETCDIR)/sql.conf"
+	@echo "Removing /etc/sasl2/sql.dbnpass..."
+	@rm -f "$(SASL_ETCDIR)/sql.dbnpass"
 	@echo "Removing systemd units..."
 	@rm -f "$(SYSTEMD)/cyrus-imapd.service"
 	@rm -f "$(SYSTEMD)/postoffice-authd.service"

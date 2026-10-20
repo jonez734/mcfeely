@@ -1,0 +1,68 @@
+# /etc/pam.d/bbsengine6 -- BBS-backed auth (Dovecot on merlin, Cyrus on falcon)
+#
+# This PAM service is the canonical BBS auth stack. It is consulted by:
+#
+#   - Dovecot's auth-system.conf.ext passdb (via /etc/pam.d/dovecot,
+#     which @includes bbsengine6) on merlin.
+#   - Cyrus's sasl_pwcheck_method: auxprop / sasl_auxprop_plugin: pam
+#     path (via /etc/pam.d/imap, which @includes bbsengine6) on falcon.
+#   - Any future service that wants to auth against the BBS DB
+#     (sshd with @include bbsengine6, sudo, dovecot LDA, etc.)
+#
+# Credential source: bbsengine6.auth.verify_member(user, password) in
+# /opt/bbsengine6-auth-venv/lib/python3.10/site-packages/bbsengine6/auth/verify.py
+# which queries the BBS Postgres DB and consults engine.__member.password
+# (per-user) or postoffice.mailbox_password (per-mailbox dispatch on '@').
+#
+# Security model
+# --------------
+#
+# The bbsengine6-auth-pam helper is invoked by pam_exec.so with
+# expose_authtok. The plaintext password is in PAM_AUTHTOK env var for
+# the lifetime of the helper process. /proc/<pid>/environ is readable
+# by root for the process's lifetime.
+#
+# Mitigations:
+#   1. bbsengine6-auth-pam reads PAM_AUTHTOK then immediately
+#      os.environ.pop("PAM_AUTHTOK"). In-process exposure is
+#      microseconds.
+#   2. The helper runs as root; /proc/<pid>/environ is readable by
+#      root. The operator has root on merlin and falcon by trust, so
+#      this does not increase attack surface meaningfully.
+#   3. The DB call is wrapped in BEGIN READ ONLY. A future bug that
+#      tries to write during auth is rejected by Postgres.
+#   4. The helper never logs the password. Log lines contain the user
+#      and an outcome class (ok / wrong-password / etc.) only.
+#
+# Threat model: an attacker who can read /proc/<pid>/environ of a
+# root-owned process on merlin or falcon already has root on the host.
+#
+# If a future threat model requires keeping the password out of the
+# helper's env entirely, the only correct path is a real Linux-PAM
+# module in C (e.g. pam_bbsengine6.so, not in scope here). The
+# pure-Python path is the trade for code reuse with
+# bbsengine6.auth.verify_member and zero C build / no .so on the
+# target.
+#
+# See: bbsengine6/py/src/bbsengine6/auth/README.md for the full
+# security model and the dispatcher / gate contract.
+#
+# Fallback to pam_unix.so is kept as a last resort for system
+# accounts (root, cyrus, postoffice) that don't have a BBS row.
+# `sufficient` ordering: BBS first, /etc/shadow second.
+
+auth        sufficient    pam_exec.so quiet expose_authtok /usr/local/bin/bbsengine6-auth-pam
+auth        sufficient    pam_unix.so nullok try_first_pass
+auth        required      pam_deny.so
+
+account     sufficient    pam_exec.so quiet /usr/local/bin/bbsengine6-auth-pam
+account     sufficient    pam_unix.so broken_shadow
+account     sufficient    pam_local_user.so
+account     required      pam_deny.so
+
+password    required      pam_deny.so
+
+session     optional      pam_keyinit.so revoke
+session     required      pam_limits.so
+session     [success=1 default=ignore] pam_succeed_if.so service in crond quiet use_uid
+session     required      pam_unix.so
