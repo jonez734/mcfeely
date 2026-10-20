@@ -13,18 +13,14 @@ dependencies = [
     "passlib>=1.7.4",
 ]
 
-[project.scripts]
-postoffice-authd = "mcfeely_authd.mcfeely_authd:main"
-
 [tool.setuptools]
-packages = ["postoffice", "mcfeely_authd"]
+packages = ["postoffice"]
 script-files = [
     "bin/postoffice",
 ]
 
 [tool.setuptools.package-dir]
 "postoffice" = "src/postoffice"
-"mcfeely_authd" = "src/mcfeely_authd"
 
 [tool.setuptools.dynamic]
 version = { attr = "postoffice._version.__version__" }

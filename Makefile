@@ -59,14 +59,12 @@ help:
 	@echo ""
 	@echo "  install-sysusers   Create postoffice user and group via systemd-sysusers"
 	@echo "  uninstall-sysusers Remove sysusers.d/postoffice.conf"
-	@echo "  install-tmpfiles   Create /var/lib/postoffice and /run/postoffice-authd via systemd-tmpfiles"
+	@echo "  install-tmpfiles   Create /var/lib/postoffice via systemd-tmpfiles"
 	@echo "  uninstall-tmpfiles Remove tmpfiles.d/postoffice.conf"
 	@echo "  install-venv       Build bbsengine6 + $(DIST_NAME) wheels and pip install into \$$VIRTUAL_ENV"
 	@echo "  uninstall-venv     N/A — wheel installs are removed by 'pip uninstall' (no shared venv)"
 	@echo "  restorecon         Relabel venv binaries for SELinux (Fedora/RHEL)"
-	@echo "  install-systemd    Install postoffice-authd.service and daemon-reload"
-	@echo "  uninstall-systemd  Stop, disable, and remove the postoffice-authd.service unit"
-	@echo "  install-etc        Install postoffice-authd.conf config"
+	@echo "  install-systemd    (no postoffice service units remain)"
 	@echo "  uninstall-etc      Remove installed config files"
 	@echo ""
 	@echo "Environment variables:"
@@ -265,7 +263,7 @@ uninstall-venv:
 	@echo "(This Makefile does not maintain a per-project venv directory.)"
 
 install: build install-sysusers install-tmpfiles install-venv install-systemd install-etc
-	@echo "$(PROJECT) fully installed. Run: systemctl enable --now postoffice-authd"
+	@echo "$(PROJECT) fully installed. Run: systemctl restart cyrus-imapd"
 
 uninstall: uninstall-systemd uninstall-venv uninstall-tmpfiles uninstall-sysusers uninstall-etc
 	@echo "$(PROJECT) fully uninstalled"

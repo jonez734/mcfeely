@@ -32,8 +32,6 @@ uninstall-tmpfiles:
 	-sudo rm -f $(TMPFILES_DST)
 	@echo "Removed $(TMPFILES_DST)"
 
-UNIT_SRC = etc-postoffice/postoffice-authd.service
-UNIT_DST = /usr/lib/systemd/system/postoffice-authd.service
 
 install-systemd:
 	sed 's|@VENV_DIR@|$(OPERATOR_VENV)|g' $(UNIT_SRC) | sudo tee $(UNIT_DST) > /dev/null
@@ -43,8 +41,6 @@ install-systemd:
 	@echo "Installed $(UNIT_DST)"
 
 uninstall-systemd:
-	-sudo systemctl stop postoffice-authd 2>/dev/null
-	-sudo systemctl disable postoffice-authd 2>/dev/null
 	-sudo rm -f $(UNIT_DST)
 	-sudo systemctl daemon-reload
 	@echo "Removed $(UNIT_DST)"
@@ -55,13 +51,8 @@ PAM_ETCDIR = /etc/pam.d
 
 install-etc:
 	sudo install -d $(MCFEELY_ETCDIR)
-	sudo rsync --chmod=0640 $(FACTORY_DIR)/mcfeely-authd.conf $(MCFEELY_ETCDIR)/mcfeely-authd.conf
-	@echo "Installed $(MCFEELY_ETCDIR)/mcfeely-authd.conf from factory defaults"
-	@echo "  (NOTE: config filename keeps the historical 'mcfeely-authd' name; it is the binary name that was renamed.)"
 
 uninstall-etc:
-	-sudo rm -f $(MCFEELY_ETCDIR)/mcfeely-authd.conf
-	@echo "Removed postoffice-authd config files"
 
 restorecon:
 	@if [ -n "$(VIRTUAL_ENV)" ]; then \

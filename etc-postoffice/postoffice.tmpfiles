@@ -1,4 +1,0 @@
-# Type Path                     Mode Owner        Group       Age Argument
-d     /etc/postoffice           0755 root        root        -   -
-d     /var/lib/postoffice       0755 postoffice   postoffice  -   -
-d     /run/postoffice-authd 0755 postoffice   postoffice  -   -

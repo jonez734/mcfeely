@@ -20,10 +20,8 @@ PAM_FILES := pam.d-imap pam.d-bbsengine6
 # SASL2_FILES: libsasl2 auxprop-sql config (Mode C) and the empty 0600
 # placeholder for the dovecot Postgres role password.
 SASL2_FILES := sasl2-sql.conf sasl2-sql.dbnpass.template
-# MCFEELY_FILES lists config files that retain the historical 'mcfeely-'
 # name (config keys, not the user-facing daemon binary name).
-MCFEELY_FILES := mcfeely-authd.conf
-SYSTEMD_FILES := cyrus-imapd.service postoffice-authd.service
+SYSTEMD_FILES := cyrus-imapd.service
 
 .PHONY: all install uninstall check help
 
@@ -89,14 +87,6 @@ install: $(CONFIG_FILES) $(PAM_FILES) $(SASL2_FILES) $(SYSTEMD_FILES)
 	@install -o root -g root -m 644 cyrus-imapd.service "$(SYSTEMD)/cyrus-imapd.service"
 	@echo "  -> $(SYSTEMD)/cyrus-imapd.service"
 	@echo ""
-	@echo "Installing postoffice-authd.service..."
-	@install -o root -g root -m 644 postoffice-authd.service "$(SYSTEMD)/postoffice-authd.service"
-	@echo "  -> $(SYSTEMD)/postoffice-authd.service"
-	@echo ""
-	@echo "Installing mcfeely-authd.conf to /etc/postoffice/..."
-	@install -o root -g root -m 640 mcfeely-authd.conf "$(POSTOFFICE)/mcfeely-authd.conf"
-	@echo "  -> $(POSTOFFICE)/mcfeely-authd.conf (config filename unchanged; only the binary name was renamed)"
-	@echo ""
 	@echo "Creating postoffice system user..."
 	@id postoffice 2>/dev/null || sudo useradd -r -d /var/lib/postoffice -s /sbin/nologin -c "Postoffice SASL Auth Daemon" postoffice
 	@echo ""
@@ -145,10 +135,7 @@ uninstall:
 	@rm -f "$(SASL_ETCDIR)/sql.dbnpass"
 	@echo "Removing systemd units..."
 	@rm -f "$(SYSTEMD)/cyrus-imapd.service"
-	@rm -f "$(SYSTEMD)/postoffice-authd.service"
 	@rm -f "$(SYSTEMD)/mcfeely-authd.service"
-	@echo "Removing mcfeely-authd.conf from /etc/postoffice/..."
-	@rm -f "$(POSTOFFICE)/mcfeely-authd.conf"
 	@echo ""
 	@echo "Uninstall complete!"
 
@@ -173,7 +160,5 @@ check:
 	@echo "  imapd.annotations  -> $(POSTOFFICE)/imapd.annotations"
 	@echo "  pam.d-imap         -> $(PAM_ETCDIR)/imap"
 	@echo "  cyrus-imapd.service-> $(SYSTEMD)/cyrus-imapd.service"
-	@echo "  postoffice-authd.service -> $(SYSTEMD)/postoffice-authd.service"
-	@echo "  mcfeely-authd.conf -> $(POSTOFFICE)/mcfeely-authd.conf"
 	@echo ""
 	@echo "Owner: root:mail (640 for config, 644 for pam/service)"
