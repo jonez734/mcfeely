@@ -51,8 +51,6 @@ uninstall-systemd:
 
 MCFEELY_ETCDIR = /etc/postoffice
 FACTORY_DIR = usr/share/factory/etc/postoffice
-SASL_ETCDIR = /etc/sasl2
-SASL_SYSCONFIG = /etc/sysconfig
 PAM_ETCDIR = /etc/pam.d
 
 install-etc:
@@ -60,21 +58,10 @@ install-etc:
 	sudo rsync --chmod=0640 $(FACTORY_DIR)/mcfeely-authd.conf $(MCFEELY_ETCDIR)/mcfeely-authd.conf
 	@echo "Installed $(MCFEELY_ETCDIR)/mcfeely-authd.conf from factory defaults"
 	@echo "  (NOTE: config filename keeps the historical 'mcfeely-authd' name; it is the binary name that was renamed.)"
-	sudo rsync --chmod=0640 etc-postoffice/saslauthd.conf $(SASL_ETCDIR)/saslauthd.conf
-	[ -f /etc/debian_version ] && \
-		sudo rsync --chmod=0644 etc-postoffice/saslauthd.sysconfig /etc/default/saslauthd || \
-		sudo rsync --chmod=0644 etc-postoffice/saslauthd.sysconfig $(SASL_SYSCONFIG)/saslauthd
-	sudo rsync --chmod=0644 etc-postoffice/pam.d-saslauthd $(PAM_ETCDIR)/saslauthd
-	@echo "Installed saslauthd support files"
 
 uninstall-etc:
 	-sudo rm -f $(MCFEELY_ETCDIR)/mcfeely-authd.conf
-	-sudo rm -f $(SASL_ETCDIR)/saslauthd.conf
-	[ -f /etc/debian_version ] && \
-		-sudo rm -f /etc/default/saslauthd || \
-		-sudo rm -f $(SASL_SYSCONFIG)/saslauthd
-	-sudo rm -f $(PAM_ETCDIR)/saslauthd
-	@echo "Removed postoffice-authd and saslauthd config files"
+	@echo "Removed postoffice-authd config files"
 
 restorecon:
 	@if [ -n "$(VIRTUAL_ENV)" ]; then \

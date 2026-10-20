@@ -66,7 +66,7 @@ help:
 	@echo "  restorecon         Relabel venv binaries for SELinux (Fedora/RHEL)"
 	@echo "  install-systemd    Install postoffice-authd.service and daemon-reload"
 	@echo "  uninstall-systemd  Stop, disable, and remove the postoffice-authd.service unit"
-	@echo "  install-etc        Install postoffice-authd.conf and saslauthd config files"
+	@echo "  install-etc        Install postoffice-authd.conf config"
 	@echo "  uninstall-etc      Remove installed config files"
 	@echo ""
 	@echo "Environment variables:"
