@@ -570,13 +570,12 @@ def startup_main(args, **kwargs) -> bool:
 
         # --- schema ---
         io.echo("{{var:labelcolor}}schema {{var:valuecolor}}postoffice{{var:labelcolor}}: ", end="")
-        # The connecting role creates the schema and keeps it. zoid6 is not
-        # involved: assigning the schema to zoid6 would need this role to be
-        # able to SET ROLE zoid6, which grants zoid6's ownership rights.
+        # The install name is zoid6, so zoid6 owns the install's schemas, as
+        # engine, casino, and bank do. Create it authorized to zoid6.
         if database.schemaexists(args, "postoffice", conn=conn) is False:
             try:
                 with conn.cursor() as cur:
-                    cur.execute("CREATE SCHEMA postoffice")
+                    cur.execute("CREATE SCHEMA postoffice AUTHORIZATION zoid6")
             except Exception as e:
                 io.echo(f"fail: {e}", level="error")
                 return False
