@@ -546,6 +546,22 @@ def buildargs(args, **kwargs):
     return None
 
 
+def _grant_schema(conn, priv: str, role: str) -> None:
+    """GRANT a schema privilege on postoffice, issued by the schema owner.
+
+    The bbsengine6 schema-privilege helper runs as zoid6, which does not own a
+    schema the connecting role created. The owner grants directly.
+    """
+    from psycopg import sql as pg_sql
+
+    with conn.cursor() as cur:
+        cur.execute(
+            pg_sql.SQL("GRANT {} ON SCHEMA postoffice TO {}").format(
+                pg_sql.SQL(priv), pg_sql.Identifier(role)
+            )
+        )
+
+
 def startup_main(args, **kwargs) -> bool:
     from bbsengine6 import database, io
 
@@ -554,27 +570,13 @@ def startup_main(args, **kwargs) -> bool:
 
         # --- schema ---
         io.echo("{{var:labelcolor}}schema {{var:valuecolor}}postoffice{{var:labelcolor}}: ", end="")
-        # The schema must be owned by zoid6: the usage grants below run
-        # through manage_schema_priv, which is owned by zoid6. Create it
-        # AUTHORIZATION zoid6, or reassign an existing one, as casino does.
+        # The connecting role creates the schema and keeps it. zoid6 is not
+        # involved: assigning the schema to zoid6 would need this role to be
+        # able to SET ROLE zoid6, which grants zoid6's ownership rights.
         if database.schemaexists(args, "postoffice", conn=conn) is False:
             try:
                 with conn.cursor() as cur:
-                    cur.execute("CREATE SCHEMA postoffice AUTHORIZATION zoid6")
-            except Exception as e:
-                io.echo(f"fail: {e}", level="error")
-                return False
-        else:
-            try:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "SELECT pg_catalog.pg_get_userbyid(nspowner) "
-                        "FROM pg_namespace WHERE nspname = 'postoffice'"
-                    )
-                    row = cur.fetchone()
-                    owner = row[0] if row else None
-                    if owner and owner != "zoid6":
-                        cur.execute("ALTER SCHEMA postoffice OWNER TO zoid6")
+                    cur.execute("CREATE SCHEMA postoffice")
             except Exception as e:
                 io.echo(f"fail: {e}", level="error")
                 return False
@@ -583,8 +585,8 @@ def startup_main(args, **kwargs) -> bool:
         # --- schema privs ---
         # bed connects as the ``bed`` role, so it needs usage too.
         for role in ("web", "term", "sysop", "bed"):
-            database.manage_schema_priv(args, "grant", "usage", "postoffice", role, conn=conn)
-        database.manage_schema_priv(args, "grant", "create", "postoffice", "sysop", conn=conn)
+            _grant_schema(conn, "USAGE", role)
+        _grant_schema(conn, "CREATE", "sysop")
 
         # --- classes in dependency order ---
         classes = (

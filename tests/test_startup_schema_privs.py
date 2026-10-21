@@ -13,7 +13,7 @@ SRC = Path(__file__).resolve().parents[1] / "src" / "postoffice" / "startup.py"
 
 def test_usage_granted_to_bed_role():
     text = SRC.read_text(encoding="utf-8")
-    m = re.search(r'for role in \(([^)]*)\):\s*\n\s*database\.manage_schema_priv\(args, "grant", "usage", "postoffice"', text)
+    m = re.search(r'for role in \(([^)]*)\):\s*\n\s*_grant_schema\(conn, "USAGE", role\)', text)
     assert m, "schema usage grant loop not found"
     roles = [r.strip().strip('"\'') for r in m.group(1).split(",") if r.strip()]
     assert "bed" in roles, f"usage not granted to bed; granted to {roles}"
