@@ -19,6 +19,9 @@ script-files = [
     "bin/postoffice",
 ]
 
+[tool.setuptools.package-data]
+postoffice = ["sql/*.sql"]
+
 [tool.setuptools.package-dir]
 "postoffice" = "src/postoffice"
 

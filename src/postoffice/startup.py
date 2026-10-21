@@ -554,9 +554,29 @@ def startup_main(args, **kwargs) -> bool:
 
         # --- schema ---
         io.echo("{{var:labelcolor}}schema {{var:valuecolor}}postoffice{{var:labelcolor}}: ", end="")
+        # The schema must be owned by zoid6: the usage grants below run
+        # through manage_schema_priv, which is owned by zoid6. Create it
+        # AUTHORIZATION zoid6, or reassign an existing one, as casino does.
         if database.schemaexists(args, "postoffice", conn=conn) is False:
-            if database.createschema(args, "postoffice", conn=conn) is False:
-                io.echo("fail")
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("CREATE SCHEMA postoffice AUTHORIZATION zoid6")
+            except Exception as e:
+                io.echo(f"fail: {e}", level="error")
+                return False
+        else:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT pg_catalog.pg_get_userbyid(nspowner) "
+                        "FROM pg_namespace WHERE nspname = 'postoffice'"
+                    )
+                    row = cur.fetchone()
+                    owner = row[0] if row else None
+                    if owner and owner != "zoid6":
+                        cur.execute("ALTER SCHEMA postoffice OWNER TO zoid6")
+            except Exception as e:
+                io.echo(f"fail: {e}", level="error")
                 return False
         io.echo(" ok ", level="ok")
 
@@ -572,10 +592,10 @@ def startup_main(args, **kwargs) -> bool:
             ("postoffice.shared_mailbox", "shared_mailbox.sql"),
             ("postoffice.virtual", "virtual.sql"),
             ("postoffice.__message", "message.sql"),
-            ("postoffice.member_mailbox_password", "member_mailbox_password.sql"),
             ("postoffice.message_routing", "message_routing.sql"),
             ("postoffice.__mailbox", "mailbox_config.sql"),
             ("postoffice.mailbox", "mailbox_view.sql"),
+            ("postoffice.member_mailbox_password", "member_mailbox_password.sql"),
             ("postoffice.__mailbox_member", "mailbox_member.sql"),
             ("postoffice.__mailbox_address", "mailbox_address.sql"),
             ("postoffice.mailbox_address", "mailbox_address_view.sql"),
