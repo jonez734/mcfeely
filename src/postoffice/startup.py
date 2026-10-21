@@ -561,7 +561,8 @@ def startup_main(args, **kwargs) -> bool:
         io.echo(" ok ", level="ok")
 
         # --- schema privs ---
-        for role in ("web", "term", "sysop"):
+        # bed connects as the ``bed`` role, so it needs usage too.
+        for role in ("web", "term", "sysop", "bed"):
             database.manage_schema_priv(args, "grant", "usage", "postoffice", role, conn=conn)
         database.manage_schema_priv(args, "grant", "create", "postoffice", "sysop", conn=conn)
 
