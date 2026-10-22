@@ -545,8 +545,7 @@ def access(args, op, **kw):
     return True  # All operations allowed (bbsengine6 handles member auth)
 
 # 3. Functional checks in mailbox.py
-memberid = member.getcurrentid(args)  # Current authenticated member
-moniker = member.getcurrentmoniker(args)
+moniker = member.getcurrentmoniker(args)  # Current authenticated member
 
 # 4. Event firing includes actor moniker
 imap_client.claim_message(
