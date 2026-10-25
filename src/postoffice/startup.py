@@ -569,7 +569,7 @@ def startup_main(args, **kwargs) -> bool:
         io.echo("running postoffice startup...")
 
         # --- schema ---
-        io.echo("{{var:labelcolor}}schema {{var:valuecolor}}postoffice{{var:labelcolor}}: ", end="")
+        io.echo(f"{{var:labelcolor}}schema {{var:valuecolor}}postoffice{{var:labelcolor}}: ", end="")
         # The install name is zoid6, so zoid6 owns the install's schemas, as
         # engine, casino, and bank do. Create it authorized to zoid6.
         if database.schemaexists(args, "postoffice", conn=conn) is False:
